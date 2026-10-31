@@ -1,0 +1,25 @@
+# Build products
+out/
+dist/
+build/
+inputs/
+.cache/
+
+# External trees (cloned next to this repo)
+uefi/
+unixnu/
+dev/
+
+# Apple artifacts and phone firmware (never committed)
+scripts/base-d22ap.adt
+*.ipsw
+*.dmg
+fw-*/
+
+# Python
+__pycache__/
+*.pyc
+
+# Symlinks to the external trees (created by the build docs)
+/uefi
+/unixnu

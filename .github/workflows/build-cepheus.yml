@@ -1,0 +1,275 @@
+name: build-cepheus
+
+# Turnkey builder for the Redmi K20 Pro / Mi 9T Pro (cepheus, SM8150).
+#
+# cepheus is the SAME SM8150 silicon as OnePlus 7 Pro (guacamole), which has
+# already reached the iOS 16.7.16 userland. This workflow reuses guacamole's
+# proven SM8150 kernel build and UEFI/UniXNU firmware, only swapping the device
+# tree and the Apple Device Tree (ADT) profile (1080x2340 panel).
+#
+# Two jobs:
+#   1. kernel  (macos-14): builds the SM8150 XNU 8796 kernel the SAME public way
+#      guacamole does -- via dipa-studio/ios-sweet + blacktop/darwin-xnu-build
+#      (MACHINE_CONFIG=SWEET). This is fully public; NO private defconfig needed.
+#   2. build   (ubuntu-latest): builds the Aloha UEFI firmware volume, packs the
+#      FAT payload (kernel + cepheus ADT), and packs the Android boot image.
+#
+# Everything the build job needs that is not fetched from a public tree is in
+# this repo (board.toml, scripts/, vendored patches/). The only network input
+# is the public iPhone X (D22AP) IPSW, auto-extracted by scripts/get-base-d22ap.sh.
+#
+# Run order: enable Actions -> run "build-cepheus" (it chains kernel -> build via
+# the uploaded kernel artifact). Or run the two jobs in order manually.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: >
+          "full" = the complete port. "bootshim_upstream" = identical, but
+          BootShim.S is reverted to upstream (it then no longer stores the
+          device-tree pointer at the guacamole address 0x9FF92000), which is
+          how to tell whether that store is what resets cepheus.
+        required: false
+        default: full
+        type: choice
+        options: [full, bootshim_upstream]
+  push:
+    branches: [main]
+    paths:
+      - board.toml
+      - patches/**
+
+permissions:
+  contents: read
+
+jobs:
+  kernel:
+    # XNU 8796 needs Xcode 15 (iig ABI) -> macos-14, like ios-sweet.
+    runs-on: macos-14
+    timeout-minutes: 240
+    env:
+      # Without MACOS_VERSION build.sh pops an interactive gum menu and dies
+      # ("could not open TTY"). 13.5 == xnu-8796 == the iOS 16 generation.
+      MACOS_VERSION: "13.5"
+      MACHINE_CONFIG: SWEET
+      KERNEL_CONFIG: DEVELOPMENT
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: cepheus
+
+      - name: Checkout ios-sweet (XNU 8796 build scripts + sweet platform patches)
+        uses: actions/checkout@v4
+        with:
+          repository: dipa-studio/ios-sweet
+          path: ios-sweet
+
+      - name: Fetch darwin-xnu-build at the pinned commit ios-sweet uses
+        env:
+          DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
+        run: |
+          git init -q dxb
+          git -C dxb fetch -q --depth 1 "https://github.com/blacktop/darwin-xnu-build" "$DXB_SHA"
+          git -C dxb checkout -q FETCH_HEAD
+          # Replace ios-sweet's sweet SE7/Goodix touch driver with the cepheus
+          # SE17/ST-FTS one BEFORE the patches are overlaid. 0082 sorts after
+          # ios-sweet's 0060 (which creates bsd/dev/sweet_touch.c), so the
+          # later patch wins and no source edit to ios-sweet is needed.
+          bash cepheus/scripts/build-kernel-patches.sh ios-sweet
+          # overlay ios-sweet's XNU patches/shims onto blacktop's patches dir
+          cp ios-sweet/xnu/patches/*.patch ios-sweet/xnu/patches/*.sh dxb/patches/ 2>/dev/null || true
+          ls dxb/patches/ | grep -c . | xargs echo "patches staged:"
+          ls dxb/patches/ | grep cepheus || true
+          # libfirehose_kernel is built arm64e-only; the SWEET kernel is plain arm64
+          sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="x86_64 arm64e arm64" VALID_ARCHS="x86_64 arm64e arm64"/' dxb/build.sh
+          # Informational only: if the upstream build.sh changed its ARCHS line
+          # the plain arm64 slice may be dropped, but do not fail the run here.
+          if grep -q 'VALID_ARCHS="x86_64 arm64e arm64"' dxb/build.sh; then
+            echo "build.sh now builds a plain arm64 slice"
+          else
+            echo "::warning::ARCHS sed did not match; check build.sh if the kernel comes out arm64e-only"
+          fi
+
+      - name: Host dependencies
+        run: |
+          brew install jq gum bash cmake ninja
+          # build.sh only checks that xcodes exists (Xcode is preinstalled); stub it
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
+          sudo chmod +x /usr/local/bin/xcodes
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          xcrun --find iig
+
+      - name: Build XNU 8796 (SWEET platform, arm64)
+        working-directory: dxb
+        env:
+          MAKEFLAGS: '-k'
+          MACHINE_CONFIG: SWEET
+          KERNEL_CONFIG: DEVELOPMENT
+        run: bash build.sh
+
+      - name: Stage the kernel as kernel.macho
+        run: |
+          mkdir -p cepheus/inputs/cepheus
+          # Accept ONLY a real 64-bit little-endian Mach-O (magic cffaedfe).
+          # The build tree also contains text files named kernel.* (KPI symbol
+          # export lists), and picking one of those silently produces a bogus
+          # kernel.macho. Portable POSIX filter (BSD find has no -printf).
+          find dxb -type f -name 'kernel*' 2>/dev/null > /tmp/cands.txt
+          echo "=== all kernel* files in the build tree ==="
+          while IFS= read -r f; do
+            echo "  $(wc -c < "$f" | tr -d ' ') $f"
+          done < /tmp/cands.txt
+          K=""
+          while IFS= read -r f; do
+            sz=$(wc -c < "$f" | tr -d ' ')
+            [ "$sz" -gt 2000000 ] || continue
+            magic=$(od -An -tx1 -N4 "$f" | tr -d ' \n')
+            if [ "$magic" = "cffaedfe" ]; then K="$f"; break; fi
+          done < /tmp/cands.txt
+          if [ -z "$K" ]; then
+            echo "no Mach-O kernel found; candidates (name/size/type):" >&2
+            while IFS= read -r f; do
+              echo "  $(wc -c < "$f" | tr -d ' ') $(file -b "$f") $f" >&2
+            done < /tmp/cands.txt
+            exit 1
+          fi
+          echo "picked kernel: $K"
+          cp "$K" cepheus/inputs/cepheus/kernel.macho
+          ls -la cepheus/inputs/cepheus/kernel.macho
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cepheus-kernel
+          path: cepheus/inputs/cepheus/kernel.macho
+          if-no-files-found: error
+
+  build:
+    needs: kernel
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the SM8150 kernel built by the kernel job
+        uses: actions/download-artifact@v4
+        with:
+          name: cepheus-kernel
+          path: inputs/cepheus
+
+      - name: Checkout UniXNU driver (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: unixnu
+          submodules: recursive
+
+      - name: Checkout Project Aloha UEFI (SM8150)
+        uses: actions/checkout@v4
+        with:
+          repository: Project-Aloha/mu_aloha_platforms
+          # Full 40-char SHA: a short SHA is not fetchable by `git fetch <sha>`.
+          ref: 0b79812897177e9fdd1fb8cb02f05f5338322541
+          path: uefi
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Host tools (EDK2 + UniXNU driver)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build uuid-dev bison flex nasm iasl gcc g++ python3-dev clang lld llvm mtools unzip zip
+          # UniXNU builds the firmware with EDK II's CLANGPDB tool chain and
+          # looks for clang / lld-link / llvm-lib / llvm-rc on PATH. Ubuntu
+          # ships them version-suffixed under /usr/lib/llvm-*/bin, so link the
+          # bare names the EDK II tools_def.txt expects.
+          for t in clang lld-link llvm-lib llvm-rc; do
+            if command -v "$t" >/dev/null 2>&1; then echo "have $t"; continue; fi
+            cand=$(ls /usr/lib/llvm-*/bin/"$t" /usr/bin/"$t"-* 2>/dev/null | sort -V | tail -1)
+            if [ -n "$cand" ]; then sudo ln -sf "$cand" "/usr/local/bin/$t"; echo "linked $t -> $cand"; else echo "MISSING $t"; fi
+          done
+          command -v clang lld-link llvm-lib llvm-rc
+          pip install -r unixnu/requirements.txt || true
+
+      - name: Apply the SM8150 patches (vendored in this repo)
+        run: |
+          # NOTE: `git -C <dir> apply` resolves the patch path relative to <dir>,
+          # so the paths must walk back up to the repo-root patches/ directory.
+          git -C unixnu apply ../patches/unixnu-cepheus.patch
+          git -C uefi apply ../patches/aloha-cepheus.patch
+          # drivers/DarwinBoot is a SUBMODULE OF UniXNU, not of the Aloha tree
+          git -C unixnu/drivers/DarwinBoot apply ../../../patches/darwinboot-cepheus.patch
+          if [ "${{ inputs.variant || 'full' }}" = "bootshim_upstream" ]; then
+            git -C uefi checkout -- BootShim/BootShim.S
+            echo "variant: BootShim.S reverted to upstream (no DTB-pointer store)"
+          fi
+
+      - name: Fetch cepheus DTB (real android-cepheus.dtb shipped by Aloha)
+        run: bash scripts/get-cepheus-dtb.sh
+
+      - name: Fetch iPhone X (D22AP) base ADT (auto from public IPSW)
+        run: bash scripts/get-base-d22ap.sh
+
+      - name: Fetch the prebuilt BaseCrypto driver (Mu external dependency)
+        run: |
+          # Platforms/AndromedaPkg/Andromeda.dsc.inc unconditionally includes
+          # $(SHARED_CRYPTO_PATH)/Driver/Bin/CryptoDriver.inc.dsc. Upstream gets it
+          # from CryptoPkg/Binaries/BaseCryptoDriver_ext_dep.json (a web ext_dep);
+          # the edk2 stuart tooling is not used here, so fetch it by hand into the
+          # folder name the ext_dep would have created (<name>_extdep).
+          DEST=uefi/MU_BASECORE/CryptoPkg/Binaries/edk2-basecrypto-driver-bin_extdep
+          mkdir -p "$DEST"
+          curl -sL -o /tmp/cryptobin.zip \
+            https://github.com/microsoft/mu_crypto_release/releases/download/v1.1.3/Mu_CryptoBin_v1_1_3.zip
+          unzip -q -o /tmp/cryptobin.zip -d "$DEST"
+          ls -l "$DEST/Driver/Bin/CryptoDriver.inc.dsc"
+
+      - name: Build the UEFI firmware volume (SM8150 + xiaomi-cepheus device)
+        env:
+          # Mu's BaseTools build with -Wall -Werror and its older sources trip
+          # gcc-13 warnings (e.g. EfiRom.c "assignment discards 'const'
+          # qualifier"). BaseTools' header.makefile appends $(EXTRA_OPTFLAGS)
+          # last to both CFLAGS and CXXFLAGS, so exporting it demotes those
+          # warnings back to warnings on modern Ubuntu runners.
+          EXTRA_OPTFLAGS: "-Wno-error"
+        run: python3 scripts/build-firmware.py
+
+      - name: Build the FAT payload (kernel + cepheus ADT)
+        run: python3 scripts/build-payload.py
+
+      - name: Pack the Android boot image
+        run: python3 scripts/build-bootimg.py
+
+      - name: Dump build logs on failure
+        if: failure()
+        run: |
+          echo "=== build logs ==="
+          ls -la out/cepheus/logs/ 2>/dev/null || echo "(no logs dir)"
+          for f in out/cepheus/logs/*.log; do
+            [ -f "$f" ] || continue
+            echo "----- $f -----"
+            tail -n 60 "$f"
+          done
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: out/cepheus/logs/
+          if-no-files-found: ignore
+
+      - name: Report
+        run: cat out/cepheus/boot/boot.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boot-cepheus.img
+          path: out/cepheus/boot/boot-cepheus.img
+          if-no-files-found: error
