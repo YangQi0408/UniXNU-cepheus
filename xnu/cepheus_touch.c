@@ -56,6 +56,7 @@
 #include "cepheus_fts_events.h"
 #include "cepheus_clock_status.h"
 #include "cepheus_gpi_layout.h"
+#include "cepheus_i2c_bitbang.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 /* Mach MIG declaration is not included by BSD's exported thread.h. */
@@ -127,10 +128,14 @@ static struct {
 	vm_offset_t se, gcc, gpio, south;
 	bool started, dead;
 	int irq_hint;
+	int gpio_i2c;
+	bool pins_claimed;
+	uint32_t saved_cfg[2], saved_io[2], bb_cfg[2];
 	uint32_t irq_status, active;
 	int x[TOUCH_MAX], y[TOUCH_MAX];
 } st;
 static int touch_sleep_chan;
+static struct cepheus_bb touch_bb;
 
 static uint32_t
 touch_rd(vm_offset_t base, uint32_t off)
@@ -155,6 +160,51 @@ touch_wait(unsigned ms)
 	clock_interval_to_deadline(ms, NSEC_PER_MSEC, &deadline);
 	(void)assert_wait_deadline(&touch_sleep_chan, THREAD_UNINT, deadline);
 	thread_block(THREAD_CONTINUE_NULL);
+}
+
+static void
+touch_bb_drive(void *ctx, unsigned line, int low)
+{
+	(void)ctx;
+	unsigned pin = line == BB_SDA ? TOUCH_PIN_SDA : TOUCH_PIN_SCL;
+	/* Latch stays zero. Released = input; low = output enabled. */
+	touch_wr(st.south, TOUCH_GPIO_CFG(pin), st.bb_cfg[line] | (low ? 0x200u : 0));
+}
+static int touch_bb_sample(void *ctx, unsigned line)
+{
+	(void)ctx;
+	return (touch_rd(st.south, TOUCH_GPIO_IO(line == BB_SDA ? TOUCH_PIN_SDA : TOUCH_PIN_SCL)) & 1u) != 0;
+}
+static void touch_bb_wait(void *ctx, unsigned us) { (void)ctx; delay(us); }
+
+static void
+touch_bb_init(void)
+{
+	for (unsigned line = 0; line < 2; ++line) {
+		unsigned pin = line == BB_SDA ? TOUCH_PIN_SDA : TOUCH_PIN_SCL;
+		st.saved_cfg[line] = touch_rd(st.south, TOUCH_GPIO_CFG(pin));
+		st.saved_io[line] = touch_rd(st.south, TOUCH_GPIO_IO(pin));
+		st.bb_cfg[line] = (st.saved_cfg[line] & ~0x3ffu) | 3u; /* gpio, pull-up, 2mA, input */
+		touch_wr(st.south, TOUCH_GPIO_CFG(pin), st.bb_cfg[line]);
+		touch_wr(st.south, TOUCH_GPIO_IO(pin), st.saved_io[line] & ~2u);
+	}
+	st.pins_claimed = true;
+	touch_bb = (struct cepheus_bb){NULL, touch_bb_drive, touch_bb_sample, touch_bb_wait};
+	printf("SWEET TOUCH (cepheus): GPIO open-drain I2C SDA=%d SCL=%d; no GPI/SMMU writes\n",
+	    touch_bb_sample(NULL, BB_SDA), touch_bb_sample(NULL, BB_SCL));
+}
+
+static void
+touch_bb_restore(void)
+{
+	if (!st.pins_claimed) { return; }
+	bb_release(&touch_bb);
+	for (unsigned line = 0; line < 2; ++line) {
+		unsigned pin = line == BB_SDA ? TOUCH_PIN_SDA : TOUCH_PIN_SCL;
+		touch_wr(st.south, TOUCH_GPIO_IO(pin), st.saved_io[line]);
+		touch_wr(st.south, TOUCH_GPIO_CFG(pin), st.saved_cfg[line]);
+	}
+	st.pins_claimed = false;
 }
 
 static bool
@@ -282,6 +332,10 @@ static int
 touch_msg(uint8_t addr, const uint8_t *tx, unsigned nt, uint8_t *rx,
     unsigned nr, bool stretch)
 {
+	if (st.gpio_i2c) {
+		if (stretch) { return EINVAL; } /* use a combined GPIO transfer */
+		return cepheus_bb_xfer(&touch_bb, addr, tx, nt, rx, nr);
+	}
 	if (st.dead || nt > 5 || nr > FTS_FIFO_EVENT_SIZE * FTS_FIFO_DEPTH ||
 	    (nt && nr) || (!nt && !nr) || (nt && !tx) || (nr && !rx)) {
 		return EINVAL;
@@ -363,6 +417,7 @@ static int
 fts_read_cmd(uint8_t cmd, uint8_t *buf, unsigned len)
 {
 	uint8_t op = cmd;
+	if (st.gpio_i2c) { return cepheus_bb_xfer(&touch_bb, TOUCH_I2C_ADDR, &op, 1, buf, len); }
 	int err = touch_msg(TOUCH_I2C_ADDR, &op, 1, NULL, 0, true);
 	if (err) {
 		return err;
@@ -379,6 +434,7 @@ fts_read_hw(uint32_t address, uint8_t *buf, unsigned len)
 		(uint8_t)(address >> 24), (uint8_t)(address >> 16),
 		(uint8_t)(address >> 8), (uint8_t)address
 	};
+	if (st.gpio_i2c) { return cepheus_bb_xfer(&touch_bb, TOUCH_I2C_ADDR, cmd, sizeof(cmd), buf, len); }
 	if (len > FTS_FIFO_EVENT_SIZE * FTS_FIFO_DEPTH) {
 		return EINVAL;
 	}
@@ -534,6 +590,14 @@ touch_se_init(void)
 	printf("SWEET TOUCH (cepheus): FIFO_DISABLE=%#x TX width=%u depth=%u RX width=%u depth=%u\n",
 	    fifo_disabled, (tx >> 24) & 0x3fu, (tx >> 16) & 0x3fu,
 	    (rx >> 24) & 0x3fu, (rx >> 16) & 0x3fu);
+	if (st.gpio_i2c) {
+		if ((touch_rd(st.se, SE_STATUS) & 0x1001u) || ((fw >> 8) & 0xffu) != 3u) {
+			printf("SWEET TOUCH (cepheus): GENI busy or wrong protocol; GPIO ownership refused\n");
+			return false;
+		}
+		printf("SWEET TOUCH (cepheus): GPIO transport selected; GENI FIFO/GPI untouched\n");
+		return true;
+	}
 	if (fifo_disabled) {
 		/* Linux geni_i2c_runtime_resume selects GSI_ONLY when this read-only
 		 * register is nonzero. FIFO capability registers still report width
@@ -625,8 +689,10 @@ touch_thread(void *arg, wait_result_t result)
 	    touch_rd(st.south, TOUCH_GPIO_IO(TOUCH_PIN_IRQ)),
 	    touch_rd(st.gpio, TOUCH_GPIO_IO(TOUCH_PIN_VDDIO)));
 	/* SDA/SCL on qup17, IRQ input with pull-up, VDDIO enable high. */
-	touch_gpio(TOUCH_PIN_SDA, 1, 0, 0, false, false);
-	touch_gpio(TOUCH_PIN_SCL, 1, 0, 0, false, false);
+	if (!st.gpio_i2c) {
+		touch_gpio(TOUCH_PIN_SDA, 1, 0, 0, false, false);
+		touch_gpio(TOUCH_PIN_SCL, 1, 0, 0, false, false);
+	}
 	touch_gpio(TOUCH_PIN_IRQ, 0, 3, 3, false, false);
 	touch_gpio(TOUCH_PIN_VDDIO, 0, 0, 0, true, true);
 	touch_wait(10);
@@ -638,6 +704,7 @@ touch_thread(void *arg, wait_result_t result)
 	}
 	touch_gpio(TOUCH_PIN_RESET, 0, 3, 3, true, true);
 	touch_wait(300);
+	if (st.gpio_i2c) { touch_bb_init(); }
 
 	uint8_t id[2] = {0};
 	int ce = fts_read_hw(FTS_ADDR_DCHIP_ID, id, sizeof(id));
@@ -666,6 +733,10 @@ touch_thread(void *arg, wait_result_t result)
 		    (++ticks % 10u) == 0) {
 			int err = touch_fts();
 			if (err) {
+				if (st.gpio_i2c && (err == EAGAIN || err == ETIMEDOUT || err == EBUSY)) {
+					printf("SWEET TOUCH (cepheus): GPIO bus err=%d; restoring pins and stopping\n", err);
+					st.dead = true;
+				}
 				if ((errors++ % 100u) == 0) {
 					printf("SWEET TOUCH (cepheus): report err=%d irq=%#x\n",
 					    err, st.irq_status);
@@ -681,6 +752,7 @@ touch_thread(void *arg, wait_result_t result)
 	}
 	touch_report(0, st.x, st.y);
 out:
+	touch_bb_restore();
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);
 }
@@ -696,6 +768,7 @@ sweet_touch_init(void)
 	st.started = true;
 	(void)PE_parse_boot_argn("sweettouch", &enabled, sizeof(enabled));
 	(void)PE_parse_boot_argn("sweettouchirq", &st.irq_hint, sizeof(st.irq_hint));
+	(void)PE_parse_boot_argn("sweettouchgpio", &st.gpio_i2c, sizeof(st.gpio_i2c));
 	if (!enabled) {
 		printf("SWEET TOUCH (cepheus): disabled (sweettouch=0)\n");
 		return;
