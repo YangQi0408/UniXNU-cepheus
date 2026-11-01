@@ -2,8 +2,8 @@
 
 ## 已验证与未验证
 
-主屏幕、电源键和单次写黑熄屏已由用户确认。物理触摸尚未成功；不能把模拟
-Home触发进入主屏幕当成触摸可用。
+主屏幕、电源键和单次写黑熄屏已由用户确认。**物理触摸现在也已由用户确认可用**，
+并有真实contact/HID事件作证；不是把模拟Home触发当成触摸成功。
 独立FIFO测试已证明SE17 `FIFO_DISABLE=1`，不是一项可写软件开关。
 原厂驱动在此条件下走GPI/GSI DMA，不能绕过它直接访问FIFO。
 
@@ -82,5 +82,23 @@ selected ST-FTS, 1080x2340, poll=10ms irq-hint=0
 
 因此已验证L1C请求完成、GPIO回读正确、GPIO I²C芯片ID读取成功，以及
 扫描开启命令传输成功。没有物理电压测量，不将命令ACK等同于实际触摸上报。
-USB ping正常，未见新panic。尚待用户点按/滑动以及contact/HID日志确认。
+启动时USB ping正常，未见新panic。用户随后确认“触摸好了”。
 当前输入使用GPIO开漏模拟I²C，GPI/GSI DMA仍未实现。
+
+### 真实触摸确认（同一次启动）
+
+`touch-power-boot.log` 共记录40条限流坐标日志、51次HID down与51次up，
+其中有手指ID0/1/2和FromEdgeTip标记。示例：
+
+```
+SWEET HID: touch 0 down at 699,2399 edge
+SWEET HID: touch 0 up at 802,1900 edge
+```
+
+该捕获窗口内GPIO bus/report错误0、SpringBoard crash标记0、kernel panic标记0。
+这与用户实际操作反馈一起证实物理触摸链路工作，不证明所有多点手势/长时间稳定性。
+确认后主机未再看到USB gadget，因此后续ping不通不能据此诊断为内核故障；
+以上为已留存日志的结论，不声称后续仍在实时采集。
+
+保留本版为可回退基线，不再改名覆盖原镜像、不重刷userdata。
+后续事项：触摸延迟/高频移动/多点/熄屏后恢复测试、原生GPI DMA和音量加适配。
