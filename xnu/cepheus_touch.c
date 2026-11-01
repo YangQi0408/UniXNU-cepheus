@@ -62,6 +62,7 @@ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 /* Mach MIG declaration is not included by BSD's exported thread.h. */
 extern kern_return_t thread_terminate(thread_t);
 extern void sweet_hid_touch(int finger, int down, int x, int y);
+extern int cepheus_touch_power_enable(void);
 void sweet_touch_init(void);
 
 #define TOUCH_SE_PA      0x00c80000u  /* qupv3_se17_i2c: i2c@0xc80000 */
@@ -177,7 +178,7 @@ static int touch_bb_sample(void *ctx, unsigned line)
 }
 static void touch_bb_wait(void *ctx, unsigned us) { (void)ctx; delay(us); }
 
-static void
+static bool
 touch_bb_init(void)
 {
 	for (unsigned line = 0; line < 2; ++line) {
@@ -185,13 +186,22 @@ touch_bb_init(void)
 		st.saved_cfg[line] = touch_rd(st.south, TOUCH_GPIO_CFG(pin));
 		st.saved_io[line] = touch_rd(st.south, TOUCH_GPIO_IO(pin));
 		st.bb_cfg[line] = (st.saved_cfg[line] & ~0x3ffu) | 3u; /* gpio, pull-up, 2mA, input */
+		if (st.bb_cfg[line] & (1u << 11)) { st.bb_cfg[line] |= 1u << 12; }
 		touch_wr(st.south, TOUCH_GPIO_CFG(pin), st.bb_cfg[line]);
 		touch_wr(st.south, TOUCH_GPIO_IO(pin), st.saved_io[line] & ~2u);
 	}
 	st.pins_claimed = true;
 	touch_bb = (struct cepheus_bb){NULL, touch_bb_drive, touch_bb_sample, touch_bb_wait};
+	for (unsigned line = 0; line < 2; ++line) {
+		unsigned pin = line == BB_SDA ? TOUCH_PIN_SDA : TOUCH_PIN_SCL;
+		uint32_t cfg = touch_rd(st.south, TOUCH_GPIO_CFG(pin));
+		printf("SWEET TOUCH (cepheus): GPIO%u cfg=%#x want=%#x io=%#x\n",
+		    pin, cfg, st.bb_cfg[line], touch_rd(st.south, TOUCH_GPIO_IO(pin)));
+		if (cfg != st.bb_cfg[line]) { return false; }
+	}
 	printf("SWEET TOUCH (cepheus): GPIO open-drain I2C SDA=%d SCL=%d; no GPI/SMMU writes\n",
 	    touch_bb_sample(NULL, BB_SDA), touch_bb_sample(NULL, BB_SCL));
+	return true;
 }
 
 static void
@@ -234,6 +244,7 @@ touch_gpio(unsigned pin, unsigned mux, unsigned pull, unsigned drive, bool out,
 	}
 	cfg &= ~0x3ffu;
 	cfg |= (mux << 2) | pull | (drive << 6) | (out ? 0x200u : 0u);
+	if (cfg & (1u << 11)) { cfg |= 1u << 12; }
 	touch_wr(base, off, cfg);
 }
 
@@ -684,6 +695,12 @@ touch_thread(void *arg, wait_result_t result)
 	if (!touch_clocks() || !touch_se_init()) {
 		goto out;
 	}
+	int power = 0;
+	(void)PE_parse_boot_argn("sweettouchpower", &power, sizeof(power));
+	if (power) {
+		if (!st.gpio_i2c || cepheus_touch_power_enable() != 0) { goto out; }
+		touch_wait(10);
+	}
 	printf("SWEET TOUCH (cepheus): TLMM reset=%#x irq=%#x vddio=%#x\n",
 	    touch_rd(st.gpio, TOUCH_GPIO_IO(TOUCH_PIN_RESET)),
 	    touch_rd(st.south, TOUCH_GPIO_IO(TOUCH_PIN_IRQ)),
@@ -704,7 +721,10 @@ touch_thread(void *arg, wait_result_t result)
 	}
 	touch_gpio(TOUCH_PIN_RESET, 0, 3, 3, true, true);
 	touch_wait(300);
-	if (st.gpio_i2c) { touch_bb_init(); }
+	printf("SWEET TOUCH (cepheus): powered RESET cfg=%#x io=%#x VDDIO cfg=%#x io=%#x\n",
+	    touch_rd(st.gpio, TOUCH_GPIO_CFG(12)), touch_rd(st.gpio, TOUCH_GPIO_IO(12)),
+	    touch_rd(st.gpio, TOUCH_GPIO_CFG(84)), touch_rd(st.gpio, TOUCH_GPIO_IO(84)));
+	if (st.gpio_i2c && !touch_bb_init()) { goto out; }
 
 	uint8_t id[2] = {0};
 	int ce = fts_read_hw(FTS_ADDR_DCHIP_ID, id, sizeof(id));

@@ -39,3 +39,20 @@ AVDD来自L1C 1.8V，现有RPMh helper仅针对sweet L11C，不能照搬3.2V到L
 
 此路径保留性能/熄屏修正，用`make-performance-boot.py --touch-gpio`打包。
 DMA驱动仍未实现，GPIO若可用可先提供输入基线；不能承诺同等性能或多点流畅度。
+
+### GPIO 首次测试（run 41288131588）
+
+内核 `7546d325175e565deee607ce6d68666c51c4b294b56caee8ad110cddcdcb5048`，
+boot `90958a53b1e7ee6d4cdafbff47b24cc7d8d86479aa99e07e0de0d96c18a7afb0`。
+已临时启动，clock/GENI检查通过，GPIO释放后SDA=0、SCL=0，chip ID读取err60
+（ETIMEDOUT），无36:39。驱动退出、系统/USB正常。不能据此判断芯片损坏。
+
+进一步核对live FDT：ldoc1是`qcom,rpmh-xob-regulator`，固定1.8V；XOB仅接受
+base+4 enable位，不能像sweet L11C的VRM发送电压/模式。RSC/DRV及TCS几何与
+现有RPMh实现一致。0084在同一个受锁保护的RPMh transport内加入限定ldoc1的
+单命令enable=1，保留空闲ACTIVE TCS检查、读回、完成确认及超时隔离；
+不直接写SPMI电压，也不修改sleep/wake请求。成功ACK不是物理电压测量。
+
+下一诊断版同时输出RESET/VDDIO以及SDA/SCL的配置回读；回读不符立即停止。
+GPIO若报告EGPIO_PRESENT则按Linux设置EGPIO_ENABLE。电源投票为显式
+`sweettouchgpio=1 sweettouchpower=1`，不默认对所有启动执行。

@@ -39,6 +39,7 @@ def main():
     p.add_argument('--fixed-timer', type=int, choices=(0, 1), default=1)
     p.add_argument('--touch-probe', action='store_true', help='enable delayed cepheus GPI probe, only in a verified combined kernel')
     p.add_argument('--touch-gpio', action='store_true', help='enable experimental open-drain GPIO I2C; no GPI DMA')
+    p.add_argument('--touch-power', action='store_true', help='with GPIO, submit ldoc1 XOB enable-only vote')
     a = p.parse_args()
     if a.output.exists():
         p.error('refusing to overwrite output')
@@ -49,6 +50,8 @@ def main():
     if len(kernel) < 2_000_000 or kernel[:4] != bytes.fromhex('cffaedfe'):
         p.error('not a Mach-O kernel')
     if a.touch_probe and a.touch_gpio: p.error('choose GPIO or GPI probe, not both')
+    if a.touch_power and (not a.touch_gpio or b'CEPHEUS POWER: ldoc1' not in kernel):
+        p.error('touch power requires GPIO and ldoc1 enable-only implementation')
     if a.touch_probe or a.touch_gpio:
         subprocess.run(['python3', str(Path(__file__).with_name('verify-touch-kernel.py')), str(a.kernel)], check=True)
         if b'SWEET GPI: SMMU' not in kernel:
@@ -75,6 +78,7 @@ def main():
         if a.touch_probe or a.touch_gpio:
             line = line.replace('sweettouch=0', 'sweettouch=1') + ' sweettouchdelay=60'
             if a.touch_gpio: line += ' sweettouchgpio=1'
+            if a.touch_power: line += ' sweettouchpower=1'
             if len(line) > 1000: p.error('args too long')
         after, n = re.subn(r'^args = "[^"\n]*"$', f'args = "{line}"', before, flags=re.M)
         if n != 1: p.error('expected one config entry')
