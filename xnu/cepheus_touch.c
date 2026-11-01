@@ -63,6 +63,7 @@ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
 extern void sweet_hid_touch(int finger, int down, int x, int y);
 extern int cepheus_touch_power_enable(void);
+extern void cepheus_soc_init(void);
 void sweet_touch_init(void);
 
 #define TOUCH_SE_PA      0x00c80000u  /* qupv3_se17_i2c: i2c@0xc80000 */
@@ -780,6 +781,7 @@ out:
 void
 sweet_touch_init(void)
 {
+	cepheus_soc_init(); /* opt-in independent CPU/GPU thread */
 	int enabled = 1;
 	thread_t thread;
 	if (st.started) {

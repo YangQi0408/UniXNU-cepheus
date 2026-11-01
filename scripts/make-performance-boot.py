@@ -40,6 +40,7 @@ def main():
     p.add_argument('--touch-probe', action='store_true', help='enable delayed cepheus GPI probe, only in a verified combined kernel')
     p.add_argument('--touch-gpio', action='store_true', help='enable experimental open-drain GPIO I2C; no GPI DMA')
     p.add_argument('--touch-power', action='store_true', help='with GPIO, submit ldoc1 XOB enable-only vote')
+    p.add_argument('--soc-probe', action='store_true', help='read-only CPU OSM and gated GPU state probe')
     a = p.parse_args()
     if a.output.exists():
         p.error('refusing to overwrite output')
@@ -49,6 +50,8 @@ def main():
             p.error(f'performance marker missing: {s!r}')
     if len(kernel) < 2_000_000 or kernel[:4] != bytes.fromhex('cffaedfe'):
         p.error('not a Mach-O kernel')
+    if a.soc_probe and (b'CEPHEUS OSM:' not in kernel or b'CEPHEUS GPU:' not in kernel):
+        p.error('missing CPU/GPU diagnostic code')
     if a.touch_probe and a.touch_gpio: p.error('choose GPIO or GPI probe, not both')
     if a.touch_power and (not a.touch_gpio or b'CEPHEUS POWER: ldoc1' not in kernel):
         p.error('touch power requires GPIO and ldoc1 enable-only implementation')
@@ -75,6 +78,7 @@ def main():
         copy('::/EFI/UniXNU/Payloads/kernel.macho.adt', w / 'adt')
         before = (w / 'config').read_text()
         line = make_args(tomllib.loads(before)['entry'][0]['args'], a.fixed_timer)
+        if a.soc_probe: line += ' cephsoc=1'
         if a.touch_probe or a.touch_gpio:
             line = line.replace('sweettouch=0', 'sweettouch=1') + ' sweettouchdelay=60'
             if a.touch_gpio: line += ' sweettouchgpio=1'
