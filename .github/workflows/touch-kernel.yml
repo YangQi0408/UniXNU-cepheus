@@ -33,6 +33,7 @@ jobs:
           cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h cepheus/xnu/cepheus_clock_status.h cepheus/xnu/cepheus_gpi_layout.h dxb/patches/
           cp cepheus/xnu/cepheus_i2c_bitbang.h dxb/patches/
           cp cepheus/xnu/cepheus_soc.c cepheus/xnu/cepheus_soc.h dxb/patches/
+          cp cepheus/xnu/cepheus_cpu_policy.h dxb/patches/
           # Retain the verified one-shot Home, PON-only keys and fast blank.
           python3 cepheus/scripts/prepare-performance-patch.py ios-sweet/xnu/patches dxb/patches/0083-cepheus-performance.patch
           python3 cepheus/scripts/test-performance.py
@@ -57,6 +58,8 @@ jobs:
           /tmp/i2c-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_soc.c -o /tmp/soc-test
           /tmp/soc-test
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_cpu_policy.c -o /tmp/policy-test
+          /tmp/policy-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_a640_pm4.c -o /tmp/pm4-test
           /tmp/pm4-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test

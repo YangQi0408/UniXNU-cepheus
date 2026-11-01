@@ -13,10 +13,17 @@
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
 #include "cepheus_soc.h"
+#include "cepheus_cpu_policy.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
 void cepheus_soc_init(void);
+void cepheus_cpu_activity(void);
+static uint64_t activity_ticks;
+void cepheus_cpu_activity(void)
+{
+	__atomic_store_n(&activity_ticks, mach_absolute_time(), __ATOMIC_RELAXED);
+}
 static int soc_wait_chan;
 static uint32_t sr(vm_offset_t base, unsigned off)
 {
@@ -50,7 +57,7 @@ static void osm_trial_start(void)
 {
 	int enable = 0;
 	PE_parse_boot_argn("cephboost", &enable, sizeof(enable));
-	if (enable != 1) { return; }
+	if (enable != 1 && enable != 2) { return; }
 	for (unsigned n = 2; n < 4; ++n) {
 		struct osm_bank *b = &banks[n];
 		if (!b->enabled || sr(b->va, 0xbc) != 0) { continue; }
@@ -70,6 +77,23 @@ static void osm_trial_start(void)
 		printf("CEPHEUS OSM: trial %s readback=%u\n", b->name, sr(b->va, 0x920));
 	}
 }
+static vm_offset_t tsens;
+static int cpu_temperature(int *max_mc)
+{
+	if (!tsens) { tsens = ml_io_map(0x0c263000, 0x1000); }
+	if (!tsens || !(sr(tsens, 0xe4) & 8u)) { return 0; }
+	int max = -40000;
+	for (unsigned sensor = 7; sensor <= 14; ++sensor) {
+		int mc = 0, valid = 0;
+		for (unsigned tries = 0; tries < 3 && !valid; ++tries) {
+			valid = ceph_tsens_mc(sr(tsens, 0xa0 + sensor * 4), &mc);
+		}
+		if (!valid) { return 0; }
+		if (mc > max) { max = mc; }
+	}
+	*max_mc = max;
+	return 1;
+}
 static void osm_trial_restore(void)
 {
 	for (unsigned n = 2; n < 4; ++n) {
@@ -84,6 +108,43 @@ static void osm_trial_restore(void)
 		}
 		trials[n].active = false;
 	}
+}
+static void cpu_interactive(void)
+{
+	/* opt-in, max 30min per boot. No attempt to re-init TSENS or raise the
+	 * voltage; invalid sensor/ownership drops to the saved request. */
+	uint64_t until, previous = mach_absolute_time();
+	clock_interval_to_deadline(1800, NSEC_PER_SEC, &until);
+	int hot = 1, last_raise = -1;
+	unsigned iterations = 0;
+	while (mach_absolute_time() < until) {
+		int mc = 0;
+		int valid = cpu_temperature(&mc);
+		uint64_t now = mach_absolute_time(), now_ns, act_ns, age_ns;
+		absolutetime_to_nanoseconds(now, &now_ns);
+		absolutetime_to_nanoseconds(__atomic_load_n(&activity_ticks, __ATOMIC_RELAXED), &act_ns);
+		absolutetime_to_nanoseconds(now - previous, &age_ns);
+		previous = now;
+		int raise = ceph_cpu_should_raise(valid, mc, &hot, now_ns, act_ns, age_ns);
+		if (raise != last_raise || (iterations++ % 40) == 0) {
+			printf("CEPHEUS CPU POLICY: valid=%d max_mc=%d hot=%d raise=%d\n", valid, mc, hot, raise);
+			last_raise = raise;
+		}
+		if (raise) {
+			bool active = false;
+			for (unsigned n = 2; n < 4; ++n) {
+				if (trials[n].active && sr(banks[n].va, 0x920) != trials[n].new_index) {
+					printf("CEPHEUS CPU POLICY: external OSM change, stop\n");
+					osm_trial_restore(); return;
+				}
+				active |= trials[n].active;
+			}
+			if (!active) { osm_trial_start(); }
+		} else { osm_trial_restore(); }
+		swait(250);
+	}
+	osm_trial_restore();
+	printf("CEPHEUS CPU POLICY: session expired, baseline restored\n");
 }
 static void osm_dump(struct osm_bank *b)
 {
@@ -164,7 +225,15 @@ static void soc_thread(void *arg, wait_result_t wr)
 	for (unsigned n = 0; n < 4; ++n) { osm_dump(&banks[n]); }
 	gpu_probe();
 	osm_sample(0);
+	int temperature = 0, temperature_valid = cpu_temperature(&temperature);
+	printf("CEPHEUS TSENS: valid=%d CPU_max_mc=%d (no sensor configuration writes)\n", temperature_valid, temperature);
 	swait(60000); // let SpringBoard reach UI before an optional timed experiment
+	int mode = 0;
+	PE_parse_boot_argn("cephboost", &mode, sizeof(mode));
+	if (mode == 2) {
+		cpu_interactive();
+		(void)thread_terminate(current_thread()); thread_block(THREAD_CONTINUE_NULL); return;
+	}
 	osm_trial_start();
 	uint64_t until;
 	clock_interval_to_deadline(120, NSEC_PER_SEC, &until);

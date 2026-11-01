@@ -64,6 +64,7 @@ extern kern_return_t thread_terminate(thread_t);
 extern void sweet_hid_touch(int finger, int down, int x, int y);
 extern int cepheus_touch_power_enable(void);
 extern void cepheus_soc_init(void);
+extern void cepheus_cpu_activity(void);
 void sweet_touch_init(void);
 
 #define TOUCH_SE_PA      0x00c80000u  /* qupv3_se17_i2c: i2c@0xc80000 */
@@ -464,6 +465,7 @@ touch_report(uint32_t mask, const int *x, const int *y)
 		uint32_t bit = 1u << id;
 		if (mask & bit) {
 			if (!(st.active & bit) || x[id] != st.x[id] || y[id] != st.y[id]) {
+				cepheus_cpu_activity();
 				/* Bound diagnostics so finger motion cannot flood the log. */
 				static unsigned logged;
 				if (logged++ < 40) {
