@@ -128,3 +128,35 @@ SMP SpringBoard[26] ...
 已收到超过 150 KB UDP 日志；ping 3/3 成功。观测窗口内 SpringBoard exec 仅一次，
 未见之前的 SpringBoardUI 断言或 keybag panic，但 bluetoothd / fairplayd.H2 有重复 exec。
 有显示 surface/swap 不等于已经到主屏幕，尚需目视确认和输入测试。
+
+### console-only 照片后的调查
+
+用户照片只见 console，无 panic。继续抓取同次启动日志（本地 `keybag-boot.log`）：
+前七次采样 SpringBoard 主线程地址不变，ipsw 3.1.741 用同版 IPSW 的 cache
+和运行时 slide `0x44830000` 符号化得到：
+
+| 运行时地址 | unslid / 符号 |
+|---|---|
+| `0x206e41ad0` | `0x1c2611ad0` / `__ulock_wait` |
+| `0x216338140` | `0x1d1b08140` / `os_unfair_lock_lock_slow` |
+| `0x1c64b97b8` | `0x181c897b8` / `_LSContextInitCommon` |
+| `0x235428c64` | `0x1f0bf8c64` / CCSModuleRepository filterModuleMetadata block |
+
+随后同一 PID 26 产生 UIKit layer 日志、新 surface 和新的 swap。
+第八次采样主线程变为 `CFRunLoopServiceMachPort -> GSEventRunModal ->
+UIApplication _run -> SBSystemAppMain`（运行时 `0x203765998` / `0x1cd92434c` /
+`0x20a0955e8` 对应后三个符号）。不能据早期锁等待认定为永久死锁。
+
+PosterBoard PID 396 有 SIGTRAP；PC `0x205fa8268` 对应
+`-[PBFPosterExtensionDataStore _stateLock_setupSwitcherConfigurationForFirstTime] + 2040`。
+尚不清楚触发条件。没有足够证据认定主屏幕已经显示或渲染地址正确。
+REA 打开了提取的 ControlCenterServices（SHA256
+`d7e7925d17198475a5bd7969b883173751778618b87e374a1e8daaf9e967ad07`），
+函数分析调用超时；上述符号证据来自 ipsw CLI，而非成功的 REA 反编译结果。
+
+先做最小对照：`scripts/make-console-boot.py ORIGINAL QUIET --quiet 1` 仅改
+payload 配置中的 `sweetfb_noconsole=1`。保持内核/ADT字节一致，并保留原
+Aloha 的 8 字节 boot id 格式（更新 payload digest），不改扩展命令行。
+`scripts/test-console-boot.py ORIGINAL QUIET` 校验这几个不变量。
+quiet boot SHA256：`26f14dfbbf60984b4260673cab2c845dab0c59a5a3805380fe1fe0a2c67b7373`。
+尚未启动此镜像；下一步只需临时 fastboot boot，无需再刷根镜像。
