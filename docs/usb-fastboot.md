@@ -84,6 +84,11 @@ after build. The unprovisioned build retains the full runtime code for compile
 and link validation; no real key/header is submitted to CI. Actual hardware
 operation still requires a private provisioned image and separate acceptance.
 
+The first full-build attempt41318474454 on macos-14 was cancelled before any
+steps by the runner retirement brownout (actions/runner-images#13518), not by a
+compiler error. The feature workflow now selects macos-15 and Xcode16.2. This
+new toolchain must pass a full build; earlier Xcode15.4 success does not prove it.
+
 ## Acceptance boundary and blockers
 
 Offline tests cover C/Python framing interoperability, malformed packets,

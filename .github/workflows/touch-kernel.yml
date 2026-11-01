@@ -5,7 +5,8 @@ permissions:
   contents: read
 jobs:
   kernel:
-    runs-on: macos-14
+    # macos-14 retired 2026-11-02; keep the toolchain explicit on its successor.
+    runs-on: macos-15
     timeout-minutes: 150
     env:
       MACOS_VERSION: "13.5"
@@ -51,9 +52,9 @@ jobs:
           brew install jq gum bash cmake ninja
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
           sudo chmod +x /usr/local/bin/xcodes
-          test -d /Applications/Xcode_15.4.app
-          echo "DEVELOPER_DIR=/Applications/Xcode_15.4.app/Contents/Developer" >> "$GITHUB_ENV"
-          sudo xcode-select -s /Applications/Xcode_15.4.app
+          test -d /Applications/Xcode_16.2.app
+          echo "DEVELOPER_DIR=/Applications/Xcode_16.2.app/Contents/Developer" >> "$GITHUB_ENV"
+          sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
           xcrun --find iig
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_fts_events.c -o /tmp/fts-test
