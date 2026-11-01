@@ -103,3 +103,21 @@ python3 scripts/summarize-performance.py ../logs/perf-boot.log
 沿用原来最新帧重绘路径。每次实际清黑单独记录 `SWEET BLANK: clear_us=... bytes=...`。
 此计时包含清黑及解锁开销，不是面板物理断电时间；黑色AMOLED像素变暗不等于
 已实现完整DSI/PMIC关屏。构建/运行结果和感知改善必须另行验证。
+
+### 第二版运行结果（run 41286172148）
+
+构建/源码检查通过，7项离线测试通过。`boot-cepheus-perf-blank.img` SHA256：
+`13dbf9985d248c086eb6507b891b18c729bc816fe537d4424de2f0a9e56d9724`。
+已临时boot，未写boot或userdata，保留上一版回退。
+`perf-blank-boot.log` 记录MKB_INIT完成、SpringBoard启动、one-shot Home完成，
+USB ping正常，首次off：
+
+```
+SWEET BLANK: clear_us=716 bytes=10108800
+SWEET PERF: ms=10000 submitted=6 presented=3 overwritten=2 copy_us=7274 max_us=2571 bytes=30326400 missed=0 off=1
+SWEET PERF: ms=10016 submitted=0 presented=0 overwritten=0 copy_us=0 max_us=0 bytes=0 missed=0 off=1
+```
+
+该窗口写黑约0.716ms且无错过的定时槽，比上一版off窗口的missed=202/34更好，
+但两次启动不是受控重复基准。仍待用户再次按电源键确认分层淡出是否消失。
+触摸保持关闭、GPI DMA尚未实现；本镜像不能触摸，并非新故障。
