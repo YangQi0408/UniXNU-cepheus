@@ -8,7 +8,8 @@
 > 状态：**8 核 XNU 已到 iOS 用户态，USB CDC-ECM 已枚举；尚未验证 SpringBoard 主屏幕。**
 > 新根镜像首次启动因缺少 `systembag.kb` 请求重启，随后发生 Halt/Restart 超时。
 > 补齐后已真机启动：`DONE MKB_INIT`、SpringBoard PID 26、backboardd 创建 surface
-> 并提交 framebuffer swap，USB 日志与 ping 正常；仍待屏幕确认主界面。
+> 并提交 framebuffer swap，USB 日志与 ping 正常。用户已目视确认锁屏时钟出现，
+> 随后被 console 覆盖；锁屏绘制已验证，尚未验证解锁或进入主屏幕。
 > 触摸和按键目前关闭，不能视为已验证。详见 [根镜像构建与验证](docs/root-image.md)。
 
 ---

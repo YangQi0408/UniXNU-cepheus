@@ -160,3 +160,10 @@ Aloha 的 8 字节 boot id 格式（更新 payload digest），不改扩展命�
 `scripts/test-console-boot.py ORIGINAL QUIET` 校验这几个不变量。
 quiet boot SHA256：`26f14dfbbf60984b4260673cab2c845dab0c59a5a3805380fe1fe0a2c67b7373`。
 尚未启动此镜像；下一步只需临时 fastboot boot，无需再刷根镜像。
+
+### 目视锁屏确认
+
+用户随后报告：能看到锁屏界面的时钟，过一会儿被日志盖住。
+这为显示路径提供了实际目视证据，而不只是 surface/swap 推断。
+当前可确认锁屏绘制，尚不能确认解锁或主屏幕；输入驱动仍关闭。
+下一次临时启动 quiet boot，验证锁屏不再被控制台覆盖。
