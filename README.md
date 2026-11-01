@@ -20,6 +20,10 @@
 初测全屏 present 约 2–5 ms，尚不能据此断言实际动画FPS或总体加速。
 构建和测量限制见 [性能实验](docs/performance.md)。
 
+CPU/GPU加速工作：已实测Gold约711MHz、Prime约827MHz，正进行OSM固件LUT内
+受限调频验证。Adreno的CX/GX尚未上电，Metal和硬件合成尚未实现；进展与
+验收边界见 [CPU/GPU记录](docs/cpu-gpu.md)。
+
 ---
 
 ## 一、这台机器（实测，2026-10-31）
