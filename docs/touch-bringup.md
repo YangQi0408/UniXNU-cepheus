@@ -57,11 +57,30 @@ base+4 enable位，不能像sweet L11C的VRM发送电压/模式。RSC/DRV及TCS�
 GPIO若报告EGPIO_PRESENT则按Linux设置EGPIO_ENABLE。电源投票为显式
 `sweettouchgpio=1 sweettouchpower=1`，不默认对所有启动执行。
 
-### 电源诊断版待测试：run 41289150375
+### 电源诊断版真机结果：run 41289150375
 
 构建通过（含事件/I²C模拟/电源策略/性能测试、补丁及产物核验）。
 kernel SHA256 `e9709ef19f08149deec339e55ff2ab6e001200494bf676f41bad57910e802252`；
 boot `boot-cepheus-touch-power.img` SHA256
 `c8eae5a0abd8dd9f8cd58f954497c0510c576b941b09bc0ef1efb2648718ea88`。
 保留性能修复和PON-only电源键、单次Home，启用GPIO+ldoc1请求。
-尚未临时启动，等待手机回fastboot；不能宣称触摸电源或芯片ID读取已成功。
+已临时启动（未重刷任何分区），日志 `touch-power-boot.log`：
+
+```
+SWEET RPMH: ldoc1 addr=0x43400 slave=4
+CEPHEUS POWER: ldoc1 XOB enable only address=0x43404 data=1
+SWEET RPMH: TCS0 done=1 ... cmd-status=0x10101/0/0
+CEPHEUS POWER: ldoc1 enable request result=0
+powered RESET cfg=0x2c3 io=0x3 VDDIO cfg=0x200 io=0x3
+GPIO55 cfg=0x3 want=0x3 io=0x1
+GPIO56 cfg=0x3 want=0x3 io=0x1
+GPIO open-drain I2C SDA=1 SCL=1
+probe 0x49 err=0 chip-id=36:39
+active scan err=0
+selected ST-FTS, 1080x2340, poll=10ms irq-hint=0
+```
+
+因此已验证L1C请求完成、GPIO回读正确、GPIO I²C芯片ID读取成功，以及
+扫描开启命令传输成功。没有物理电压测量，不将命令ACK等同于实际触摸上报。
+USB ping正常，未见新panic。尚待用户点按/滑动以及contact/HID日志确认。
+当前输入使用GPIO开漏模拟I²C，GPI/GSI DMA仍未实现。

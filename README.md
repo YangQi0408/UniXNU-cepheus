@@ -10,6 +10,10 @@
 > 当前使用 CPU 软渲染显示桌面图标；用户报告刷新慢，具体瓶颈尚待计数和耗时测量。
 > 触摸硬件为 ST-FTS（SE17），因硬件 `FIFO_DISABLE=1` 需走 GPI/GSI DMA，正在适配中。详见 [根镜像构建与验证](docs/root-image.md)。
 
+触摸最新进展：L1C电源enable-only请求完成后，独立GPIO I²C已读到芯片ID
+`36:39`，扫描开启命令传输成功；真实手指事件仍待验证。这不是GPI DMA实现，
+详见 [触摸测试记录](docs/touch-bringup.md)。
+
 性能对照版已启动，包含一次 Home、固定期限定时和低频性能统计；
 初测全屏 present 约 2–5 ms，尚不能据此断言实际动画FPS或总体加速。
 构建和测量限制见 [性能实验](docs/performance.md)。
