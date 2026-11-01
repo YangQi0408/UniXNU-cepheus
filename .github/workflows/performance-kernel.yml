@@ -1,0 +1,73 @@
+name: performance-kernel
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  kernel:
+    runs-on: macos-14
+    timeout-minutes: 150
+    env:
+      MACOS_VERSION: "13.5"
+      MACHINE_CONFIG: SWEET
+      KERNEL_CONFIG: DEVELOPMENT
+      LC_ALL: C
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: cepheus
+      - uses: actions/checkout@v4
+        with:
+          repository: dipa-studio/ios-sweet
+          ref: 45263bee51df4a0f55cdf9c649af886399488ddb
+          path: ios-sweet
+      - name: Stage isolated performance patch
+        run: |
+          set -euo pipefail
+          git init -q dxb
+          git -C dxb fetch -q --depth 1 https://github.com/blacktop/darwin-xnu-build 663906528d1cd5ea8fde7de6f16de73db9511549
+          git -C dxb checkout -q FETCH_HEAD
+          cp ios-sweet/xnu/patches/*.patch ios-sweet/xnu/patches/*.sh dxb/patches/
+          # Deliberately no local 0082/touch/GPI source. Touch stays OFF.
+          python3 cepheus/scripts/prepare-performance-patch.py ios-sweet/xnu/patches dxb/patches/0083-cepheus-performance.patch
+          python3 cepheus/scripts/test-performance.py
+          python3 -c 'from pathlib import Path; p=Path("dxb/build.sh");s=p.read_text();old="ARCHS=\"x86_64 arm64e\" VALID_ARCHS=\"x86_64 arm64e\"";assert s.count(old)==1;p.write_text(s.replace(old,"ARCHS=\"x86_64 arm64e arm64\" VALID_ARCHS=\"x86_64 arm64e arm64\""))'
+      - name: Xcode 15 toolchain
+        run: |
+          set -euo pipefail
+          brew install jq gum bash cmake ninja
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
+          sudo chmod +x /usr/local/bin/xcodes
+          test -d /Applications/Xcode_15.4.app
+          echo 'DEVELOPER_DIR=/Applications/Xcode_15.4.app/Contents/Developer' >> "$GITHUB_ENV"
+          sudo xcode-select -s /Applications/Xcode_15.4.app
+          xcodebuild -version
+      - name: Build XNU
+        working-directory: dxb
+        run: |
+          set -euo pipefail
+          bash build.sh 2>&1 | tee build.log
+      - name: Verify patched source and kernel artifact
+        run: |
+          set -euo pipefail
+          grep 'Applying patch:' dxb/build.log | grep 0083-cepheus-performance.patch
+          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0083-)'; then exit 1; fi
+          grep -F 'fb->finishTick(sender)' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
+          ! grep -F 'IOMallocData(SWEET_FB_SWAP_REC_SIZE)' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
+          mkdir out
+          cp dxb/fakeroot/System/Library/Kernels/kernel.development.sweet out/kernel.macho
+          python3 -c 'from pathlib import Path; p=Path("out/kernel.macho");d=p.read_bytes();assert len(d)>2000000 and d[:4]==bytes.fromhex("cffaedfe");assert all(x in d for x in (b"SWEET PERF:",b"sweetfb_fixedtimer",b"sweetkeyspononly",b"one-shot Home complete"));assert b"SWEET GPI:" not in d'
+          cp dxb/patches/0083-cepheus-performance.patch out/
+          git -C cepheus rev-parse HEAD > out/device-commit.txt
+          (cd out && shasum -a 256 kernel.macho > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cepheus-performance-kernel
+          path: out/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cepheus-performance-log
+          path: dxb/build.log
+          if-no-files-found: ignore
