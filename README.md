@@ -5,13 +5,10 @@
 从 [`JohnLeeeeeee678/UniXNU-raphael`](https://github.com/JohnLeeeeeee678/UniXNU-raphael)（红米 K20 Pro，
 **同一颗 SM8150**）移植，并把所有硬件参数换成本机实测值。
 
-> 状态：**8 核 XNU 已到 iOS 用户态，USB CDC-ECM 已枚举；尚未验证 SpringBoard 主屏幕。**
-> 新根镜像首次启动因缺少 `systembag.kb` 请求重启，随后发生 Halt/Restart 超时。
-> 补齐后已真机启动：`DONE MKB_INIT`、SpringBoard PID 26、backboardd 创建 surface
-> 并提交 framebuffer swap，USB 日志与 ping 正常。用户已目视确认锁屏时钟出现，
-> 随后被 console 覆盖；无控制台镜像再次启动后，用户确认锁屏时钟可见。
-> 锁屏绘制已验证，尚未验证解锁或进入主屏幕。
-> 触摸和按键目前关闭，不能视为已验证。详见 [根镜像构建与验证](docs/root-image.md)。
+> 状态：**🎉🎉 里程碑达成（2026-11-01）：iOS 16.7.16 成功进入 SpringBoard 主屏幕桌面！**
+> 物理电源键正常工作（可睡眠/唤醒），Home 键事件接通并成功解锁进主屏幕。
+> 当前使用 CPU 软渲染显示桌面图标；刷新偏慢的因为 CPU 纯软渲染及后台重试守护进程。
+> 触摸硬件为 ST-FTS（SE17），因硬件 `FIFO_DISABLE=1` 需走 GPI/GSI DMA，正在适配中。详见 [根镜像构建与验证](docs/root-image.md)。
 
 ---
 

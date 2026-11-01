@@ -219,3 +219,39 @@ TX/RX capability 都是 width32/depth16，满足现有条件，因此剩余未�
 `GENI_IF_FIFO_DISABLE_RO` 是主要嫌疑，但还没有原始寄存器证据。
 补充该值和capability解码，拆分失败日志；按照Linux runtime_resume的条件，
 只读FIFO_DISABLE非零时要求GSI DMA，不允许绕过检查去尝试FIFO。
+
+### FIFO 诊断结果（run 41279211881）
+
+kernel SHA256 `295c5edaaacafa2407e69b4a86f550a9a8cc8ff0285b977cd6230daa4486bbda`；
+boot SHA256 `d77bea66dbcb4e824bf7895bac371f3bc9f224a3c4a7d1c11b1a81eb3a7d77bd`。
+已临时启动，`touch-fifo-boot.log` 原始证据：
+
+```
+FIFO_DISABLE=0x1 TX width=32 depth=16 RX width=32 depth=16
+SE17 is GSI-only; FIFO driver cannot probe; stopping
+```
+
+因此不再迭代FIFO路径。Android `geni_i2c_gsi_xfer` 通过GPI DMAengine提交
+CONFIG0/GO/DMA-buffer TRE，并处理event ring、完成/错误、DMA映射与超时。
+XNU中尚无该实现，不能把编译成功或触摸线程退出算成触摸成功。
+
+GPI2的实测live FDT：base `0xc00000`、size `0x60000`、allowed GPII mask `0xfa`、
+max13、SMMU stream `0x7b6`、smmu-cfg1。I²C SE17是local SE0。
+实例编号是Linux在允许mask内动态分配，不能把local SE0直接当作GPII0。
+下一版仅只读记录允许实例的channel/event context、ring base/RP/WP、scratch SE/proto。
+不写channel/context/doorbell，不提交DMA；DMA地址域与继承状态仍待验证。
+偏移和允许mask的纯测试已覆盖，DMA传输尚未实现。
+
+### 🎉 主屏幕里程碑达成（2026-11-01）
+
+通过 `boot-cepheus-keys.img`（启用 SPMI `sweetkeys=1` 与 Home 键注入 `sweethidtest=10`）：
+- `sweet_keys.c` 成功初始化 PM8150 PON（`pon-apid=249`）。
+- `SweetHIDButtons` 与 `SweetHIDTouch` 成功由 `backboardd` 打开（`1 clients`）。
+- 注入 Home 键事件后，SpringBoard 成功响应并启动 `Spotlight` 与 `com.apple.sbd`。
+- **真机目视验证：成功进入 SpringBoard 主屏幕（App 图标桌面）！**
+- **物理电源键确认可用**：按下可正常锁屏/休眠/唤醒点亮屏幕。
+- 屏幕刷新慢的原因分析：
+  1. 无硬件 GPU，全部图层（图标、高斯模糊、阴影）依赖 CPU 软渲染；
+  2. `sweethidtest=10` 每 10 秒重复触发 Home 键打断主界面渲染；
+  3. 缺少蓝牙/蜂窝硬件导致部分守护进程后台重试。
+
