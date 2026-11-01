@@ -1,6 +1,11 @@
 --- a/osfmk/prng/entropy.c
 +++ b/osfmk/prng/entropy.c
-@@ -226,0 +227,11 @@
+@@ -223,6 +223,18 @@ entropy_init(void)
+ 	}
+ #endif  // ENTROPY_ANALYSIS_SUPPORTED
+ }
+ 
++/* Thread context only, after entropy_init(). Fail closed after any failure. */
 +int
 +entropy_health_is_ready(void)
 +{
@@ -12,8 +17,16 @@
 +	return ready;
 +}
 +
+ void
+ entropy_collect(void)
 --- a/osfmk/prng/entropy.h
 +++ b/osfmk/prng/entropy.h
-@@ -53,0 +54,2 @@
-+/* Thread-context snapshot synchronized with continuous health-test updates. */
+@@ -51,5 +51,8 @@
+ // Called during startup to initialize internal data structures.
+ void entropy_init(void);
+ 
++/* Thread-context health snapshot, not proof of PRNG reseeding. */
 +int entropy_health_is_ready(void);
++
+ // Called during hardware interrupts to collect entropy in per-CPU
+ // structures.

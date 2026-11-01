@@ -24,6 +24,10 @@ fw-*/
 __pycache__/
 *.pyc
 
+# Private per-image control material must never enter a public build/artifact.
+cepheus_fastboot_private.h
+control.key
+
 # Symlinks to the external trees (created by the build docs)
 /uefi
 /unixnu

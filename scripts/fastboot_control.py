@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Authenticated, single-action UDP control protocol for the Cepheus port.
 
-The protocol is deliberately useful while the platform backend is unavailable:
-STATUS and DRY_RUN can be answered by a refusal-gated responder, while COMMIT
-never succeeds unless every shutdown gate and a source-supported reset callback
-are explicitly installed. This module does not read or print the secret.
+The current milestone has no executable reset backend. STATUS reports endpoint
+state, DRY_RUN always reports NOT_READY, and COMMIT always reports UNSUPPORTED.
+No callback is invoked, even when a caller supplies optimistic gate flags.
 """
 from __future__ import annotations
 
@@ -90,6 +89,8 @@ def unpack(data: bytes, key: bytes) -> Packet:
         signed[:HEADER.size])
     if magic != MAGIC or version != VERSION or kind not in _KINDS:
         raise ProtocolError("invalid protocol header")
+    if kind in _ACTIONS and len(signed) != HEADER.size:
+        raise ProtocolError("action packets must have an empty body")
     return Packet(kind, sequence, challenge, client_nonce,
                   signed[HEADER.size:])
 
@@ -146,7 +147,8 @@ class Responder:
             packet = unpack(data, self._key)
         except ProtocolError:
             return b""
-        if (packet.kind == STATUS and packet.challenge == b"\0" * NONCE_BYTES
+        if (packet.kind == STATUS and packet.sequence == 0
+                and packet.challenge == b"\0" * NONCE_BYTES
                 and packet.client_nonce == b"\0" * NONCE_BYTES):
             return self.challenge_packet()
         status, body = self.handle(data, gates)
@@ -178,14 +180,14 @@ class Responder:
             state = GateState(
                 enabled=self._enabled and gates.enabled,
                 entropy_ready=self._entropy_ready and gates.entropy_ready,
-                storage_clean=gates.storage_clean,
-                workers_quiesced=gates.workers_quiesced,
-                reset_backend=gates.reset_backend,
-                failed_worker=gates.failed_worker,
-                shutdown_started=gates.shutdown_started,
+                # Not wired to real shutdown: never advertise caller assertions
+                # as hardware readiness. Match the kernel's read-only snapshot.
+                storage_clean=False,
+                workers_quiesced=False,
+                reset_backend=False,
             )
             if packet.kind == DRY_RUN:
-                return (OK if state.commit_ready else NOT_READY), _gate_bits(state)
+                return NOT_READY, _gate_bits(state)
             return OK, _gate_bits(state)
 
 
@@ -215,35 +217,43 @@ class Client:
             self._sequence = 1
         return self._sequence
 
+    def _receive(self) -> Packet:
+        # Read one extra byte so a valid prefix of a truncated oversized UDP
+        # datagram cannot be mistaken for an authentic complete response.
+        raw, peer = self.sock.recvfrom(MAX_PACKET + 1)
+        if peer != self.address:
+            raise ProtocolError("response from unexpected peer")
+        return unpack(raw, self.key)
+
+    @staticmethod
+    def _is_challenge(packet: Packet) -> bool:
+        return (packet.kind == CHALLENGE and packet.sequence == 0 and
+                packet.client_nonce == bytes(NONCE_BYTES) and not packet.body and
+                packet.challenge != bytes(NONCE_BYTES))
+
     def request(self, action: int) -> tuple[int, bytes]:
         if action not in _ACTIONS:
             raise ValueError("unsupported action")
         if self.challenge is None:
             hello = Packet(STATUS, 0, b"\0" * NONCE_BYTES, b"\0" * NONCE_BYTES)
             self.sock.sendto(pack(hello, self.key), self.address)
-            raw, _ = self.sock.recvfrom(MAX_PACKET)
             try:
-                response = unpack(raw, self.key)
+                response = self._receive()
             except ProtocolError as exc:
                 raise ProtocolError("challenge exchange failed") from exc
-            if response.kind != CHALLENGE:
+            if not self._is_challenge(response):
                 raise ProtocolError("challenge exchange returned wrong kind")
             self.challenge = response.challenge
         nonce = secrets.token_bytes(NONCE_BYTES)
         packet = Packet(action, self._next(), self.challenge, nonce)
         self.sock.sendto(pack(packet, self.key), self.address)
-        raw, _ = self.sock.recvfrom(MAX_PACKET)
-        if len(raw) < HEADER.size + MAC_BYTES:
-            raise ProtocolError("short response")
-        response = unpack(raw, self.key)
-        if (response.kind == CHALLENGE and response.sequence == 0 and
-                response.client_nonce == b"\0" * NONCE_BYTES):
+        response = self._receive()
+        if self._is_challenge(response):
             self.challenge = response.challenge
             packet = Packet(action, packet.sequence, self.challenge,
                             secrets.token_bytes(NONCE_BYTES))
             self.sock.sendto(pack(packet, self.key), self.address)
-            raw, _ = self.sock.recvfrom(MAX_PACKET)
-            response = unpack(raw, self.key)
+            response = self._receive()
         if (response.kind != RESPONSE or len(response.body) < 1 or
                 response.sequence != packet.sequence or
                 response.client_nonce != packet.client_nonce or

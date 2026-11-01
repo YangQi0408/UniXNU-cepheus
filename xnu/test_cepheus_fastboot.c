@@ -7,6 +7,18 @@ static const char *VECTOR = "5346423101010001000102030405060708090a0b0c0d0e0f101
 static int hex(char c) { return c <= '9' ? c - '0' : c - 'a' + 10; }
 int main(void)
 {
+    struct cepheus_fastboot_budget budget;
+    cepheus_fastboot_budget_init(&budget, 100);
+    for (unsigned i = 0; i < CEPHEUS_FASTBOOT_WINDOW_BUDGET; i++)
+        assert(cepheus_fastboot_budget_take(&budget, 100) == 1);
+    for (unsigned i = 0; i < 10000; i++)
+        assert(cepheus_fastboot_budget_take(&budget, 100 + CEPHEUS_FASTBOOT_WINDOW_NS - 1) == 0);
+    assert(cepheus_fastboot_budget_take(&budget, 100 + CEPHEUS_FASTBOOT_WINDOW_NS) == 1);
+    assert(cepheus_fastboot_budget_take(&budget, 100 + CEPHEUS_FASTBOOT_LIFETIME_NS) == -1);
+    cepheus_fastboot_budget_init(&budget, 100);
+    assert(cepheus_fastboot_budget_take(&budget, 99) == -1);
+    cepheus_fastboot_budget_init(&budget, UINT64_MAX - 100);
+    assert(cepheus_fastboot_budget_take(&budget, 0) == -1);
     uint8_t key[32], challenge[16], nonce[16], wire[128], expected[128];
     for (size_t i=0; i<32; i++) key[i] = (uint8_t)i;
     for (size_t i=0; i<16; i++) { challenge[i] = (uint8_t)i; nonce[i] = (uint8_t)(i + 16); }
@@ -25,6 +37,8 @@ int main(void)
     assert(body_len == 1 && body[0] == CEPHEUS_FASTBOOT_UNSUPPORTED);
     assert(cepheus_fastboot_make_response(CEPHEUS_FASTBOOT_DRY_RUN, 0, body, &body_len) == 0);
     assert(body_len == 8 && body[0] == CEPHEUS_FASTBOOT_NOT_READY && body[1] == 1 && body[2] == 0);
+    assert(cepheus_fastboot_make_response(CEPHEUS_FASTBOOT_DRY_RUN, 1, body, &body_len) == 0);
+    assert(body[0] == CEPHEUS_FASTBOOT_NOT_READY && body[2] == 1 && body[5] == 0);
     uint16_t sequences[64]; uint8_t nonces[64][16]; size_t count = 0;
     assert(cepheus_fastboot_seen(1, nonce, sequences, nonces, &count) == 0);
     assert(cepheus_fastboot_seen(1, nonce, sequences, nonces, &count) == 1);

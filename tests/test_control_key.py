@@ -23,7 +23,7 @@ stage_spec.loader.exec_module(stage_fastboot_key)
 
 class KeyProvisioningTests(unittest.TestCase):
     def _root(self):
-        root = Path(tempfile.mkdtemp())
+        root = Path(tempfile.mkdtemp()).resolve()
         marker = root / "System/Library/xpc/launchd.plist"
         marker.parent.mkdir(parents=True)
         marker.write_bytes(b"marker")
@@ -92,7 +92,7 @@ class KeyProvisioningTests(unittest.TestCase):
 
     def test_private_staging_creates_private_header_and_refuses_replace(self):
         with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
+            base = Path(tmp).resolve()
             source = base / "secret.input"
             source.write_bytes(bytes(range(32)))
             source.chmod(0o600)
@@ -118,7 +118,7 @@ class KeyProvisioningTests(unittest.TestCase):
 
     def test_private_staging_rejects_hardlink_and_git_root(self):
         with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
+            base = Path(tmp).resolve()
             source = base / "secret.input"
             source.write_bytes(b"k" * 32)
             source.chmod(0o600)

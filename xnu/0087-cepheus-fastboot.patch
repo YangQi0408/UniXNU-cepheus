@@ -1,12 +1,29 @@
 --- a/bsd/conf/files
 +++ b/bsd/conf/files
-@@ -4,0 +5 @@
+@@ -109,5 +109,6 @@
+ bsd/dev/sweet_keys.c			standard
+ bsd/dev/cepheus_touch.c			standard
+ bsd/dev/cepheus_soc.c			standard
+ bsd/dev/cepheus_reboot.c			standard
 +bsd/dev/cepheus_fastboot.c			standard
+ bsd/dev/sweet_rpmh.c			standard
 --- a/bsd/dev/sweet_usb.c
 +++ b/bsd/dev/sweet_usb.c
-@@ -42,0 +43 @@
+@@ -40,6 +40,7 @@
+ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
+ void sweet_usb_probe(void);
+ static void sweet_usb_gadget_start(vm_offset_t dwc);
 +extern void cepheus_fastboot_start(ifnet_t);
-@@ -867,0 +869,3 @@
+ extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
+ 
+ #define GCC_PA                  0x00100000
+@@ -865,6 +866,9 @@
+ 	}
+ 	ud.dma_pa = ptoa_64(pn);
+ 	ud_if_create();
 +	int fastboot = 0;
 +	PE_parse_boot_argn("sweetfastboot", &fastboot, sizeof(fastboot));
 +	if (fastboot == 1 && ud.ifp != NULL) cepheus_fastboot_start(ud.ifp);
+ 
+ 	/* Device controller soft reset (PHY and global setup stay as ABL left them). */
+ 	dwc_wr(DCTL, DCTL_CSFTRST);

@@ -19,4 +19,18 @@ int cepheus_fastboot_unpack(const uint8_t *, size_t, const uint8_t[32], struct c
 int cepheus_fastboot_seen(uint16_t, const uint8_t[16], uint16_t *, uint8_t (*)[16], size_t *);
 int cepheus_fastboot_make_response(uint8_t, int, uint8_t[8], size_t *);
 void cepheus_fastboot_hmac_sha256(const uint8_t *, size_t, const uint8_t *, size_t, uint8_t[32]);
+
+/* Single-owner thread. Fixed monotonic windows bound work even for bad packets. */
+#define CEPHEUS_FASTBOOT_WINDOW_NS UINT64_C(1000000000)
+#define CEPHEUS_FASTBOOT_LIFETIME_NS UINT64_C(300000000000)
+#define CEPHEUS_FASTBOOT_WINDOW_BUDGET 32u
+struct cepheus_fastboot_budget {
+    uint64_t started_ns;
+    uint64_t window_ns;
+    uint64_t last_ns;
+    unsigned used;
+};
+void cepheus_fastboot_budget_init(struct cepheus_fastboot_budget *, uint64_t);
+/* -1: lifetime expired/clock invalid; 0: yield; 1: one receive attempt allowed. */
+int cepheus_fastboot_budget_take(struct cepheus_fastboot_budget *, uint64_t);
 #endif

@@ -8,7 +8,7 @@
 #include <corecrypto/ccsha2.h>
 #include <corecrypto/cc.h>
 #include <libkern/libkern.h>
-#include <osfmk/libsa/string.h>
+#include <libsa/string.h>
 #elif defined(__APPLE__)
 #include <CommonCrypto/CommonHMAC.h>
 #else
@@ -60,6 +60,30 @@ int cepheus_fastboot_seen(uint16_t sequence, const uint8_t nonce[16], uint16_t *
     sequences[*count]=sequence; memcpy(nonces[*count],nonce,16); (*count)++; return 0;
 }
 
+void
+cepheus_fastboot_budget_init(struct cepheus_fastboot_budget *budget, uint64_t now)
+{
+    *budget = (struct cepheus_fastboot_budget){
+        .started_ns = now, .window_ns = now, .last_ns = now,
+    };
+}
+
+int
+cepheus_fastboot_budget_take(struct cepheus_fastboot_budget *budget, uint64_t now)
+{
+    if (now < budget->last_ns || now - budget->started_ns >= CEPHEUS_FASTBOOT_LIFETIME_NS)
+        return -1;
+    budget->last_ns = now;
+    if (now - budget->window_ns >= CEPHEUS_FASTBOOT_WINDOW_NS) {
+        budget->window_ns = now;
+        budget->used = 0;
+    }
+    if (budget->used >= CEPHEUS_FASTBOOT_WINDOW_BUDGET)
+        return 0;
+    budget->used++;
+    return 1;
+}
+
 int
 cepheus_fastboot_make_response(uint8_t kind, int entropy_ready,
     uint8_t body[8], size_t *body_len)
@@ -85,12 +109,13 @@ cepheus_fastboot_make_response(uint8_t kind, int entropy_ready,
 #include <kern/thread.h>
 #include <kern/sched_prim.h>
 #include <kern/clock.h>
+#include <mach/mach_time.h>
 #include <net/kpi_interface.h>
 #include <netinet/in.h>
 #include <pexpert/pexpert.h>
 #include <sys/kpi_socket.h>
 #include <sys/random.h>
-#include <osfmk/prng/entropy.h>
+#include <prng/entropy.h>
 #include <sys/socket.h>
 #include <sys/systm.h>
 #include <sys/uio_internal.h>
@@ -101,6 +126,9 @@ cepheus_fastboot_make_response(uint8_t kind, int entropy_ready,
 static const unsigned char cepheus_fastboot_key[32] = { 0 };
 #endif
 
+/* Volatile read keeps the full runtime referenced in public builds for link
+ * validation, without provisioning a key or enabling the public endpoint. */
+static volatile unsigned cepheus_fastboot_provisioned = CEPHEUS_FASTBOOT_PROVISIONED;
 static socket_t cepheus_fastboot_socket;
 static ifnet_t cepheus_fastboot_interface;
 static uint8_t cepheus_fastboot_challenge[16];
@@ -108,12 +136,41 @@ static uint16_t cepheus_fastboot_sequences[64];
 static uint8_t cepheus_fastboot_nonces[64][16];
 static size_t cepheus_fastboot_seen_count;
 static int cepheus_fastboot_sleep_channel;
+/* Start is one-shot, even after cleanup. Only the owner thread uses the socket. */
+static unsigned cepheus_fastboot_started;
+static unsigned cepheus_fastboot_stop_requested;
+static unsigned cepheus_fastboot_done;
+extern int sweet_prng_entropy_ready(void);
+/* BSD driver convention: thread_terminate is not in the BSD-private headers. */
+extern kern_return_t thread_terminate(thread_t);
+
+static uint64_t
+cepheus_fastboot_now_ns(void)
+{
+    uint64_t now;
+    absolutetime_to_nanoseconds(mach_absolute_time(), &now);
+    return now;
+}
+
+/* Request only; never close another thread's socket or block an IRQ caller. */
+void
+cepheus_fastboot_request_stop(void)
+{
+    __atomic_store_n(&cepheus_fastboot_stop_requested, 1u, __ATOMIC_RELEASE);
+}
+
+int
+cepheus_fastboot_is_stopped(void)
+{
+    return !__atomic_load_n(&cepheus_fastboot_started, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&cepheus_fastboot_done, __ATOMIC_ACQUIRE);
+}
 
 static void
 cepheus_fastboot_sleep(void)
 {
     uint64_t deadline;
-    clock_interval_to_deadline(1, NSEC_PER_MSEC, &deadline);
+    clock_interval_to_deadline(10, NSEC_PER_MSEC, &deadline);
     (void)assert_wait_deadline(&cepheus_fastboot_sleep_channel, THREAD_UNINT, deadline);
     thread_block(THREAD_CONTINUE_NULL);
 }
@@ -139,13 +196,26 @@ cepheus_fastboot_send(socket_t so, const struct sockaddr_in *peer,
 }
 
 static void
-cepheus_fastboot_thread(void *argument __unused, wait_result_t result __unused)
+cepheus_fastboot_receive_loop(void)
 {
     uint8_t wire[CEPHEUS_FASTBOOT_MAX_PACKET];
     uint8_t response_body[8];
     struct sockaddr_in peer;
     union { struct cmsghdr alignment; uint8_t bytes[CMSG_SPACE(sizeof(struct in_pktinfo))]; } control;
+    struct cepheus_fastboot_budget budget;
+    cepheus_fastboot_budget_init(&budget, cepheus_fastboot_now_ns());
     for (;;) {
+        if (__atomic_load_n(&cepheus_fastboot_stop_requested, __ATOMIC_ACQUIRE))
+            return;
+        int allowance = cepheus_fastboot_budget_take(&budget, cepheus_fastboot_now_ns());
+        if (allowance < 0) return;
+        if (allowance == 0) {
+            cepheus_fastboot_sleep();
+            continue;
+        }
+        if (!entropy_health_is_ready()) return;
+        bzero(&peer, sizeof(peer));
+        bzero(&control, sizeof(control));
         struct iovec iov = { .iov_base = wire, .iov_len = sizeof(wire) };
         struct msghdr message = {
             .msg_name = &peer,
@@ -162,11 +232,7 @@ cepheus_fastboot_thread(void *argument __unused, wait_result_t result __unused)
             cepheus_fastboot_sleep();
             continue;
         }
-        if (error != 0) {
-            sock_close(cepheus_fastboot_socket);
-            cepheus_fastboot_socket = NULL;
-            return;
-        }
+        if (error != 0) return;
         if ((message.msg_flags & (MSG_TRUNC | MSG_CTRUNC)) ||
             message.msg_controllen > sizeof(control.bytes) ||
             message.msg_namelen != sizeof(peer)) continue;
@@ -192,7 +258,8 @@ cepheus_fastboot_thread(void *argument __unused, wait_result_t result __unused)
         if (malformed_control || received > sizeof(wire) || packet_info == NULL ||
             packet_info->ipi_ifindex != ifnet_index(cepheus_fastboot_interface) ||
             packet_info->ipi_addr.s_addr != htonl(0xc0a80702) ||
-            peer.sin_family != AF_INET || peer.sin_addr.s_addr != htonl(0xc0a80701)) {
+            peer.sin_len != sizeof(peer) || peer.sin_family != AF_INET ||
+            peer.sin_addr.s_addr != htonl(0xc0a80701)) {
             continue;
         }
         struct cepheus_fastboot_packet request;
@@ -210,9 +277,11 @@ cepheus_fastboot_thread(void *argument __unused, wait_result_t result __unused)
             continue;
         }
         if (request.kind != CEPHEUS_FASTBOOT_STATUS && request.kind != CEPHEUS_FASTBOOT_DRY_RUN && request.kind != CEPHEUS_FASTBOOT_COMMIT) continue;
+        if (memcmp(request.challenge, cepheus_fastboot_challenge, 16) != 0) continue;
         if (cepheus_fastboot_seen_count == 64) {
-            if (!entropy_health_is_ready()) continue;
+            if (!sweet_prng_entropy_ready() || !entropy_health_is_ready()) return;
             read_random(cepheus_fastboot_challenge, sizeof(cepheus_fastboot_challenge));
+            if (!entropy_health_is_ready()) return;
             bzero(cepheus_fastboot_sequences, sizeof(cepheus_fastboot_sequences));
             bzero(cepheus_fastboot_nonces, sizeof(cepheus_fastboot_nonces));
             cepheus_fastboot_seen_count = 0;
@@ -224,7 +293,6 @@ cepheus_fastboot_thread(void *argument __unused, wait_result_t result __unused)
             cepheus_fastboot_send(cepheus_fastboot_socket, &peer, &challenge);
             continue;
         }
-        if (memcmp(request.challenge, cepheus_fastboot_challenge, 16) != 0) continue;
         if (cepheus_fastboot_seen(request.sequence, request.client_nonce,
                 cepheus_fastboot_sequences, cepheus_fastboot_nonces,
                 &cepheus_fastboot_seen_count) != 0) continue;
@@ -241,12 +309,11 @@ cepheus_fastboot_thread(void *argument __unused, wait_result_t result __unused)
     }
 }
 
-static void
+static int
 cepheus_fastboot_initialize(ifnet_t interface)
 {
     if (sock_socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, NULL,
-        &cepheus_fastboot_socket) != 0) return;
-    read_random(cepheus_fastboot_challenge, sizeof(cepheus_fastboot_challenge));
+        &cepheus_fastboot_socket) != 0) return -1;
     struct sockaddr_in local = { .sin_len = sizeof(local), .sin_family = AF_INET,
         .sin_port = htons(5141), .sin_addr = { .s_addr = htonl(0xc0a80702) } };
     uint32_t ifindex = ifnet_index(interface);
@@ -259,33 +326,76 @@ cepheus_fastboot_initialize(ifnet_t interface)
         sock_setsockopt(cepheus_fastboot_socket, IPPROTO_IP, IP_PKTINFO,
         &receive_packet_info, sizeof(receive_packet_info)) != 0 || sock_bind(cepheus_fastboot_socket,
         (const struct sockaddr *)&local) != 0) {
-        sock_close(cepheus_fastboot_socket); cepheus_fastboot_socket = NULL; return;
+        return -1; /* Single owner cleanup closes it. */
     }
-    thread_t thread;
-    if (kernel_thread_start(cepheus_fastboot_thread, NULL, &thread) == KERN_SUCCESS)
-        thread_deallocate(thread);
+    return 0;
 }
 
 static void
-cepheus_fastboot_bootstrap(void *argument, wait_result_t result __unused)
+cepheus_fastboot_cleanup(void)
 {
-    ifnet_t interface = (ifnet_t)argument;
-    for (unsigned attempt = 0; attempt < 600; attempt++) {
-        if (entropy_health_is_ready()) {
-            cepheus_fastboot_initialize(interface);
-            return;
+    if (cepheus_fastboot_socket != NULL) {
+        (void)sock_close(cepheus_fastboot_socket);
+        cepheus_fastboot_socket = NULL;
+    }
+    cc_clear(sizeof(cepheus_fastboot_challenge), cepheus_fastboot_challenge);
+    cc_clear(sizeof(cepheus_fastboot_nonces), cepheus_fastboot_nonces);
+    bzero(cepheus_fastboot_sequences, sizeof(cepheus_fastboot_sequences));
+    cepheus_fastboot_seen_count = 0;
+    if (cepheus_fastboot_interface != NULL) {
+        (void)ifnet_release(cepheus_fastboot_interface);
+        cepheus_fastboot_interface = NULL;
+    }
+    __atomic_store_n(&cepheus_fastboot_done, 1u, __ATOMIC_RELEASE);
+}
+
+static void
+cepheus_fastboot_bootstrap(void *argument __unused, wait_result_t result __unused)
+{
+    uint64_t start = cepheus_fastboot_now_ns();
+    for (;;) {
+        uint64_t now = cepheus_fastboot_now_ns();
+        if (__atomic_load_n(&cepheus_fastboot_stop_requested, __ATOMIC_ACQUIRE) ||
+            now < start || now - start >= UINT64_C(60000000000)) break;
+        /* read_random refreshes the SWEET DRBG. A health snapshot by itself
+         * does not establish that any credited entropy reached the DRBG. */
+        read_random(cepheus_fastboot_challenge, sizeof(cepheus_fastboot_challenge));
+        if (sweet_prng_entropy_ready() && entropy_health_is_ready()) {
+            /* Re-generate AFTER the synchronized credited-reseed check: the
+             * preceding refresh can lose try-lock to another CPU's reseed. */
+            read_random(cepheus_fastboot_challenge, sizeof(cepheus_fastboot_challenge));
+            if (!entropy_health_is_ready()) break;
+            if (cepheus_fastboot_initialize(cepheus_fastboot_interface) == 0) {
+                printf("SWEET FASTBOOT: read-only endpoint, COMMIT disabled, lease=300s\n");
+                cepheus_fastboot_receive_loop();
+            }
+            break;
         }
+        cc_clear(sizeof(cepheus_fastboot_challenge), cepheus_fastboot_challenge);
         cepheus_fastboot_sleep();
     }
+    cepheus_fastboot_cleanup();
+    printf("SWEET FASTBOOT: stopped (no reset)\n");
+    (void)thread_terminate(current_thread());
+    thread_block(THREAD_CONTINUE_NULL);
 }
 
 void
 cepheus_fastboot_start(ifnet_t interface)
 {
-    if (!interface || !CEPHEUS_FASTBOOT_PROVISIONED) return;
+    if (!interface || !cepheus_fastboot_provisioned) return;
+    unsigned expected = 0;
+    if (!__atomic_compare_exchange_n(&cepheus_fastboot_started, &expected, 1u,
+        false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;
+    if (ifnet_reference(interface) != 0) {
+        __atomic_store_n(&cepheus_fastboot_done, 1u, __ATOMIC_RELEASE);
+        return;
+    }
     cepheus_fastboot_interface = interface;
     thread_t thread;
     if (kernel_thread_start(cepheus_fastboot_bootstrap, interface, &thread) == KERN_SUCCESS)
         thread_deallocate(thread);
+    else
+        cepheus_fastboot_cleanup();
 }
 #endif

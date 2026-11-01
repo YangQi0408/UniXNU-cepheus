@@ -62,10 +62,10 @@ class ProtocolTests(unittest.TestCase):
             def settimeout(self, timeout):
                 self.timeout = timeout
             def sendto(self, data, address):
-                # The destination is the phone; recvfrom's peer is the host.
+                # Responder sees the host; the client's recvfrom sees the phone.
                 reply = responder.handle_datagram(data, gates, peer=self.host_peer)
                 if reply:
-                    self.queue.append((reply, self.host_peer))
+                    self.queue.append((reply, address))
             def recvfrom(self, size):
                 return self.queue.pop(0)
 
@@ -98,7 +98,17 @@ class ProtocolTests(unittest.TestCase):
         packets = [control.pack(control.Packet(control.COMMIT, n, responder.challenge,
                                                 bytes([n]) * 16), self.key)
                    for n in (20, 21)]
-        results = [responder.handle(packet, gates)[0] for packet in packets]
+        results = []
+        barrier = threading.Barrier(len(packets))
+        def submit(packet):
+            barrier.wait(timeout=2)
+            results.append(responder.handle(packet, gates)[0])
+        threads = [threading.Thread(target=submit, args=(p,)) for p in packets]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=3)
+            self.assertFalse(thread.is_alive())
         self.assertEqual(results, [control.UNSUPPORTED, control.UNSUPPORTED])
         self.assertEqual(calls, [])
 
@@ -127,7 +137,8 @@ class ProtocolTests(unittest.TestCase):
             def settimeout(self, timeout): pass
             def sendto(self, data, address):
                 reply = responder.handle_datagram(data, gates, peer="192.168.7.1")
-                if reply: self.queue.append((reply, "192.168.7.2"))
+                if reply: self.queue.append((reply, address))
+
             def recvfrom(self, size): return self.queue.pop(0)
 
         client = control.Client(("192.168.7.2", 5141), self.key, sock=Datagram())
@@ -158,9 +169,9 @@ class ProtocolTests(unittest.TestCase):
         packet = control.Packet(control.DRY_RUN, 46, responder.challenge, b"q" * 16)
         status, bits = responder.handle(control.pack(packet, self.key), ready)
         self.assertEqual(status, control.NOT_READY)
-        self.assertEqual(bits, bytes((0, 0, 1, 1, 1, 0, 0)))
+        self.assertEqual(bits, bytes((0, 0, 0, 0, 0, 0, 0)))
 
-    def test_dry_run_reports_not_ready_until_all_read_only_gates_are_true(self):
+    def test_dry_run_always_not_ready_even_with_optimistic_gate_flags(self):
         responder = control.Responder(self.key, enabled=True, entropy_ready=True)
         packet = control.Packet(control.DRY_RUN, 44, responder.challenge, b"z" * 16)
         gates = control.GateState(enabled=True, entropy_ready=True)
@@ -172,8 +183,38 @@ class ProtocolTests(unittest.TestCase):
         gates.workers_quiesced = True
         gates.reset_backend = True
         status, bits = responder.handle(control.pack(packet, self.key), gates)
-        self.assertEqual(status, control.OK)
-        self.assertEqual(bits, bytes((1, 1, 1, 1, 1, 0, 0)))
+        self.assertEqual(status, control.NOT_READY)
+        self.assertEqual(bits, bytes((1, 1, 0, 0, 0, 0, 0)))
+
+    def test_body_bearing_hello_is_silently_rejected(self):
+        responder = control.Responder(self.key)
+        packet = control.Packet(control.STATUS, 0, bytes(16), bytes(16), b"bad")
+        wire = control.pack(packet, self.key)
+        with self.assertRaises(control.ProtocolError):
+            control.unpack(wire, self.key)
+        self.assertEqual(responder.handle_datagram(
+            wire, control.GateState(), peer="192.168.7.1"), b"")
+        self.assertEqual(responder._seen, set())
+
+    def test_client_rejects_wrong_peer_oversize_and_invalid_challenge(self):
+        challenge = control.Packet(control.CHALLENGE, 0, b"c" * 16, bytes(16))
+        valid = control.pack(challenge, self.key)
+        endpoint = ("192.168.7.2", 5141)
+        class Datagram:
+            def __init__(self, wire, peer): self.wire, self.peer = wire, peer
+            def settimeout(self, timeout): pass
+            def sendto(self, wire, peer): pass
+            def recvfrom(self, size): return self.wire[:size], self.peer
+        for wire, peer in (
+            (valid, ("192.168.7.99", 5141)),
+            (valid + bytes(100), endpoint),
+            (control.pack(control.Packet(control.CHALLENGE, 3, b"c" * 16, bytes(16)), self.key), endpoint),
+            (control.pack(control.Packet(control.CHALLENGE, 0, bytes(16), bytes(16)), self.key), endpoint),
+        ):
+            with self.subTest(length=len(wire), peer=peer):
+                client = control.Client(endpoint, self.key, sock=Datagram(wire, peer))
+                with self.assertRaises(control.ProtocolError):
+                    client.request(control.STATUS)
 
     def test_disabled_busy_dirty_and_failed_worker_are_not_success(self):
         responder = control.Responder(self.key, enabled=False, entropy_ready=True,

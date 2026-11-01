@@ -13,6 +13,9 @@ wire vector. The responder accepts one `(sequence, client nonce)` pair only once
 and caps each challenge to 64 requests. `STATUS` and `DRY_RUN` expose bounded
 read-only state; they never stop workers, sync storage, unmount, or touch MMIO.
 `COMMIT` is refused unconditionally and has no callback path.
+`DRY_RUN` always returns NOT_READY, even if a reference caller supplies ready
+flags. A successful STATUS exchange proves neither clean storage nor reset
+readiness. All action bodies must be empty, including the challenge hello.
 
 The host client reads a 32-byte key from a local file and never logs it. The
 optional `scripts/prepare-control-key.py provision --enable ROOT` command
@@ -44,6 +47,43 @@ only peer 192.168.7.1 with the matching ingress interface and destination. The w
 the staged source differs. This is patch/inventory validation, not a full XNU
 build.
 
+### Endpoint lifetime and entropy
+
+The kernel service is a **five-minute diagnostic lease**, not a persistent
+recovery daemon. It admits at most32 receive attempts per one-second monotonic
+window, before authentication (including malformed/unauthenticated traffic).
+After exhaustion it yields; the receive buffer is4096 bytes. A fixed-window
+boundary may allow two adjacent bursts. It stops after300 seconds, on fatal
+socket errors or on `cepheus_fastboot_request_stop()`. The stop request is
+asynchronous; `cepheus_fastboot_is_stopped()` acknowledges socket/ifnet release,
+not proof of UFS or other worker quiescence. Startup is one-shot for this boot.
+No lifecycle event performs a hardware reset. The socket has exactly one owning
+thread; every setup/error/exit path releases the retained interface reference.
+
+Startup waits at most60 seconds for runtime entropy. Calling read_random drives
+the existing SWEET refresh; a new flag, set only AFTER successful reseeding from
+at least256 credited samples, is checked under the PRNG mutex. The separate
+entropy-health snapshot is also locked. A boot seed alone or timestamp is not
+treated as readiness. A failed health check remains fail-closed. Challenges are
+fresh per boot and after the64-request budget, not embedded per-image nonces.
+
+### Build verification
+
+The inventory check is portable and does not imply patch application:
+
+```sh
+python3 scripts/verify-reboot-integration.py --inventory-only
+python3 scripts/verify-reboot-integration.py --xnu-tree /private/pre-feature-xnu
+python3 scripts/verify-reboot-integration.py --applied-tree /private/built-xnu
+```
+
+The second command copies a few actual source files to a temporary directory,
+applies contextual patches and checks their placement. It never writes the
+input tree. CI checks inventory before build and the actual patched source
+after build. The unprovisioned build retains the full runtime code for compile
+and link validation; no real key/header is submitted to CI. Actual hardware
+operation still requires a private provisioned image and separate acceptance.
+
 ## Acceptance boundary and blockers
 
 Offline tests cover C/Python framing interoperability, malformed packets,
@@ -54,7 +94,12 @@ Python suite and C gate test. They do not prove a macOS
 XNU build, XNU shutdown hook integration, reset ABI, PMIC/PSCI/ABL selection,
 bootloader fastboot selection, or hardware behavior.
 
-Before enabling `sweetfastboot`, the parent must add and independently verify:
+Before enabling the read-only diagnostic endpoint, the parent must validate a
+full XNU build and privately provision the image. No public CI artifact contains
+a usable control key. Private headers and binaries contain extractable secrets
+and must not be uploaded. This diagnostic does not require a reset backend.
+
+Before implementing actual reboot, the parent must add and independently verify:
 
 1. a Cepheus platform reset callback with source evidence for bootloader mode;
 2. joined UFS/VFS and persistent-log/peripheral worker shutdown hooks, with

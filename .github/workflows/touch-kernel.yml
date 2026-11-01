@@ -36,7 +36,8 @@ jobs:
           cp cepheus/xnu/cepheus_cpu_policy.h dxb/patches/
           cp cepheus/xnu/0086-cepheus-reboot.patch cepheus/xnu/0086-stage-cepheus-reboot.sh cepheus/xnu/cepheus_reboot.c cepheus/xnu/cepheus_reboot.h dxb/patches/
           cp cepheus/xnu/0087-cepheus-fastboot.patch cepheus/xnu/0087-stage-cepheus-fastboot.sh cepheus/xnu/cepheus_fastboot.c cepheus/xnu/cepheus_fastboot.h cepheus/xnu/0088-entropy-health-ready.patch dxb/patches/
-          python3 cepheus/scripts/verify-reboot-integration.py
+          cp cepheus/xnu/0089-sweet-prng-readiness.patch dxb/patches/
+          python3 cepheus/scripts/verify-reboot-integration.py --inventory-only
           # Retain the verified one-shot Home, PON-only keys and fast blank.
           python3 cepheus/scripts/prepare-performance-patch.py ios-sweet/xnu/patches dxb/patches/0083-cepheus-performance.patch
           python3 cepheus/scripts/test-performance.py
@@ -84,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'Applying patch:' dxb/build.log | grep -F '0082-cepheus-touch.patch'
-          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-|0084-|0085-|0086-|0087-|0088-)'; then
+          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-|0084-|0085-|0086-|0087-|0088-|0089-)'; then
             echo 'critical patch skipped' >&2; exit 1
           fi
           grep -E '^bsd/dev/cepheus_touch.c[[:space:]]+standard$' dxb/xnu/bsd/conf/files
@@ -102,6 +103,9 @@ jobs:
           grep 'Applying patch:' dxb/build.log | grep 0086-cepheus-reboot.patch
           grep 'Applying patch:' dxb/build.log | grep 0087-cepheus-fastboot.patch
           grep 'Applying patch:' dxb/build.log | grep 0088-entropy-health-ready.patch
+          grep 'Applying patch:' dxb/build.log | grep 0089-sweet-prng-readiness.patch
+          python3 cepheus/scripts/verify-reboot-integration.py --applied-tree dxb/xnu
+          test ! -e dxb/xnu/bsd/dev/cepheus_fastboot_private.h
           grep -F 'bsd/dev/cepheus_reboot.c' dxb/xnu/bsd/conf/files
           grep -F 'bsd/dev/cepheus_fastboot.c' dxb/xnu/bsd/conf/files
           cmp cepheus/xnu/cepheus_reboot.c dxb/xnu/bsd/dev/cepheus_reboot.c
@@ -109,7 +113,7 @@ jobs:
           cmp cepheus/xnu/cepheus_fastboot.c dxb/xnu/bsd/dev/cepheus_fastboot.c
           cmp cepheus/xnu/cepheus_fastboot.h dxb/xnu/bsd/dev/cepheus_fastboot.h
           cmp cepheus/xnu/cepheus_soc.c dxb/xnu/bsd/dev/cepheus_soc.c
-          python3 -c 'from pathlib import Path;d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes();assert all(s in d for s in (b"SWEET BLANK:",b"one-shot Home complete",b"SWEET GPI: SMMU",b"SFB1",b"cepheus_fastboot_start",b"sweetfastboot"))'
+          python3 -c 'from pathlib import Path;d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes();assert all(s in d for s in (b"SWEET BLANK:",b"one-shot Home complete",b"SWEET GPI: SMMU",b"SFB1",b"SWEET FASTBOOT: read-only endpoint",b"sweetfastboot"))'
           cp "$K" out/kernel.macho
           (cd out && shasum -a 256 kernel.macho > SHA256SUMS)
           git -C cepheus rev-parse HEAD > out/device-commit.txt
