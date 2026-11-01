@@ -1,0 +1,7 @@
+FROM apfs-tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    hfsprogs rsync unzip python3 android-sdk-libsparse-utils iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+RUN command -v mkfs.hfsplus && command -v fsck.hfsplus \
+    && command -v img2simg && command -v simg2img && command -v apfs-fuse
+WORKDIR /work

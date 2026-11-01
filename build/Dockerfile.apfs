@@ -1,0 +1,15 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake pkg-config libfuse3-dev libbz2-dev zlib1g-dev \
+    libattr1-dev libicu-dev libssl-dev git ca-certificates \
+    hfsprogs rsync unzip python3 \
+    && rm -rf /var/lib/apt/lists/*
+ARG APFS_COMMIT=66b86bd525e8cb90f9012543be89b1f092b75cf3
+RUN git clone https://github.com/sgan81/apfs-fuse /src \
+    && git -C /src checkout "$APFS_COMMIT" \
+    && git -C /src submodule update --init --recursive \
+    && cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /src/build -j"$(nproc)" \
+    && install -m 0755 /src/build/apfs-fuse /usr/local/bin/apfs-fuse
+WORKDIR /work

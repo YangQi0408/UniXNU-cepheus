@@ -2,6 +2,10 @@
 out/
 dist/
 build/
+!build/
+build/*
+!build/Dockerfile.apfs
+!build/Dockerfile.root
 inputs/
 .cache/
 

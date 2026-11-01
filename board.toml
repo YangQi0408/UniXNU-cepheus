@@ -74,13 +74,24 @@ title = "Xiaomi Mi 9 - XNU"
 # dram-base stays 0xC0000000 (the contiguous 3 GiB mid bank, carve-out free);
 # dram-size is the total the ADT advertises, i.e. up to the top of DRAM.
 dram_size = "0x200000000"
+# panic_screen = true would run scripts/patch-xnu-entry-probe.py, which the
+# pinned UniXNU commit (b6ae99c) does not ship, so the payload step would fail.
+# Panics are still visible two ways: the screen (sweetfb_noconsole=0) and the
+# USB live log (sweetusb=2). Revisit once that script is available.
 panic_screen = false
 timeout = 3
 kernel_args = [
   "debug=0xc",
   "serial=3",
+  # All eight cores reached bsd_init in the cpu-match-fixed image. Reducing
+  # cpus to 6 did not remove the SpringBoardUI assertion in our earlier test.
   "cpus=8",
   "keepsyms=1",
+  # XNU prints every STARTUP() function it runs:
+  #   kernel_startup_initialize_upto[subsystem, rank]: addr(arg)
+  # plus "kernel_bootstrap: <name>" for each named step in kernel_bootstrap().
+  # This is how a silent stop gets pinned to a function.
+  "startup_debug=1",
   "-enable_kprintf_spam",
   "-noprogress",
   "rd=ufsroot0",
@@ -91,12 +102,19 @@ kernel_args = [
   "rootrw=1",
   "launchd_unsecure_cache=1",
   "wdt=-1",
-  "sweetusb=0",
-  # The cepheus touch probe (xnu/0082-cepheus-touch.patch) starts 20 s after
-  # the scheduler so a bus hang cannot cost the persistent log or the GUI.
-  # sweettouch=0 disables it; sweettouchirq=1 adds the IRQ-hint poll path.
-  "sweettouchdelay=20",
-  "sweetfb_noconsole=1",
+  # USB: 0 off, 1 report controller state only, 2 device mode + CDC-ECM
+  # network. 2 gives the live console: the kernel streams it as UDP to
+  # 192.168.7.1:5140 while the phone is 192.168.7.2 on ue0. Host side:
+  #   tools/sweet-usbnet.sh boot.log     (needs sudo for the address)
+  "sweetusb=2",
+  # Input is deliberately disabled while validating the userspace root.
+  # Enable one driver at a time after SpringBoard starts successfully.
+  "sweettouch=0",
+  "sweetkeys=0",
+  # Debug build: keep drawing kernel text over the GUI so the screen shows
+  # where it stops. Set to 1 for a clean GUI (the console still reaches the
+  # persistent log and the USB live log).
+  "sweetfb_noconsole=0",
   "sweetfb_hz=30",
   "sweetgpu=3",
   "sweetlogdump=1",

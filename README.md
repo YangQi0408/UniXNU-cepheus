@@ -5,8 +5,10 @@
 从 [`JohnLeeeeeee678/UniXNU-raphael`](https://github.com/JohnLeeeeeee678/UniXNU-raphael)（红米 K20 Pro，
 **同一颗 SM8150**）移植，并把所有硬件参数换成本机实测值。
 
-> 状态：**已产出可启动镜像，触摸驱动已写好，等待真机 bring-up 验证。**
-> 未上机验证前不要指望一次点亮——请按下面的「判读阶梯」逐层看屏幕。
+> 状态：**8 核 XNU 已到 iOS 用户态，USB CDC-ECM 已枚举；尚未验证 SpringBoard 主屏幕。**
+> 新根镜像首次启动因缺少 `systembag.kb` 请求重启，随后发生 Halt/Restart 超时。
+> 已补齐 keybag 和 logd 标记，修正版通过离线验证，等待再次真机启动。
+> 触摸和按键目前关闭，不能视为已验证。详见 [根镜像构建与验证](docs/root-image.md)。
 
 ---
 
@@ -165,9 +167,10 @@ adb pull /dev/block/by-name/boot    ; adb pull /dev/block/by-name/dtbo
 adb pull /dev/block/by-name/vbmeta
 ```
 
-**`fastboot boot` 不写分区**，重启即回 Android。但**根文件系统要写进 `userdata`**
+**`fastboot boot` 不写分区**。但**根文件系统要写进 `userdata`**
 （`rd=ufsroot0 ufsrw=1 rootrw=1`），也就是说 **Android 的用户数据会被清掉**。
-系统分区 / boot / modem / persist 不动。
+系统分区 / boot / modem / persist 不动，但这不保证重启后 Android 可用；
+恢复 Android 还需要恢复其 userdata 文件系统。不要通过 recovery 格式化来“修复”iOS 根镜像。
 
 **没有 SEP / Secure Enclave** → 永远无法登录 Apple ID、无 App Store、无蜂窝、无 Face ID。
 GPU 是 CPU 软渲染（20–30 fps）。Wi-Fi/BT/音频/相机初期都没有。这是研究平台，不是日常机。

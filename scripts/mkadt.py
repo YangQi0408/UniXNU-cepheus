@@ -17,6 +17,12 @@ import devices  # noqa: E402
 SOC_BASE = 0x01000000
 
 SWEET_ECID = 0x5357454554000001  # 'SWEET' + 1, synthetic
+
+# ios-sweet's SweetCPU driver (xnu/patches/0018) matches IONameMatch
+# 'qcom,kryo470' because sweet is a Snapdragon 732G. The kernel we build is
+# the same SWEET build for every board, so every board's ADT has to carry that
+# string on its cpu nodes or the CPU driver never loads.
+SWEET_CPU_MATCH = 'qcom,kryo470'
 # QEMU virt (-M virt,gic-version=3 -cpu cortex-a76): GICD/GICR and the generic timer's CNTFRQ
 QEMU_GICD, QEMU_GICR, QEMU_TIMEBASE = 0x08000000, 0x080a0000, 62500000
 QEMU_VTIMER_INTID = 27
@@ -47,6 +53,19 @@ def d22ap_product(path=D22AP_ADT):
 u32 = lambda *v: struct.pack('<%dI' % len(v), *v)
 u64 = lambda *v: struct.pack('<%dQ' % len(v), *v)
 cstr = lambda s: s.encode() + b'\0'
+
+
+def build_stamp():
+    """A short string the kernel prints on screen as "iBoot version: <stamp>".
+
+    The kernel reads /chosen/firmware-version and prints it verbatim, so this
+    is how a photo of the screen says which build is running. A fixed value
+    ("sweet-shim") made two different images look identical on the panel.
+    """
+    explicit = os.environ.get('CEPHEUS_BUILD_STAMP')
+    if explicit:
+        return explicit
+    return 'sweet-shim'
 
 
 def node(name, props=(), children=()):
@@ -83,8 +102,12 @@ def build(seed=None, qemu=False, highmem=False, device='sweet', dram_size=None, 
         *([('darwinboot-memory-size', u64(owned_memory_size))] if owned_memory_size else []),
         ('random-seed', seed),
         ('debug-enabled', u32(1)),
-        ('firmware-version', cstr('sweet-shim')),
-        ('system-firmware-version', cstr('sweet-shim')),
+        # XNU prints this verbatim as "iBoot version: <value>" from
+        # pexpert/arm/pe_init.c, so the build stamp is what tells you on the
+        # SCREEN which image is actually running. Override with
+        #   CEPHEUS_BUILD_STAMP="something" scripts/build-payload.py
+        ('firmware-version', cstr(build_stamp())),
+        ('system-firmware-version', cstr(build_stamp())),
         # iBoot's SHA-384 of the boot manifest; /sbin/mount -P 1 exits unless
         # it exists (bind mounts /private/preboot/<hex>/usr/standalone/firmware,
         # tolerating a missing directory). Fixed stand-in value.
@@ -126,7 +149,19 @@ def build(seed=None, qemu=False, highmem=False, device='sweet', dram_size=None, 
         cpu_nodes.append(node(f'cpu{core}', [
             ph(),
             ('device_type', cstr('cpu')),
-            ('compatible', cstr(dev['cpu_compat']) + cstr('ARM,v8')),
+            # SweetCPU's personality (ios-sweet 0018) is
+            #   'IOClass' = SweetCPU; 'IOProviderClass' = IOPlatformDevice;
+            #   'IONameMatch' = 'qcom,kryo470';
+            # and IODTCompareNubName() matches on name, compatible,
+            # device_type and model. cepheus is Kryo 485, so with only
+            # 'qcom,kryo485' the driver never instantiates, IOCPU::
+            # initCPUInterruptController() never runs, ml_set_max_cpus() is
+            # never called, and kperf_init_early()'s ml_wait_max_cpus() sleeps
+            # forever -- the boot stops with no panic and no further output.
+            # Keep the real SoC name first and add the match string the
+            # built kernel looks for.
+            ('compatible', cstr(dev['cpu_compat']) + cstr(SWEET_CPU_MATCH)
+                + cstr('ARM,v8')),
             ('reg', u32(dev['cpu_regs'][core])),  # actual MPIDR Aff1:Aff0, NOT logical ID
             ('cpu-id', u32(core)),   # descriptive: XNU assigns IDs by DT order
             ('cluster-id', u32(0)),  # descriptive; see ml_parse_cpu_topology
