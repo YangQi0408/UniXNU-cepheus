@@ -30,7 +30,10 @@ jobs:
           git -C dxb checkout -q FETCH_HEAD
           bash cepheus/scripts/build-kernel-patches.sh ios-sweet
           cp ios-sweet/xnu/patches/*.patch ios-sweet/xnu/patches/*.sh dxb/patches/
-          cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h cepheus/xnu/cepheus_clock_status.h dxb/patches/
+          cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h cepheus/xnu/cepheus_clock_status.h cepheus/xnu/cepheus_gpi_layout.h dxb/patches/
+          # Retain the verified one-shot Home, PON-only keys and fast blank.
+          python3 cepheus/scripts/prepare-performance-patch.py ios-sweet/xnu/patches dxb/patches/0083-cepheus-performance.patch
+          python3 cepheus/scripts/test-performance.py
           # The SWEET kernel is plain arm64, not arm64e.
           python3 -c 'from pathlib import Path; p=Path("dxb/build.sh"); s=p.read_text(); old="ARCHS=\"x86_64 arm64e\" VALID_ARCHS=\"x86_64 arm64e\""; assert s.count(old)==1; p.write_text(s.replace(old,"ARCHS=\"x86_64 arm64e arm64\" VALID_ARCHS=\"x86_64 arm64e arm64\""))'
       - name: Toolchain and event parser regression
@@ -55,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'Applying patch:' dxb/build.log | grep -F '0082-cepheus-touch.patch'
-          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-)'; then
+          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-)'; then
             echo 'critical patch skipped' >&2; exit 1
           fi
           grep -E '^bsd/dev/cepheus_touch.c[[:space:]]+standard$' dxb/xnu/bsd/conf/files
@@ -63,9 +66,11 @@ jobs:
           cmp cepheus/xnu/cepheus_touch.c dxb/xnu/bsd/dev/cepheus_touch.c
           cmp cepheus/xnu/cepheus_fts_events.h dxb/xnu/bsd/dev/cepheus_fts_events.h
           cmp cepheus/xnu/cepheus_clock_status.h dxb/xnu/bsd/dev/cepheus_clock_status.h
+          cmp cepheus/xnu/cepheus_gpi_layout.h dxb/xnu/bsd/dev/cepheus_gpi_layout.h
           mkdir out
           K=dxb/fakeroot/System/Library/Kernels/kernel.development.sweet
           python3 cepheus/scripts/verify-touch-kernel.py "$K"
+          python3 -c 'from pathlib import Path;d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes();assert all(s in d for s in (b"SWEET BLANK:",b"one-shot Home complete",b"SWEET GPI: SMMU"))'
           cp "$K" out/kernel.macho
           (cd out && shasum -a 256 kernel.macho > SHA256SUMS)
           git -C cepheus rev-parse HEAD > out/device-commit.txt

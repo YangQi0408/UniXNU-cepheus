@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "cepheus_fts_events.h"
 #include "cepheus_clock_status.h"
+#include "cepheus_gpi_layout.h"
 
 int main(void)
 {
@@ -33,5 +34,21 @@ int main(void)
 	assert(!cepheus_branch_enabled(0x80000000u, 1));
 	assert(cepheus_branch_enabled(0x20000000u, 0));
 	puts("SM8150 clock status: on, hw-gated, halted and NOC FSM: PASS");
+	assert(!cepheus_gpii_allowed(0) && cepheus_gpii_allowed(1));
+	assert(!cepheus_gpii_allowed(2) && cepheus_gpii_allowed(3));
+	assert(cepheus_gpii_allowed(7) && !cepheus_gpii_allowed(8));
+	assert(!cepheus_gpii_allowed(13) && !cepheus_gpii_allowed(32));
+	assert(cepheus_gpi_channel_context(1, 0) == 0x24000u);
+	assert(cepheus_gpi_channel_context(7, 1) == 0x3c080u);
+	assert(cepheus_gpi_event_context(7) == 0x3d000u);
+	assert(cepheus_gpi_offset_valid(0x5fffcu));
+	assert(!cepheus_gpi_offset_valid(0x60000u) && !cepheus_gpi_offset_valid(3));
+	puts("GPI2 allowed instance mask and read-only context offsets: PASS");
+	assert(cepheus_smr_matches(0x800007b6u, 0x7b6));
+	assert(!cepheus_smr_matches(0x000007b6u, 0x7b6));
+	assert(!cepheus_smr_matches(0x800007b7u, 0x7b6));
+	assert(cepheus_smr_matches(0x800107b7u, 0x7b6));
+	assert(cepheus_smr_matches(0x87ff0000u, 0x7b6));
+	puts("SMMU stream exact/masked matches and invalid entries: PASS");
 	return 0;
 }

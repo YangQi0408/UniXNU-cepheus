@@ -37,6 +37,7 @@ def main():
     p.add_argument('kernel', type=Path)
     p.add_argument('output', type=Path)
     p.add_argument('--fixed-timer', type=int, choices=(0, 1), default=1)
+    p.add_argument('--touch-probe', action='store_true', help='enable delayed cepheus GPI probe, only in a verified combined kernel')
     a = p.parse_args()
     if a.output.exists():
         p.error('refusing to overwrite output')
@@ -46,6 +47,10 @@ def main():
             p.error(f'performance marker missing: {s!r}')
     if len(kernel) < 2_000_000 or kernel[:4] != bytes.fromhex('cffaedfe'):
         p.error('not a Mach-O kernel')
+    if a.touch_probe:
+        subprocess.run(['python3', str(Path(__file__).with_name('verify-touch-kernel.py')), str(a.kernel)], check=True)
+        if b'SWEET GPI: SMMU' not in kernel:
+            p.error('missing GPI/SMMU diagnostic marker')
     src = a.source.read_bytes()
     if src[:8] != b'ANDROID!': p.error('not Android boot')
     k, _, r, _, second, _, _, page = struct.unpack_from('<8I', src, 8)
@@ -64,6 +69,9 @@ def main():
         copy('::/EFI/UniXNU/Payloads/kernel.macho.adt', w / 'adt')
         before = (w / 'config').read_text()
         line = make_args(tomllib.loads(before)['entry'][0]['args'], a.fixed_timer)
+        if a.touch_probe:
+            line = line.replace('sweettouch=0', 'sweettouch=1') + ' sweettouchdelay=60'
+            if len(line) > 1000: p.error('args too long')
         after, n = re.subn(r'^args = "[^"\n]*"$', f'args = "{line}"', before, flags=re.M)
         if n != 1: p.error('expected one config entry')
         (w / 'config').write_text(after)

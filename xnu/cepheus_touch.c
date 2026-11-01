@@ -55,6 +55,7 @@
 #include <pexpert/pexpert.h>
 #include "cepheus_fts_events.h"
 #include "cepheus_clock_status.h"
+#include "cepheus_gpi_layout.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 /* Mach MIG declaration is not included by BSD's exported thread.h. */
@@ -451,6 +452,77 @@ touch_fts(void)
 }
 
 static bool
+touch_smmu_probe(void)
+{
+	/* Only GR0 identification and matching descriptors, never a reset, map
+	 * update, TLB invalidation, or address-translation command. */
+	printf("SWEET GPI: reading apps SMMU GR0 for stream %#x\n", CEPHEUS_GPI_SID);
+	vm_offset_t smmu = ml_io_map(CEPHEUS_SMMU_PA, 0x1000);
+	if (!smmu) { return false; }
+	uint32_t cr0 = touch_rd(smmu, 0), id0 = touch_rd(smmu, 0x20);
+	uint32_t id1 = touch_rd(smmu, 0x24), id2 = touch_rd(smmu, 0x28);
+	unsigned groups = id0 & 0xffu, matches = 0;
+	printf("SWEET GPI: SMMU cr0=%#x id0=%#x id1=%#x id2=%#x groups=%u\n",
+	    cr0, id0, id1, id2, groups);
+	if (id0 == 0 || id0 == 0xffffffffu || !(id0 & (1u << 27)) || (cr0 & 8u)) {
+		printf("SWEET GPI: unsupported SMMU ID/match mode; DMA domain unknown\n");
+		return false;
+	}
+	for (unsigned i = 0; i < groups; ++i) {
+		uint32_t smr = touch_rd(smmu, 0x800u + i * 4u);
+		if (!cepheus_smr_matches(smr, CEPHEUS_GPI_SID)) { continue; }
+		uint32_t s2cr = touch_rd(smmu, 0xc00u + i * 4u);
+		++matches;
+		printf("SWEET GPI: SID=%#x match=%u SMR=%#x S2CR=%#x type=%u cb=%u\n",
+		    CEPHEUS_GPI_SID, i, smr, s2cr, (s2cr >> 16) & 3u, s2cr & 0xffu);
+	}
+	printf("SWEET GPI: SMMU matches=%u clientpd=%u unmatched_fault=%u; no mapping changed\n",
+	    matches, cr0 & 1u, (cr0 >> 10) & 1u);
+	return true;
+}
+
+static bool
+touch_gpi_probe(void)
+{
+	/* GPI DMA needs channel ownership, event ring state and a validated DMA
+	 * address domain before any allocation/doorbell. Observe only contexts
+	 * assigned to Linux by the live FDT mask. No GPI MMIO stores are issued.
+	 */
+	vm_offset_t gpi = ml_io_map(CEPHEUS_GPI2_PA, CEPHEUS_GPI2_SIZE);
+	if (!gpi) {
+		printf("SWEET GPI: read-only GPI2 mapping failed\n");
+		return false;
+	}
+	printf("SWEET GPI: GPI2 %#x mask=%#x read-only context probe; DMA not started\n",
+	    CEPHEUS_GPI2_PA, CEPHEUS_GPII_MASK);
+	for (unsigned n = 0; n < CEPHEUS_GPII_MAX; ++n) {
+		if (!cepheus_gpii_allowed(n)) { continue; }
+		uint32_t event = cepheus_gpi_event_context(n);
+		if (!cepheus_gpi_offset_valid(event + 0x34u)) { return false; }
+		uint32_t ec = touch_rd(gpi, event);
+		printf("SWEET GPI: i%u event ctx=%#x state=%u len=%#x base=%#x:%08x rp=%#x:%08x wp=%#x:%08x\n",
+		    n, ec, (ec >> 20) & 15u, touch_rd(gpi, event + 4),
+		    touch_rd(gpi, event + 12), touch_rd(gpi, event + 8),
+		    touch_rd(gpi, event + 20), touch_rd(gpi, event + 16),
+		    touch_rd(gpi, event + 28), touch_rd(gpi, event + 24));
+		for (unsigned ch = 0; ch < 2; ++ch) {
+			uint32_t ctx = cepheus_gpi_channel_context(n, ch);
+			if (!cepheus_gpi_offset_valid(ctx + 0x6cu)) { return false; }
+			uint32_t cc = touch_rd(gpi, ctx), scratch = touch_rd(gpi, ctx + 0x60u);
+			printf("SWEET GPI: i%u ch%u ctx=%#x state=%u len=%#x base=%#x:%08x rp=%#x:%08x wp=%#x:%08x scratch=%#x seid=%u proto=%u\n",
+			    n, ch, cc, (cc >> 20) & 15u, touch_rd(gpi, ctx + 4),
+			    touch_rd(gpi, ctx + 12), touch_rd(gpi, ctx + 8),
+			    touch_rd(gpi, ctx + 20), touch_rd(gpi, ctx + 16),
+			    touch_rd(gpi, ctx + 28), touch_rd(gpi, ctx + 24),
+			    scratch, scratch & 15u, (scratch >> 4) & 15u);
+		}
+	}
+	printf("SWEET GPI: probe complete; channel allocation and SMMU DMA domain not verified\n");
+	(void)touch_smmu_probe();
+	return true;
+}
+
+static bool
 touch_se_init(void)
 {
 	uint32_t fw = touch_rd(st.se, SE_FW);
@@ -468,6 +540,13 @@ touch_se_init(void)
 		 * and depth in that mode; they are not permission to access FIFO.
 		 */
 		printf("SWEET TOUCH (cepheus): SE17 is GSI-only; FIFO driver cannot probe; stopping\n");
+		printf("SWEET TOUCH (cepheus): inherited pins SDA=%#x/%#x SCL=%#x/%#x RESET=%#x/%#x IRQ=%#x/%#x VDDIO=%#x/%#x\n",
+		    touch_rd(st.south, TOUCH_GPIO_CFG(55)), touch_rd(st.south, TOUCH_GPIO_IO(55)),
+		    touch_rd(st.south, TOUCH_GPIO_CFG(56)), touch_rd(st.south, TOUCH_GPIO_IO(56)),
+		    touch_rd(st.gpio, TOUCH_GPIO_CFG(12)), touch_rd(st.gpio, TOUCH_GPIO_IO(12)),
+		    touch_rd(st.south, TOUCH_GPIO_CFG(122)), touch_rd(st.south, TOUCH_GPIO_IO(122)),
+		    touch_rd(st.gpio, TOUCH_GPIO_CFG(84)), touch_rd(st.gpio, TOUCH_GPIO_IO(84)));
+		(void)touch_gpi_probe();
 		return false;
 	}
 	if (((fw >> 8) & 0xffu) != 3u ||
