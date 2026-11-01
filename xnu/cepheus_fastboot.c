@@ -8,7 +8,6 @@
 #include <corecrypto/ccsha2.h>
 #include <corecrypto/cc.h>
 #include <libkern/libkern.h>
-#include <libsa/string.h>
 #elif defined(__APPLE__)
 #include <CommonCrypto/CommonHMAC.h>
 #else
