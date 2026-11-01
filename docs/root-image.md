@@ -105,3 +105,26 @@ bash scripts/pull-log.sh /path/to/kernel-console.log
 
 它只读 userdata 末尾 1025 个 4096 字节块，检查 `SWEETLOG` 头并处理环形回绕。
 无需格式化、解密或挂载 userdata。无法保证 panic 前的最后一秒已写入持久化区。
+
+## 修正版首次真机测试（2026-11-01）
+
+root sparse SHA256：`313d5ccd792febf65fed401a17a54ca67591d55125b28b6289ea62bcccb53dde`。
+保持 boot SHA256：`e933b355b2f60ea842bfa30f5f8d66d2bfa9d93c6f80cb2f9c438e60aedf46e6`。
+fastboot 20 个 sparse 分块全部 OKAY，随后 `fastboot boot` 成功；未写 boot 分区。
+
+日志证据：
+
+```
+SWEET CPU: 8/8 CPUs initialized, SGI1 verified
+MKB_INIT: System Keybag loaded
+****** DONE MKB_INIT ****
+exec SpringBoard
+SWEET SURF: backboardd create id 2 1125x2436 ... -> 0x0
+SWEET FB: swap 1 layer 0 surface 2 ...
+SWEET FB: swap 7 layer 0 surface 3 ...
+SMP SpringBoard[26] ...
+```
+
+已收到超过 150 KB UDP 日志；ping 3/3 成功。观测窗口内 SpringBoard exec 仅一次，
+未见之前的 SpringBoardUI 断言或 keybag panic，但 bluetoothd / fairplayd.H2 有重复 exec。
+有显示 surface/swap 不等于已经到主屏幕，尚需目视确认和输入测试。
