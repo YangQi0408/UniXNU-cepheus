@@ -56,3 +56,12 @@ base+4 enable位，不能像sweet L11C的VRM发送电压/模式。RSC/DRV及TCS�
 下一诊断版同时输出RESET/VDDIO以及SDA/SCL的配置回读；回读不符立即停止。
 GPIO若报告EGPIO_PRESENT则按Linux设置EGPIO_ENABLE。电源投票为显式
 `sweettouchgpio=1 sweettouchpower=1`，不默认对所有启动执行。
+
+### 电源诊断版待测试：run 41289150375
+
+构建通过（含事件/I²C模拟/电源策略/性能测试、补丁及产物核验）。
+kernel SHA256 `e9709ef19f08149deec339e55ff2ab6e001200494bf676f41bad57910e802252`；
+boot `boot-cepheus-touch-power.img` SHA256
+`c8eae5a0abd8dd9f8cd58f954497c0510c576b941b09bc0ef1efb2648718ea88`。
+保留性能修复和PON-only电源键、单次Home，启用GPIO+ldoc1请求。
+尚未临时启动，等待手机回fastboot；不能宣称触摸电源或芯片ID读取已成功。
