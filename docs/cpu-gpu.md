@@ -57,3 +57,29 @@ GPU scratch范围＋WAIT_FOR_IDLE；离线校验奇偶位、64位地址、边界
 
 Freedreno/Turnip可参考Adreno命令、编译器和资源布局，但现有Linux/Android接口不能
 直接作为iOS驱动使用。MoltenVK是Vulkan→Metal，不会提供缺失的Adreno Metal后端。
+
+## CPU限时实验结果（run 41292760384）
+
+boot SHA256 `da9efd9cb358959e813052f4ab35afdda76d334611699050c6dd1e2501a0df3b`，
+kernel SHA256 `916140ce0965f4078e46c05832f85d74198573b34ea1e83d8f0250a6da97d26d`。
+已临时启动，没有写boot/userdata。保留触摸和快速熄屏，日志 `cpu-trial-boot.log`：
+
+```
+trial gold old=0/710400 new=6/1401600 mv=756 old_corner=0 new_corner=6 duration=120s
+trial prime old=0/825600 new=5/1401600 mv=756 old_corner=0 new_corner=5 duration=120s
+sample1 gold core0 desired=6 target_khz=1401600 ... rate_khz=1402452
+sample1 prime core0 desired=5 target_khz=1401600 ... rate_khz=1402562
+restored gold desired=0
+restored prime desired=0
+sample25 gold ... target_khz=710400 ... rate_khz=710851
+sample25 prime ... target_khz=825600 ... rate_khz=826318
+```
+
+频率请求生效和回退都有直接证据。CPU频率提升不是界面帧率提升的等价指标；
+本次没有足够持续交互样本，不能声称流畅度翻倍。尚无温度闭环/调度整合，
+不把这个限时实验包装成长期性能成品。
+
+GPU基础新增 `cepheus_gmu_firmware.h`：依据源码格式规划GMU分块，严格检查
+长度、对齐、地址域、重叠和溢出，零长度元数据不当成载入数据。当前测试使用
+合成数据，并未通过该模块上传真实固件；仍缺电源、GMU/HFI、SMMU和SQE初始化。
+PM4与固件规划模块均不发MMIO、不启动GPU，不构成Metal支持。

@@ -59,6 +59,8 @@ jobs:
           /tmp/soc-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_a640_pm4.c -o /tmp/pm4-test
           /tmp/pm4-test
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test
+          /tmp/gmu-test
       - name: Build XNU
         working-directory: dxb
         run: |
