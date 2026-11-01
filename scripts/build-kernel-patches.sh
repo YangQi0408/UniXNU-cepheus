@@ -21,9 +21,10 @@ install -m 644 "$ROOT/xnu/cepheus_gpi_layout.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/cepheus_i2c_bitbang.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/0085-stage-cepheus-soc.sh" "$ROOT/xnu/0085-cepheus-soc.patch" "$ROOT/xnu/cepheus_soc.c" "$ROOT/xnu/cepheus_soc.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/0086-stage-cepheus-reboot.sh" "$ROOT/xnu/0086-cepheus-reboot.patch" "$ROOT/xnu/cepheus_reboot.c" "$ROOT/xnu/cepheus_reboot.h" "$DEST/xnu/patches/"
+install -m 644 "$ROOT/xnu/0087-stage-cepheus-fastboot.sh" "$ROOT/xnu/0087-cepheus-fastboot.patch" "$ROOT/xnu/cepheus_fastboot.c" "$ROOT/xnu/cepheus_fastboot.h" "$ROOT/xnu/0088-entropy-health-ready.patch" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/cepheus_cpu_policy.h" "$DEST/xnu/patches/"
-for required in 0082-cepheus-touch.patch 0085-cepheus-soc.patch 0086-cepheus-reboot.patch 0086-stage-cepheus-reboot.sh cepheus_reboot.c cepheus_reboot.h; do
+for required in 0082-cepheus-touch.patch 0085-cepheus-soc.patch 0086-cepheus-reboot.patch 0086-stage-cepheus-reboot.sh cepheus_reboot.c cepheus_reboot.h 0087-cepheus-fastboot.patch 0087-stage-cepheus-fastboot.sh cepheus_fastboot.c cepheus_fastboot.h 0088-entropy-health-ready.patch; do
     test -s "$DEST/xnu/patches/$required" || { echo "ERROR: missing staged $required" >&2; exit 1; }
 done
-echo "installed Cepheus touch, SoC, and refusal-gated reboot patches into $DEST/xnu/patches"
+echo "installed Cepheus touch, SoC, refusal-gated reboot, and optional fastboot patches into $DEST/xnu/patches"
 ls -l "$DEST/xnu/patches/" | tail -3

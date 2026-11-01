@@ -1,0 +1,19 @@
+--- a/osfmk/prng/entropy.c
++++ b/osfmk/prng/entropy.c
+@@ -226,0 +227,11 @@
++int
++entropy_health_is_ready(void)
++{
++	lck_mtx_lock(&entropy_data.mutex);
++	int ready = entropy_health_startup_done != 0 &&
++	    entropy_health_rct_stats.failure_count == 0 &&
++	    entropy_health_apt_stats.failure_count == 0;
++	lck_mtx_unlock(&entropy_data.mutex);
++	return ready;
++}
++
+--- a/osfmk/prng/entropy.h
++++ b/osfmk/prng/entropy.h
+@@ -53,0 +54,2 @@
++/* Thread-context snapshot synchronized with continuous health-test updates. */
++int entropy_health_is_ready(void);

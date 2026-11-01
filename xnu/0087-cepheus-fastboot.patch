@@ -1,0 +1,12 @@
+--- a/bsd/conf/files
++++ b/bsd/conf/files
+@@ -4,0 +5 @@
++bsd/dev/cepheus_fastboot.c			standard
+--- a/bsd/dev/sweet_usb.c
++++ b/bsd/dev/sweet_usb.c
+@@ -42,0 +43 @@
++extern void cepheus_fastboot_start(ifnet_t);
+@@ -867,0 +869,3 @@
++	int fastboot = 0;
++	PE_parse_boot_argn("sweetfastboot", &fastboot, sizeof(fastboot));
++	if (fastboot == 1 && ud.ifp != NULL) cepheus_fastboot_start(ud.ifp);

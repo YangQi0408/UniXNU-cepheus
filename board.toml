@@ -98,6 +98,8 @@ kernel_args = [
   "unentitled_ios_sim_launch=1",
   "ignition_level=1",
   "wdt_test=no_user_checkin",
+  # The authenticated endpoint is optional and remains disabled in every public image.
+  "sweetfastboot=0",
   "ufsrw=1",
   "rootrw=1",
   "launchd_unsecure_cache=1",

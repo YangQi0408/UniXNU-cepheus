@@ -81,19 +81,33 @@ def provision(root: Path) -> None:
         else:
             raise FileExistsError("control key already exists; refusing replacement")
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-        key_fd = os.open(KEY.name, flags, 0o600, dir_fd=parent_fd)
+        key_fd = os.open(KEY.name, flags | os.O_NONBLOCK, 0o600, dir_fd=parent_fd)
+        complete = False
         try:
+            metadata = os.fstat(key_fd)
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                raise ValueError("control key path is not a single-link regular file")
             data = secrets.token_bytes(32)
-            written = os.write(key_fd, data)
-            if written != len(data):
-                raise OSError(errno.EIO, "short control-key write")
+            view = memoryview(data)
+            while view:
+                written = os.write(key_fd, view)
+                if written <= 0:
+                    raise OSError(errno.EIO, "short control-key write")
+                view = view[written:]
             os.fsync(key_fd)
             os.fchown(key_fd, 0, 0)
             os.fchmod(key_fd, 0o600)
+            complete = True
         finally:
             os.close(key_fd)
+            if not complete:
+                try:
+                    os.unlink(KEY.name, dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
         os.fchown(parent_fd, 0, 0)
         os.fchmod(parent_fd, 0o700)
+        os.fsync(parent_fd)
     finally:
         _close_fds(fds)
 
@@ -101,15 +115,16 @@ def provision(root: Path) -> None:
 def verify(root: Path) -> None:
     parent_fd, fds = _open_key_parent(root, create=False)
     try:
-        key_fd = os.open(KEY.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent_fd)
+        key_fd = os.open(KEY.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
         try:
             parent_metadata = os.fstat(parent_fd)
             if (parent_metadata.st_uid, parent_metadata.st_gid,
                     stat.S_IMODE(parent_metadata.st_mode)) != (0, 0, 0o700):
                 raise ValueError("control-key directory ownership or mode is unsafe")
             metadata = os.fstat(key_fd)
-            if (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)) != (0, 0, 0o600):
-                raise ValueError("control key ownership or mode is unsafe")
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1 or
+                    (metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode)) != (0, 0, 0o600)):
+                raise ValueError("control key file type, links, ownership or mode is unsafe")
             data = b""
             while len(data) < 33:
                 chunk = os.read(key_fd, 33 - len(data))

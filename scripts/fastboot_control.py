@@ -150,6 +150,8 @@ class Responder:
                 and packet.client_nonce == b"\0" * NONCE_BYTES):
             return self.challenge_packet()
         status, body = self.handle(data, gates)
+        if status == BUSY and packet.challenge != self._challenge:
+            return self.challenge_packet()
         return pack(Packet(RESPONSE, packet.sequence, self._challenge,
                            packet.client_nonce, bytes((status,)) + body), self._key)
 
@@ -158,6 +160,8 @@ class Responder:
             packet = unpack(data, self._key)
         except ProtocolError:
             return MALFORMED, b""
+        if packet.kind not in _ACTIONS or packet.body:
+            return MALFORMED, b""
         with self._lock:
             if packet.challenge != self._challenge:
                 return REPLAY, b""
@@ -165,27 +169,24 @@ class Responder:
             if replay_key in self._seen:
                 return REPLAY, b""
             if len(self._seen) >= MAX_REQUESTS_PER_CHALLENGE:
+                self._challenge = secrets.token_bytes(NONCE_BYTES)
+                self._seen.clear()
                 return BUSY, b""
             self._seen.add(replay_key)
             if packet.kind == COMMIT:
-                if not self._enabled or not gates.enabled:
-                    return DISABLED, b""
-                if not self._entropy_ready or not gates.entropy_ready:
-                    return NOT_READY, b""
-                if not gates.commit_ready:
-                    return BUSY, b""
-                if self._commit_attempted or self._commit is None:
-                    return UNSUPPORTED, b""
-                # Consume the one-shot authorization before any side effect.
-                # A reset callback may return an error after initiating reset.
-                self._commit_attempted = True
-                callback = self._commit
-            elif packet.kind == DRY_RUN:
-                return (OK if gates.commit_ready else NOT_READY), _gate_bits(gates)
-            else:
-                return OK, _gate_bits(gates)
-        result = callback()
-        return (OK if not result else result), b""
+                return UNSUPPORTED, b""
+            state = GateState(
+                enabled=self._enabled and gates.enabled,
+                entropy_ready=self._entropy_ready and gates.entropy_ready,
+                storage_clean=gates.storage_clean,
+                workers_quiesced=gates.workers_quiesced,
+                reset_backend=gates.reset_backend,
+                failed_worker=gates.failed_worker,
+                shutdown_started=gates.shutdown_started,
+            )
+            if packet.kind == DRY_RUN:
+                return (OK if state.commit_ready else NOT_READY), _gate_bits(state)
+            return OK, _gate_bits(state)
 
 
 def _gate_bits(gates: GateState) -> bytes:
@@ -235,6 +236,14 @@ class Client:
         if len(raw) < HEADER.size + MAC_BYTES:
             raise ProtocolError("short response")
         response = unpack(raw, self.key)
+        if (response.kind == CHALLENGE and response.sequence == 0 and
+                response.client_nonce == b"\0" * NONCE_BYTES):
+            self.challenge = response.challenge
+            packet = Packet(action, packet.sequence, self.challenge,
+                            secrets.token_bytes(NONCE_BYTES))
+            self.sock.sendto(pack(packet, self.key), self.address)
+            raw, _ = self.sock.recvfrom(MAX_PACKET)
+            response = unpack(raw, self.key)
         if (response.kind != RESPONSE or len(response.body) < 1 or
                 response.sequence != packet.sequence or
                 response.client_nonce != packet.client_nonce or
