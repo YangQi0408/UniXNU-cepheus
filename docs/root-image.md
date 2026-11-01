@@ -250,8 +250,7 @@ max13、SMMU stream `0x7b6`、smmu-cfg1。I²C SE17是local SE0。
 - 注入 Home 键事件后，SpringBoard 成功响应并启动 `Spotlight` 与 `com.apple.sbd`。
 - **真机目视验证：成功进入 SpringBoard 主屏幕（App 图标桌面）！**
 - **物理电源键确认可用**：按下可正常锁屏/休眠/唤醒点亮屏幕。
-- 屏幕刷新慢的原因分析：
-  1. 无硬件 GPU，全部图层（图标、高斯模糊、阴影）依赖 CPU 软渲染；
-  2. `sweethidtest=10` 每 10 秒重复触发 Home 键打断主界面渲染；
-  3. 缺少蓝牙/蜂窝硬件导致部分守护进程后台重试。
+- 屏幕刷新慢的候选因素（尚非已确认瓶颈）：软件渲染、重复 Home 测试、后台服务重试。
+  原 Home 代码最多 30 次，不是无限循环。未测量各项 CPU 占比，不能给出百分比改善承诺。
+  首轮可测量对照见 [performance.md](performance.md)，不删除服务或重刷 userdata。
 

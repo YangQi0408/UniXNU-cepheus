@@ -60,3 +60,32 @@ python3 scripts/make-performance-boot.py boot-cepheus-keys.img kernel.macho boot
 打包保持ADT/UEFI/DTB和大小，更新Aloha payload digest，不覆盖源镜像。
 先开UDP日志，再 `fastboot boot`；不刷boot或userdata。通过构建不等于已加速，
 结果需记录实际日志和用户目视反馈。
+
+## 首次启动记录：run 41284957253
+
+构建成功，5项离线策略测试通过；新增日志解析测试后共6项。
+已临时启动 `boot-cepheus-perf.img`（SHA256
+`427da1ebfd649d39282f01f9385f4494c189b2b15fa98cd8b8f7dc050b39e0e4`），未改userdata。
+同内核相对节拍版 `boot-cepheus-perf-relative.img`（SHA256
+`1ba7e1d4382a6383384bdfd216b6bd4ce7a73aaf24c917cf2a5b60ef5aff134f`）仅打包，未上机。
+日志位于本地 `logs/perf-boot.log`，MKB_INIT完成、SpringBoard启动、USB ping正常，
+出现一组Home down/up及 `one-shot Home complete`，后续窗口无继续注入。
+
+记录到的窗口（不是持续动画benchmark）：
+
+| 窗口 ms | submitted/presented | present 总耗时 µs / 最大 µs | copied bytes | missed | off |
+|---|---|---|---|---|---|
+|10063|6 / 3|6533 / 2493|30326400|202|1|
+|10003|0 / 0|0 / 0|0|34|1|
+|10000|22 / 20|51424 / 4838|192067200|0|0|
+|10000|1 / 1|2269 / 2269|10108800|0|0|
+
+解释：呈现调用约2.3ms至4.8ms，启动窗口里拷屏不表现为数百毫秒耗时。
+但off期间有大量超期槽；显示关闭淡出会读取write-combined framebuffer，可能
+拖慢workloop，该路径未单独计时，不能把 missed 直接归因于此。
+静止屏幕后续submitted=0正常。PosterBoard的旧SIGTRAP仍存在，未在此版本掩盖。
+需用户对熄屏/点亮反馈及相同操作的A/B数据，不能声称已测得总体加速。
+
+```bash
+python3 scripts/summarize-performance.py ../logs/perf-boot.log
+```

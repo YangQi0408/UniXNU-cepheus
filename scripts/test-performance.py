@@ -10,9 +10,21 @@ spec.loader.exec_module(perf)
 boot_spec = importlib.util.spec_from_file_location('perf_boot', Path(__file__).with_name('make-performance-boot.py'))
 boot = importlib.util.module_from_spec(boot_spec)
 boot_spec.loader.exec_module(boot)
+summary_spec = importlib.util.spec_from_file_location('summary', Path(__file__).with_name('summarize-performance.py'))
+summary = importlib.util.module_from_spec(summary_spec)
+summary_spec.loader.exec_module(summary)
 
 
 class PerformancePolicy(unittest.TestCase):
+    def test_log_parser_skips_incomplete_udp_lines(self):
+        text = ('prefix SWEET PERF: ms=10000 submitted=22 presented=20 overwritten=3 '
+                'copy_us=51424 max_us=4838 bytes=192067200 missed=0 off=0\n'
+                'SWEET PERF: ms=10000 submitted=1 presented=1\n')
+        records = summary.windows(text)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['copy_us'], 51424)
+        self.assertEqual(records[0]['presented'], 20)
+
     def test_boot_args_stay_bounded_and_keep_safe_inputs(self):
         source = ('sweettouch=0 sweetkeys=1 sweetfb_noconsole=1 sweetusb=2 '
                   'sweethidtest=10 sweetfb_hz=30 startup_debug=1 -enable_kprintf_spam rd=ufsroot0')
