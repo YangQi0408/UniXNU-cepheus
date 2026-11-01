@@ -1,7 +1,8 @@
 /* SM8150 CPU/GPU bring-up diagnostics. Explicit boot opt-in, thread context.
- * CPU frequency table/requests and cycle counters are observed, not changed.
+ * CPU frequency table/requests/counters are observed by default. cephboost=1
+ * opts into a bounded 120s request experiment on Gold/Prime; always restore.
  * GPUCC is gated by GCC CFG_AHB; GMU/GX are NOT poked if powered down.
- * No frequency requests, voltage writes, GPU resets, DMA or firmware upload.
+ * No voltage writes, thermal override, GPU resets, DMA or firmware upload.
  */
 #if defined(ARM64_BOARD_CONFIG_SWEET)
 #include <sys/param.h>
@@ -35,6 +36,55 @@ static struct osm_bank banks[] = {
 	{"l3", 0x18321000, 1, 0, false}, {"silver", 0x18323000, 4, 0, false},
 	{"gold", 0x18325800, 3, 0, false}, {"prime", 0x18327800, 1, 0, false}
 };
+struct osm_trial { bool active; unsigned old_index, new_index; };
+static struct osm_trial trials[4];
+static void osm_request(struct osm_bank *b, unsigned index)
+{
+	// clk-cpu-osm.c osm_set_index(): PERF_STATE_DESIRED then ENABLE read.
+	__asm__ volatile("dmb oshst" ::: "memory");
+	*(volatile uint32_t *)(b->va + 0x920) = index;
+	__asm__ volatile("dsb osh" ::: "memory");
+	(void)sr(b->va, 0);
+}
+static void osm_trial_start(void)
+{
+	int enable = 0;
+	PE_parse_boot_argn("cephboost", &enable, sizeof(enable));
+	if (enable != 1) { return; }
+	for (unsigned n = 2; n < 4; ++n) {
+		struct osm_bank *b = &banks[n];
+		if (!b->enabled || sr(b->va, 0xbc) != 0) { continue; }
+		unsigned current = sr(b->va, 0x920);
+		uint32_t freq[CEPHEUS_OSM_ROWS], volt[CEPHEUS_OSM_ROWS];
+		for (unsigned i = 0; i < CEPHEUS_OSM_ROWS; ++i) {
+			freq[i] = sr(b->va, 0x110 + i * 32);
+			volt[i] = sr(b->va, 0x114 + i * 32);
+		}
+		unsigned target = cepheus_osm_same_voltage(freq, volt, CEPHEUS_OSM_ROWS, current);
+		if (target == current || sr(b->va, 0x920) != current) { continue; }
+		printf("CEPHEUS OSM: trial %s old=%u/%u new=%u/%u mv=%u old_corner=%u new_corner=%u duration=120s\n",
+		    b->name, current, cepheus_osm_khz(freq[current]), target, cepheus_osm_khz(freq[target]),
+		    volt[target] & 0xfffu, (volt[current] >> 16) & 63u, (volt[target] >> 16) & 63u);
+		trials[n] = (struct osm_trial){true, current, target};
+		osm_request(b, target);
+		printf("CEPHEUS OSM: trial %s readback=%u\n", b->name, sr(b->va, 0x920));
+	}
+}
+static void osm_trial_restore(void)
+{
+	for (unsigned n = 2; n < 4; ++n) {
+		if (!trials[n].active) { continue; }
+		struct osm_bank *b = &banks[n];
+		unsigned current = sr(b->va, 0x920);
+		if (current == trials[n].new_index) {
+			osm_request(b, trials[n].old_index);
+			printf("CEPHEUS OSM: restored %s desired=%u\n", b->name, sr(b->va, 0x920));
+		} else {
+			printf("CEPHEUS OSM: %s external desired=%u; not overwriting another owner's request\n", b->name, current);
+		}
+		trials[n].active = false;
+	}
+}
 static void osm_dump(struct osm_bank *b)
 {
 	b->va = ml_io_map((vm_offset_t)b->pa, 0x1400);
@@ -59,7 +109,8 @@ static void osm_sample(unsigned sample)
 	uint64_t start = mach_absolute_time();
 	for (unsigned n = 0; n < 4; ++n) {
 		if (!banks[n].enabled) { continue; }
-		for (unsigned c = 0; c < banks[n].cores; ++c) { before[n][c] = sr(banks[n].va, 0x9c0 + c * 4); }
+		unsigned cores = (sr(banks[n].va, 0xbc) & 1u) ? banks[n].cores : 1u;
+		for (unsigned c = 0; c < cores; ++c) { before[n][c] = sr(banks[n].va, 0x9c0 + c * 4); }
 	}
 	swait(100);
 	uint64_t ns;
@@ -67,7 +118,8 @@ static void osm_sample(unsigned sample)
 	for (unsigned n = 0; n < 4; ++n) {
 		struct osm_bank *b = &banks[n];
 		if (!b->enabled) { continue; }
-		for (unsigned c = 0; c < b->cores; ++c) {
+		unsigned cores = (sr(b->va, 0xbc) & 1u) ? b->cores : 1u;
+		for (unsigned c = 0; c < cores; ++c) {
 			uint32_t desired = sr(b->va, 0x920 + c * 4);
 			uint32_t after = sr(b->va, 0x9c0 + c * 4);
 			uint32_t delta = cepheus_counter_delta(before[n][c], after);
@@ -111,7 +163,16 @@ static void soc_thread(void *arg, wait_result_t wr)
 	swait(45000); // keep boot/USB alive before the hardware probe
 	for (unsigned n = 0; n < 4; ++n) { osm_dump(&banks[n]); }
 	gpu_probe();
-	for (unsigned sample = 0; sample < 12; ++sample) { osm_sample(sample); swait(4900); }
+	osm_sample(0);
+	swait(60000); // let SpringBoard reach UI before an optional timed experiment
+	osm_trial_start();
+	uint64_t until;
+	clock_interval_to_deadline(120, NSEC_PER_SEC, &until);
+	for (unsigned sample = 1; sample <= 24 && mach_absolute_time() < until; ++sample) {
+		osm_sample(sample); swait(4900);
+	}
+	osm_trial_restore();
+	osm_sample(25);
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);
 }
