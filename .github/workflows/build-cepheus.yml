@@ -63,6 +63,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dipa-studio/ios-sweet
+          ref: 45263bee51df4a0f55cdf9c649af886399488ddb
           path: ios-sweet
 
       - name: Fetch darwin-xnu-build at the pinned commit ios-sweet uses
@@ -79,6 +80,7 @@ jobs:
           bash cepheus/scripts/build-kernel-patches.sh ios-sweet
           # overlay ios-sweet's XNU patches/shims onto blacktop's patches dir
           cp ios-sweet/xnu/patches/*.patch ios-sweet/xnu/patches/*.sh dxb/patches/ 2>/dev/null || true
+          cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h dxb/patches/
           ls dxb/patches/ | grep -c . | xargs echo "patches staged:"
           ls dxb/patches/ | grep cepheus || true
           # libfirehose_kernel is built arm64e-only; the SWEET kernel is plain arm64
@@ -138,6 +140,7 @@ jobs:
             exit 1
           fi
           echo "picked kernel: $K"
+          python3 cepheus/scripts/verify-touch-kernel.py "$K"
           cp "$K" cepheus/inputs/cepheus/kernel.macho
           ls -la cepheus/inputs/cepheus/kernel.macho
 

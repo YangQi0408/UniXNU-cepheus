@@ -9,7 +9,8 @@
 > 新根镜像首次启动因缺少 `systembag.kb` 请求重启，随后发生 Halt/Restart 超时。
 > 补齐后已真机启动：`DONE MKB_INIT`、SpringBoard PID 26、backboardd 创建 surface
 > 并提交 framebuffer swap，USB 日志与 ping 正常。用户已目视确认锁屏时钟出现，
-> 随后被 console 覆盖；锁屏绘制已验证，尚未验证解锁或进入主屏幕。
+> 随后被 console 覆盖；无控制台镜像再次启动后，用户确认锁屏时钟可见。
+> 锁屏绘制已验证，尚未验证解锁或进入主屏幕。
 > 触摸和按键目前关闭，不能视为已验证。详见 [根镜像构建与验证](docs/root-image.md)。
 
 ---
@@ -109,8 +110,11 @@ fastboot boot boot-cepheus.img         # 只进 RAM，不写任何分区
 
 ## 四、触摸驱动（唯一必须新写的部分）
 
-`xnu/0082-cepheus-touch.patch` 替换 ios-sweet 的 `bsd/dev/sweet_touch.c`（SE7/Goodix）
-为 cepheus 版本（SE17/ST-FTS）。所有数值都有出处：
+已验证锁屏的预编译内核**仍含参考 SE7/Goodix 驱动**，触摸保持关闭，不可直接
+把 `sweettouch` 改为 1。专用内核构建使用 `xnu/0082-stage-cepheus-touch.sh` 暂存
+`cepheus_touch.c`，由 `0082-cepheus-touch.patch` 改编译清单，仅编译 cepheus 驱动。
+`touch-kernel` workflow 会核对编译文件和 Mach-O 中的驱动标记，防止补丁静默跳过。
+以下参数为源代码已核对值，专用触摸内核尚待构建和真机验证：
 
 | 项 | cepheus | 出处 |
 |---|---|---|

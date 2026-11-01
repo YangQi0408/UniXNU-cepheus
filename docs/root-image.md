@@ -167,3 +167,24 @@ quiet boot SHA256：`26f14dfbbf60984b4260673cab2c845dab0c59a5a3805380fe1fe0a2c67
 这为显示路径提供了实际目视证据，而不只是 surface/swap 推断。
 当前可确认锁屏绘制，尚不能确认解锁或主屏幕；输入驱动仍关闭。
 下一次临时启动 quiet boot，验证锁屏不再被控制台覆盖。
+
+### quiet boot 真机结果与输入前置条件
+
+`boot-cepheus-gui.img` 已通过 fastboot 临时启动，用户再次确认到锁屏、时钟可见。
+新的 `gui-boot.log` 有 MKB_INIT 完成、SpringBoard、显示 swap 和持续 UDP；
+PosterBoard 仍有 SIGTRAP，不能因锁屏可见就忽略它。尚未验证解锁或主屏幕。
+
+在启用触摸前检查预编译内核，发现它仍含 `mapping GCC/TLMM/SE7` 和
+`GT9896 Yellowstone`，而不是 cepheus 的 ST-FTS 驱动。**保持 sweettouch=0**。
+原 0082 全文件补丁基于过时且缺少首行注释的源，与上游 0062/0063 修改不兼容，
+不能假定它已编译。现改为独立 source staging + 编译清单 patch，并检查产物。
+
+专用驱动核对/修复：GPIO55/56/122 在 SOUTH (`0x03d00000`)，12/84 在 NORTH
+(`0x03900000`)；wrapper2 AHB votes 为 bit2/bit1，不是 bit2/bit3；
+TX 分成 4+1 字节支持 5 字节芯片 ID 命令；FIFO 首事件保留，后续读入 buf+8；
+事件匹配 0x13/0x23/0x33，持久化跨帧 contact 状态；packing 使用上游0063值；
+ID 需为 36:39，成功后用厂商 `A0 00 01` 开启 active multitouch scan。
+不做 firmware/config upload 或 AVDD PMIC 写入，沿用固件电源状态，
+reset-low 默认关闭，可用 sweettouchreset=1 单独测试。
+事件解析测试（enter/motion/leave、保留其他手指、异常 ID、坐标范围、reset）
+在 ASan/UBSan 下通过。专用完整内核及触摸硬件仍未验证。

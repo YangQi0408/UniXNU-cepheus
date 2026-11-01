@@ -2,10 +2,10 @@
 # Copy the cepheus XNU patches into ios-sweet's patch directory.
 #
 # ios-sweet applies xnu/patches/*.patch in filename order with `git apply`.
-# Its 0060-sweet-keys-touch-drivers.patch CREATES bsd/dev/sweet_touch.c (the
-# sweet SE7 / Goodix GT9896 driver). Our 0082-cepheus-touch.patch sorts after
-# it and replaces that file's contents with the cepheus SE17 / ST-FTS driver,
-# so the later patch wins and no source edit to ios-sweet is needed.
+# Stage the cepheus source before the patch loop; 0082 changes only the
+# compiled file in bsd/conf/files after upstream reference-driver patches.
+# Do not replace the reference source in place: later 0062/0063 patches target
+# it, and a malformed/stale patch can be silently skipped by build.sh.
 #
 # Usage: build-kernel-patches.sh /path/to/ios-sweet
 set -euo pipefail
@@ -14,5 +14,7 @@ DEST="${1:?usage: build-kernel-patches.sh /path/to/ios-sweet}"
 [ -d "$DEST/xnu/patches" ] || { echo "ERROR: $DEST/xnu/patches not found" >&2; exit 1; }
 
 install -m 644 "$ROOT/xnu/0082-cepheus-touch.patch" "$DEST/xnu/patches/0082-cepheus-touch.patch"
+install -m 644 "$ROOT/xnu/0082-stage-cepheus-touch.sh" "$DEST/xnu/patches/0082-stage-cepheus-touch.sh"
+install -m 644 "$ROOT/xnu/cepheus_touch.c" "$ROOT/xnu/cepheus_fts_events.h" "$DEST/xnu/patches/"
 echo "installed 0082-cepheus-touch.patch into $DEST/xnu/patches"
 ls -l "$DEST/xnu/patches/" | tail -3
