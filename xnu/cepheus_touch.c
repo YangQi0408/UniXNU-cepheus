@@ -455,10 +455,22 @@ touch_se_init(void)
 {
 	uint32_t fw = touch_rd(st.se, SE_FW);
 	uint32_t tx = touch_rd(st.se, SE_HW_TX), rx = touch_rd(st.se, SE_HW_RX);
+	uint32_t fifo_disabled = touch_rd(st.se, 0x64);
 	printf("SWEET TOUCH (cepheus): se17 fw=%#x proto=%u status=%#x tx=%#x rx=%#x ios=%#x\n",
 	    fw, (fw >> 8) & 0xffu, touch_rd(st.se, SE_STATUS), tx, rx,
 	    touch_rd(st.se, 0x908));
-	if (((fw >> 8) & 0xffu) != 3u || (touch_rd(st.se, 0x64) & 1u) ||
+	printf("SWEET TOUCH (cepheus): FIFO_DISABLE=%#x TX width=%u depth=%u RX width=%u depth=%u\n",
+	    fifo_disabled, (tx >> 24) & 0x3fu, (tx >> 16) & 0x3fu,
+	    (rx >> 24) & 0x3fu, (rx >> 16) & 0x3fu);
+	if (fifo_disabled) {
+		/* Linux geni_i2c_runtime_resume selects GSI_ONLY when this read-only
+		 * register is nonzero. FIFO capability registers still report width
+		 * and depth in that mode; they are not permission to access FIFO.
+		 */
+		printf("SWEET TOUCH (cepheus): SE17 is GSI-only; FIFO driver cannot probe; stopping\n");
+		return false;
+	}
+	if (((fw >> 8) & 0xffu) != 3u ||
 	    ((tx >> 24) & 0x3fu) != 32u || ((rx >> 24) & 0x3fu) != 32u ||
 	    ((tx >> 16) & 0x3fu) < 2u || ((rx >> 16) & 0x3fu) < 2u) {
 		printf("SWEET TOUCH (cepheus): need ABL-loaded I2C firmware and 32-bit FIFOs; probes skipped\n");

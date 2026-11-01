@@ -204,3 +204,18 @@ boot SHA256 `63425b59a73d26051651d14292405f9551dbd0ad6cf286ce56bdb7501a1b2a38`�
 跳过HALT等待，而旧代码仍等待bit31清零。改为与Linux的HWCG/NOC状态判定一致，
 每个branch记录其自己的CBCR；保留真实超时失败，不无条件绕过检查。
 对应纯状态判定测试已加入；需要重建和再次真机验证，具体失败branch尚待新日志。
+
+### HWCG 修正版真机结果（run 41278463383）
+
+构建核验成功，kernel SHA256
+`4446cd97627709da1f64a35d6e87985b184e31f803cb2181624109f05c76aa38`；boot SHA256
+`710a3265168092a1e990f96e945ee1873c96d38d2bce488c090cd35252cbcc6b`。
+已临时启动，日志 `touch-hwcg-boot.log`：M_AHB `CBCR=0 on`、S_AHB
+`CBCR=0x80000002 hardware-gated`、SE17 `CBCR=0x4220 on`。时钟检查通过，
+SE17 `fw=0x303 proto=3 status=0 tx=0x20102964 rx=0x20104900 ios=0`，
+随后 FIFO readiness 检查失败。尚未 chip ID probe，触摸未工作，系统/USB正常。
+
+TX/RX capability 都是 width32/depth16，满足现有条件，因此剩余未记录的
+`GENI_IF_FIFO_DISABLE_RO` 是主要嫌疑，但还没有原始寄存器证据。
+补充该值和capability解码，拆分失败日志；按照Linux runtime_resume的条件，
+只读FIFO_DISABLE非零时要求GSI DMA，不允许绕过检查去尝试FIFO。
