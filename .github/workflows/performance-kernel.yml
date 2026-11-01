@@ -54,9 +54,12 @@ jobs:
           if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0083-)'; then exit 1; fi
           grep -F 'fb->finishTick(sender)' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
           ! grep -F 'IOMallocData(SWEET_FB_SWAP_REC_SIZE)' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
+          ! grep -F 'row[x] >> 1' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
+          ! grep -F 'fFadeStep' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
+          grep -F 'bzero((void *)fb->fPixels' dxb/xnu/iokit/Kernel/arm/SweetFramebuffer.cpp
           mkdir out
           cp dxb/fakeroot/System/Library/Kernels/kernel.development.sweet out/kernel.macho
-          python3 -c 'from pathlib import Path; p=Path("out/kernel.macho");d=p.read_bytes();assert len(d)>2000000 and d[:4]==bytes.fromhex("cffaedfe");assert all(x in d for x in (b"SWEET PERF:",b"sweetfb_fixedtimer",b"sweetkeyspononly",b"one-shot Home complete"));assert b"SWEET GPI:" not in d'
+          python3 -c 'from pathlib import Path; p=Path("out/kernel.macho");d=p.read_bytes();assert len(d)>2000000 and d[:4]==bytes.fromhex("cffaedfe");assert all(x in d for x in (b"SWEET PERF:",b"SWEET BLANK:",b"sweetfb_fixedtimer",b"sweetkeyspononly",b"one-shot Home complete"));assert b"SWEET GPI:" not in d'
           cp dxb/patches/0083-cepheus-performance.patch out/
           git -C cepheus rev-parse HEAD > out/device-commit.txt
           (cd out && shasum -a 256 kernel.macho > SHA256SUMS)

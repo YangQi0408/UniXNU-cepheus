@@ -41,7 +41,7 @@ def main():
     if a.output.exists():
         p.error('refusing to overwrite output')
     kernel = a.kernel.read_bytes()
-    for s in (b'SWEET PERF:', b'one-shot Home complete', b'sweetkeyspononly', b'sweetfb_fixedtimer'):
+    for s in (b'SWEET PERF:', b'SWEET BLANK:', b'one-shot Home complete', b'sweetkeyspononly', b'sweetfb_fixedtimer'):
         if s not in kernel:
             p.error(f'performance marker missing: {s!r}')
     if len(kernel) < 2_000_000 or kernel[:4] != bytes.fromhex('cffaedfe'):

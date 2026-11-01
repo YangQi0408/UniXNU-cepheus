@@ -16,6 +16,17 @@ summary_spec.loader.exec_module(summary)
 
 
 class PerformancePolicy(unittest.TestCase):
+    def test_blank_replaces_fade_and_keeps_clear_serialized(self):
+        result = perf.replace(perf.FADE_BLOCK, perf.FADE_BLOCK, perf.BLANK_BLOCK)
+        self.assertNotIn('row[x]', result)
+        self.assertNotIn('fFadeStep', result)
+        self.assertEqual(result.count('bzero('), 1)
+        self.assertLess(result.index('bzero('), result.index('IOLockUnlock'))
+        self.assertLess(result.index('fBlanked = true'), result.index('IOLockUnlock'))
+        self.assertIn('bool blank = !fb->fBlanked', result)
+        self.assertIn('fb->finishTick(sender)', result)
+        self.assertIn('SWEET BLANK:', result)
+
     def test_log_parser_skips_incomplete_udp_lines(self):
         text = ('prefix SWEET PERF: ms=10000 submitted=22 presented=20 overwritten=3 '
                 'copy_us=51424 max_us=4838 bytes=192067200 missed=0 off=0\n'

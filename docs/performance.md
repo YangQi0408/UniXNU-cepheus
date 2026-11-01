@@ -89,3 +89,17 @@ python3 scripts/make-performance-boot.py boot-cepheus-keys.img kernel.macho boot
 ```bash
 python3 scripts/summarize-performance.py ../logs/perf-boot.log
 ```
+
+## 熄屏反馈与第二版
+
+用户反馈第一版亮屏较快，但熄屏一层层变暗，触摸仍不可用。此前性能版明确
+保持 `sweettouch=0`；触摸从未验证成功，不能当作性能版的回归。
+该次电源切换窗口 `submitted=4 presented=3 copy_us=4526 max_us=2455 missed=210`，
+支持进一步排查熄屏路径，但不是熄屏耗时的直接测量。
+
+已确认源码每个vsync逐像素读取write-combined屏幕，连续6次减半再清黑。
+第二版移除此淡出效果，每次进入off仅bzero一次屏幕，不从屏幕读回像素。
+单次写黑持有fLock，避免并发on请求后执行过时的清黑；再次on将标记复位，
+沿用原来最新帧重绘路径。每次实际清黑单独记录 `SWEET BLANK: clear_us=... bytes=...`。
+此计时包含清黑及解锁开销，不是面板物理断电时间；黑色AMOLED像素变暗不等于
+已实现完整DSI/PMIC关屏。构建/运行结果和感知改善必须另行验证。

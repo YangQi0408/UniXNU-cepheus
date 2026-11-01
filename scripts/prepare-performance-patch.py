@@ -16,6 +16,47 @@ KEYS = 'bsd/dev/sweet_keys.c'
 USB = 'bsd/dev/sweet_usb.c'
 PATHS = (FB, HID, KEYS, USB)
 
+FADE_BLOCK = '''	if (fb->fPowerOff) {
+		/* Fade out: halve every channel each vsync, then black, then idle. */
+		uint32_t step = fb->fFadeStep;
+		if (step <= 6) {
+			fb->fFadeStep = step + 1;
+		}
+		IOLockUnlock(fb->fLock);
+		if (step <= 6) {
+			for (uint32_t y = 0; y < fb->fHeight; y++) {
+				volatile uint32_t *row = (volatile uint32_t *)(fb->fPixels + (uint64_t)y * fb->fRowBytes);
+				for (uint32_t x = 0; x < fb->fWidth; x++) {
+					row[x] = step < 6 ? (row[x] >> 1) & 0x7f7f7f7f : 0;
+				}
+			}
+		}
+		sender->setTimeoutUS(SWEET_FB_VSYNC_US);
+		return;
+	}'''
+
+BLANK_BLOCK = '''	if (fb->fPowerOff) {
+		bool blank = !fb->fBlanked;
+		uint64_t begin = 0;
+		if (blank) {
+			begin = mach_absolute_time();
+			// Write-only clear: never read WC panel RAM for a fade effect.
+			// Keep fLock held through this single clear so a concurrent on
+			// request cannot be followed by a stale, delayed black write.
+			bzero((void *)fb->fPixels, (size_t)fb->fRowBytes * fb->fHeight);
+			fb->fBlanked = true;
+		}
+		IOLockUnlock(fb->fLock);
+		if (blank) {
+			uint64_t ns;
+			absolutetime_to_nanoseconds(mach_absolute_time() - begin, &ns);
+			IOLog("SWEET BLANK: clear_us=%llu bytes=%llu\\n", ns / 1000,
+			    (uint64_t)fb->fRowBytes * fb->fHeight);
+		}
+		fb->finishTick(sender);
+		return;
+	}'''
+
 
 def replace(text, old, new, count=1):
     if text.count(old) != count:
@@ -62,13 +103,17 @@ def transform(path, text):
 	}''')
     elif path == FB:
         text = replace(text, '\tuint32_t      fFadeStep;      /* fade-out steps done while off */', '''
-	uint32_t      fFadeStep;
+	bool          fBlanked;
 	uint8_t       fPresentRecord[SWEET_FB_SWAP_REC_SIZE]; // workloop-owned
 	uint64_t      fPeriod, fDeadline, fStatsPeriod, fStatsAt;
 	uint64_t      fSubmitted, fOverwritten, fPresented, fCopyTicks, fCopyMax;
 	uint64_t      fCopiedBytes, fMissed;
 	uint32_t      fFixedTimer, fPerfStats;
 	void finishTick(IOTimerEventSource *sender);''')
+        text = replace(text, FADE_BLOCK, BLANK_BLOCK)
+        text = replace(text, '\t\t\tfFB->fFadeStep = 0;', '\t\t\tfFB->fBlanked = false;')
+        text = replace(text, 'Off fades the panel out over a few\n *      vsyncs (halving each pixel)',
+                       'Off clears the panel once with stores only\n *      (no slow read/modify/write of WC memory)')
         text = replace(text, '\tfVsync->setTimeoutUS(SWEET_FB_VSYNC_US);', '''
 	PE_parse_boot_argn("sweetfb_fixedtimer", &fFixedTimer, sizeof(fFixedTimer));
 	PE_parse_boot_argn("sweetfb_stats", &fPerfStats, sizeof(fPerfStats));
@@ -77,8 +122,6 @@ def transform(path, text):
 	fStatsAt = mach_absolute_time();
 	fDeadline = fStatsAt + fPeriod;
 	fVsync->wakeAtTime(fDeadline);''')
-        text = replace(text, '\t\tsender->setTimeoutUS(SWEET_FB_VSYNC_US);\n\t\treturn;',
-                       '\t\tfb->finishTick(sender);\n\t\treturn;')
         text = replace(text, '''	if (flush) {
 		rec = (uint8_t *)IOMallocData(SWEET_FB_SWAP_REC_SIZE);
 		if (rec != NULL) {
