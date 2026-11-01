@@ -80,7 +80,7 @@ jobs:
           bash cepheus/scripts/build-kernel-patches.sh ios-sweet
           # overlay ios-sweet's XNU patches/shims onto blacktop's patches dir
           cp ios-sweet/xnu/patches/*.patch ios-sweet/xnu/patches/*.sh dxb/patches/ 2>/dev/null || true
-          cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h dxb/patches/
+          cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h cepheus/xnu/cepheus_clock_status.h dxb/patches/
           ls dxb/patches/ | grep -c . | xargs echo "patches staged:"
           ls dxb/patches/ | grep cepheus || true
           # libfirehose_kernel is built arm64e-only; the SWEET kernel is plain arm64

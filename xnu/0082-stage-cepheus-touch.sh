@@ -5,3 +5,4 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 [[ -f bsd/conf/files ]] || { echo 'not an XNU source root' >&2; exit 1; }
 install -m 0644 "$here/cepheus_touch.c" bsd/dev/cepheus_touch.c
 install -m 0644 "$here/cepheus_fts_events.h" bsd/dev/cepheus_fts_events.h
+install -m 0644 "$here/cepheus_clock_status.h" bsd/dev/cepheus_clock_status.h

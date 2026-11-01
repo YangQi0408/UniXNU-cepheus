@@ -16,5 +16,6 @@ DEST="${1:?usage: build-kernel-patches.sh /path/to/ios-sweet}"
 install -m 644 "$ROOT/xnu/0082-cepheus-touch.patch" "$DEST/xnu/patches/0082-cepheus-touch.patch"
 install -m 644 "$ROOT/xnu/0082-stage-cepheus-touch.sh" "$DEST/xnu/patches/0082-stage-cepheus-touch.sh"
 install -m 644 "$ROOT/xnu/cepheus_touch.c" "$ROOT/xnu/cepheus_fts_events.h" "$DEST/xnu/patches/"
+install -m 644 "$ROOT/xnu/cepheus_clock_status.h" "$DEST/xnu/patches/"
 echo "installed 0082-cepheus-touch.patch into $DEST/xnu/patches"
 ls -l "$DEST/xnu/patches/" | tail -3

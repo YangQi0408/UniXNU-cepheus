@@ -188,3 +188,19 @@ ID 需为 36:39，成功后用厂商 `A0 00 01` 开启 active multitouch scan。
 reset-low 默认关闭，可用 sweettouchreset=1 单独测试。
 事件解析测试（enter/motion/leave、保留其他手指、异常 ID、坐标范围、reset）
 在 ASan/UBSan 下通过。专用完整内核及触摸硬件仍未验证。
+
+### 首次触摸内核启动（run 41277059480）
+
+完整内核构建成功且校验通过，SHA256
+`5be45d54a788ba926271de50617413481f4e3703e1eee84e47310a82591919a2`。
+打包保留quiet boot的ADT/UEFI/DTB，仅替换kernel并启用sweettouch=1、delay=60。
+boot SHA256 `63425b59a73d26051651d14292405f9551dbd0ad6cf286ce56bdb7501a1b2a38`。
+已通过fastboot boot临时启动，未刷写任何分区；8核、MKB_INIT、SpringBoard和USB均正常。
+触摸进入SE17，但时钟检查打印 `gcc vote=0x16 rcg=0 cfg=0x100000 dfs=0x21`、
+`SE17 branch halted (0x4220)` 后安全退出。未读到chip ID，不代表触摸工作。
+
+日志打印本身误导：检查按M_AHB/S_AHB/SE17短路，但失败时打印的是SE17值。
+0x4220的CLK_OFF并未设置。源码核对发现S_AHB启用hardware clock gating时Linux
+跳过HALT等待，而旧代码仍等待bit31清零。改为与Linux的HWCG/NOC状态判定一致，
+每个branch记录其自己的CBCR；保留真实超时失败，不无条件绕过检查。
+对应纯状态判定测试已加入；需要重建和再次真机验证，具体失败branch尚待新日志。

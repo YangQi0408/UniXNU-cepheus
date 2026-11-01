@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include "cepheus_fts_events.h"
+#include "cepheus_clock_status.h"
 
 int main(void)
 {
@@ -26,5 +27,11 @@ int main(void)
 	const uint8_t reset[] = {0x03, 0, 0, 0, 0, 0, 0, 0};
 	assert(cepheus_fts_event(&s, reset) == 0 && s.active == 0);
 	puts("FTS enter/motion/leave, retained contacts, limits and reset: PASS");
+	assert(cepheus_branch_enabled(0x4220u, 0));
+	assert(cepheus_branch_enabled(0x80000002u, 1));
+	assert(!cepheus_branch_enabled(0x80000002u, 0));
+	assert(!cepheus_branch_enabled(0x80000000u, 1));
+	assert(cepheus_branch_enabled(0x20000000u, 0));
+	puts("SM8150 clock status: on, hw-gated, halted and NOC FSM: PASS");
 	return 0;
 }

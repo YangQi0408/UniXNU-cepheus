@@ -54,6 +54,7 @@
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
 #include "cepheus_fts_events.h"
+#include "cepheus_clock_status.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 /* Mach MIG declaration is not included by BSD's exported thread.h. */
@@ -186,6 +187,23 @@ touch_gpio(unsigned pin, unsigned mux, unsigned pull, unsigned drive, bool out,
 }
 
 static bool
+touch_branch(unsigned off, bool has_hwcg)
+{
+	uint32_t value = 0;
+	for (unsigned i = 0; i < 5000; ++i) {
+		value = touch_rd(st.gcc, off);
+		if (cepheus_branch_enabled(value, has_hwcg)) {
+			printf("SWEET TOUCH (cepheus): branch %#x CBCR=%#x %s\n", off, value,
+			    has_hwcg && (value & 2u) ? "hardware-gated" : "on");
+			return true;
+		}
+		delay(1);
+	}
+	printf("SWEET TOUCH (cepheus): branch %#x CBCR=%#x still halted; stopping\n", off, value);
+	return false;
+}
+
+static bool
 touch_clocks(void)
 {
 	/*
@@ -215,11 +233,13 @@ touch_clocks(void)
 			return false;
 		}
 	}
-	if (!touch_wait_clear(st.gcc, 0x1e004, 1u << 31) ||
-	    !touch_wait_clear(st.gcc, 0x1e008, 1u << 31) ||
-	    !touch_wait_clear(st.gcc, TOUCH_RCG_HALT, 1u << 31)) {
-		printf("SWEET TOUCH (cepheus): SE17 branch halted (%#x)\n",
-		    touch_rd(st.gcc, TOUCH_RCG_HALT));
+	/* Mirrors clk_branch_wait()/clk_branch2_check_halt() in SM8150 Linux:
+	 * skip CLK_OFF for S_AHB when its hardware-gate bit is set; otherwise
+	 * accept clock-on or NOC FSM ON. Do not treat an idle gated branch as
+	 * an enable failure, or print SE17's value for an AHB failure.
+	 */
+	if (!touch_branch(0x1e004, false) || !touch_branch(0x1e008, true) ||
+	    !touch_branch(TOUCH_RCG_HALT, false)) {
 		return false;
 	}
 	return true;
