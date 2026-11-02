@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前31个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前32个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -351,3 +351,9 @@ GX寄存器读取：38个IFPC项+28个preemption项，带16字节cpu_gpu_lock头
 最终FSR非0也保持隔离。实现没有把“切FAULT”当DMA停止证明，没有全局TLBI，
 也没添加以裸bool解除published保护的allocator API。真实park后端和最后的
 可信退休连接仍需完成，当前只有假寄存器的逐调用失败验证。
+
+`cepheus_gmu_park.h`进一步实现狭义GMU park：前置必须已由后端完成HFI slumber
+且GX power/clock均off；排空4个GPU-RSC TCS，再assert CM3 reset、置GBIF arb
+halt并等待ACK，最后重查GX状态。任一超时不发parked成功回执，不自动清halt/
+降rail/复位全GPU。它拒绝正在运行的GX，不能当通用GPU挂起/错误恢复；实际
+HFI slumber和设备门槛仍由后端完成，当前仅假寄存器测试。

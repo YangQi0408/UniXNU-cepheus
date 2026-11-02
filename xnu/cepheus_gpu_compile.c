@@ -56,3 +56,5 @@ int cepheus_gpu_cp_reglist(struct ceph_cp_snapshot_ops *b,uint32_t *out,unsigned
 { return ceph_cp_snapshot(b,out,words); }
 int cepheus_gpu_smmu_detach(struct ceph_smmu_detach *s,struct ceph_smmu_detach_ops *b,const struct ceph_smmu_plan *p)
 { return ceph_smmu_detach_context(s,b,p); }
+int cepheus_gpu_gmu_park(struct ceph_gmu_park *s,struct ceph_gmu_park_ops *b)
+{ return ceph_gmu_park_slumbered(s,b); }
