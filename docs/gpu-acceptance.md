@@ -287,3 +287,10 @@ HFI@0x60000000映射20KiB，log@0x60100000映射4KiB。host按16KiB取整的多�
 ICACHE privileged RO/execute、DCACHE/log privileged RW/NX、HFI unprivileged RW/NX。
 初版512KiB预算不足以同时容纳480KiB缓存、表/HFI/log/固件快照，已提升到有界1MiB，
 保留单次256KiB限制及完整预算测试；不是无限增长的分配器。
+
+`cepheus_gmu_workspace.c`已将真实分配接口→独占CPU views→GMU VA计划→五页三级
+页表→HFI队列表连接起来。工作区持有5个分配（ICACHE/DCACHE/HFI/log/tables），
+任何中间失败按逆序释放CPU资源；complete失败保留句柄和descriptor，不丢弃
+恢复信息。`cephmem=2`是默认关闭的CPU-only整体工作区自检，不写SMMU、不发
+电源请求、不发布GPU DMA。host测试实际调用该C文件和真实内存池C++实现，
+覆盖准备成功、每个槽位不足位置、物理段不完整、部分清理失败及重入拒绝。

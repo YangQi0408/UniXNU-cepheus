@@ -19,7 +19,11 @@ static inline int ceph_gpu_va_plan(const struct ceph_gpu_backing backing[CE_BUF_
         CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,
         CE_VM_READ|CE_VM_WRITE|CE_VM_UNPRIV|CE_VM_NOCACHE,
         CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
+#ifdef __cplusplus
+    struct ceph_gpu_va_plan p={};
+#else
     struct ceph_gpu_va_plan p={0};
+#endif
     for(unsigned i=0;i<CE_BUF_COUNT;++i) {
         const struct ceph_gpu_backing *b=&backing[i];
         if(!b->pa || (b->pa&4095u) || b->capacity<length[i] || b->capacity>256*1024 ||

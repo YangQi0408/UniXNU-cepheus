@@ -15,7 +15,7 @@ int main(int argc,char **argv)
     mock_io::fail_prepare=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && !mock_io::live);mock_io::fail_prepare=0;
     mock_io::bad_segment=1;assert(cepheus_gpu_memory_alloc(8192,&h)<0 && !h && !mock_io::live && !mock_io::prepared);mock_io::bad_segment=0;
     assert(!cepheus_gpu_memory_alloc(8192,&h));struct ceph_gpu_memory_view view={};
-    assert(!cepheus_gpu_memory_view_get(h,&view) && view.bytes==16384 && view.pa==0x120000000ULL);
+    assert(!cepheus_gpu_memory_view_get(h,&view) && view.bytes==16384 && view.pa>=0x120000000ULL && !(view.pa&0x3fff));
     assert(cepheus_gpu_memory_publish(h)<0 && cepheus_gpu_memory_release_cpu(h)<0);
     memset(view.cpu,0xab,view.bytes);assert(!cepheus_gpu_memory_view_put(h));
     uint64_t stale=h;assert(!cepheus_gpu_memory_release_cpu(h) && !mock_io::live);

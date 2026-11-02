@@ -43,6 +43,7 @@ def main():
     p.add_argument('--soc-probe', action='store_true', help='read-only CPU OSM and gated GPU state probe')
     p.add_argument('--gpu-arc-probe', action='store_true', help='with soc-probe, read-only ARC voltage tables/TCS snapshot; no votes')
     p.add_argument('--gpu-memory-test', action='store_true', help='with soc-probe, CPU-only IOKit buffer selftest; no GPU DMA')
+    p.add_argument('--gpu-workspace-test', action='store_true', help='with soc-probe, CPU-only GMU backing/page-table/HFI workspace test')
     p.add_argument('--cpu-trial', action='store_true', help='with soc-probe, 120-second same-LUT-mV CPU request then restore')
     p.add_argument('--cpu-interactive', action='store_true', help='experimental TSENS-gated, touch-active CPU floor; max 30min')
     a = p.parse_args()
@@ -60,6 +61,8 @@ def main():
         p.error('ARC probe requires soc probe and compiled ARC diagnostics')
     if a.gpu_memory_test and (not a.soc_probe or b'CEPHEUS GPU MEM:' not in kernel):
         p.error('memory selftest requires soc probe and compiled IOKit selftest')
+    if a.gpu_workspace_test and (a.gpu_memory_test or not a.soc_probe or b'CEPHEUS GMU MEM:' not in kernel):
+        p.error('workspace test requires soc probe, workspace code and no single-buffer test')
     if a.cpu_trial and (not a.soc_probe or b'old_corner=' not in kernel):
         p.error('CPU trial requires soc probe and bounded trial kernel')
     if a.cpu_interactive and (a.cpu_trial or not a.soc_probe or b'CEPHEUS CPU POLICY:' not in kernel):
@@ -93,6 +96,7 @@ def main():
         if a.soc_probe: line += ' cephsoc=1'
         if a.gpu_arc_probe: line += ' cepharc=1'
         if a.gpu_memory_test: line += ' cephmem=1'
+        if a.gpu_workspace_test: line += ' cephmem=2'
         if a.cpu_trial: line += ' cephboost=1'
         if a.cpu_interactive: line += ' cephboost=2'
         if a.touch_probe or a.touch_gpio:

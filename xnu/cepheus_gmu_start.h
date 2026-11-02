@@ -98,6 +98,7 @@ static inline int ceph_gmu_start_cold(struct ceph_gmu_start *s,struct ceph_gmu_s
     s->state=CE_GS_OWNED;uint32_t reset,hfi;
     if(ceph_gmu_start_read(b,CE_GMU_SYSRESET,&reset) || reset!=1 ||
         ceph_gmu_start_read(b,CE_GMU_HFI_STATUS,&hfi) || hfi || ceph_gmu_start_fault(b)) {e=-1;goto failed;}
+    {
     const enum ceph_gmu_reg regs[]={CE_GMU_INIT_RESULT,CE_GMU_BOOT_CONFIG,CE_GMU_QTBL_ADDR,
         CE_GMU_QTBL_INFO,CE_GMU_FENCE_RANGE,CE_GMU_CM3_CFG,CE_GMU_SFR_ADDR,CE_GMU_LOG_INFO,
         CE_GMU_SYS_BUS,CE_GMU_ICACHE_CFG,CE_GMU_DCACHE_CFG,
@@ -108,6 +109,7 @@ static inline int ceph_gmu_start_cold(struct ceph_gmu_start *s,struct ceph_gmu_s
         0x000a1680,0x000a1680,0x09c40407};
     for(unsigned i=0;i<sizeof(regs)/sizeof(regs[0]);++i) {
         e=ceph_gmu_start_write(s,b,regs[i],values[i],1);if(e)goto failed;
+    }
     }
     uint32_t rpmh;
     if(ceph_gmu_start_read(b,CE_GMU_RPMH_CTRL,&rpmh)) {e=-1;goto failed;}

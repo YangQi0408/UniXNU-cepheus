@@ -27,6 +27,7 @@ install -m 644 "$ROOT/xnu/cepheus_bcm.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/0087-cepheus-gpu-memory.patch" "$ROOT/xnu/0087-stage-cepheus-gpu-memory.sh" "$DEST/xnu/patches/"
 for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
     cepheus_gpu_memory_state.h \
+    cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
     cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
     cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h cepheus_smmu_install.h \
     cepheus_gpu_power_txn.h cepheus_gpu_submit.h cepheus_gmu_start.h \
