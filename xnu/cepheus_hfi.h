@@ -55,6 +55,9 @@ static inline int ceph_hfi_write(struct ceph_hfi_queue *q, const uint32_t *msg, 
 	int error = ceph_hfi_indices(q, &r, &w);
 	if (error) { return error; }
 	if (!msg || !count || count > 255 || ((msg[0] >> 8) & 255u) != count) { return CE_HFI_INVALID; }
+	uintptr_t begin=(uintptr_t)q->words,input=(uintptr_t)msg;
+	if (q->capacity*sizeof(uint32_t)>UINTPTR_MAX-begin || count*sizeof(uint32_t)>UINTPTR_MAX-input ||
+	    (input<begin+q->capacity*sizeof(uint32_t) && begin<input+count*sizeof(uint32_t))) { return CE_HFI_INVALID; }
 	unsigned used = (w + q->capacity - r) % q->capacity;
 	unsigned padded = ceph_hfi_padded(count, q->major);
 	if (padded >= q->capacity - used) { return CE_HFI_FULL; }
@@ -81,6 +84,9 @@ static inline int ceph_hfi_read(struct ceph_hfi_queue *q, uint32_t *out, unsigne
 	unsigned used = (w + q->capacity - r) % q->capacity;
 	if (!length || padded > used || padded >= q->capacity) { return CE_HFI_INVALID; }
 	if (!out || length > capacity) { return CE_HFI_SMALL; }
+	uintptr_t begin=(uintptr_t)q->words,output=(uintptr_t)out;
+	if (q->capacity*sizeof(uint32_t)>UINTPTR_MAX-begin || length*sizeof(uint32_t)>UINTPTR_MAX-output ||
+	    (output<begin+q->capacity*sizeof(uint32_t) && begin<output+length*sizeof(uint32_t))) { return CE_HFI_INVALID; }
 	for (unsigned i = 0; i < length; ++i) { out[i] = q->words[(r + i) % q->capacity]; }
 	*q->read_index = (r + padded) % q->capacity;
 	if (q->io.publish_index(q->io.ctx)) { q->poisoned=1; return CE_HFI_IO; }

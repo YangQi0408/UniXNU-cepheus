@@ -15,7 +15,7 @@ struct ceph_vm_region { uint64_t va, pa, bytes; unsigned permissions; };
 struct ceph_vm_pool { uint64_t *words; uint64_t pa; unsigned pages, used; };
 static inline int ceph_vm_valid(const struct ceph_vm_region *r)
 {
-	if (!r->bytes || ((r->va | r->pa | r->bytes) & 4095u) ||
+	if (!r || !r->bytes || ((r->va | r->pa | r->bytes) & 4095u) ||
 	    r->va >= (1ULL<<32) || r->bytes > (1ULL<<32)-r->va ||
 	    r->pa >= (1ULL<<40) || r->bytes > (1ULL<<40)-r->pa ||
 	    !(r->permissions & CE_VM_READ) || (r->permissions & ~31u) ||
@@ -48,6 +48,12 @@ static inline int ceph_vm_build(struct ceph_vm_pool *p,const struct ceph_vm_regi
 	if (!p || !p->words || !regions || !count || count>16 || p->used ||
 	    ((uintptr_t)p->words & 7u) || (p->pa & 4095u) || !p->pages || p->pages>64 ||
 	    p->pa>=(1ULL<<40) || (uint64_t)p->pages*CE_VM_PAGE>(1ULL<<40)-p->pa) { return -1; }
+	/* Do not zero our own input descriptors while building. Caller supplies
+	 * backing size; pointer range checks catch descriptor/pool host aliases. */
+	uintptr_t pool_start=(uintptr_t)p->words,desc_start=(uintptr_t)regions;
+	size_t pool_bytes=(size_t)p->pages*CE_VM_PAGE,desc_bytes=count*sizeof(*regions);
+	if (pool_bytes>UINTPTR_MAX-pool_start || desc_bytes>UINTPTR_MAX-desc_start ||
+	    (pool_start<desc_start+desc_bytes && desc_start<pool_start+pool_bytes)) { return -1; }
 	/* L1 index 0..3 and L2 index 0..511 require at most 2048 bits. */
 	uint8_t l2_seen[4]={0}, l3_seen[256]={0};
 	unsigned needed=1;

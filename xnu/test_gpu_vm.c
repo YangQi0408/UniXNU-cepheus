@@ -30,5 +30,10 @@ int main(void)
 	assert(ceph_vm_build(&pool,regions,3)==-1);
 	assert(!ceph_vm_valid(&(struct ceph_vm_region){0xfffff000,0x12345000,8192,CE_VM_READ}));
 	struct ceph_vm_pool bad={0};assert(ceph_vm_lookup(&bad,0,&pa,&flags)==-1);
+	assert(!ceph_vm_valid(NULL));
+	pool=(struct ceph_vm_pool){tables,0x110000000ULL,64,0};
+	struct ceph_vm_region *alias=(struct ceph_vm_region *)(void *)tables;
+	*alias=(struct ceph_vm_region){0x4000,0x120000000ULL,4096,CE_VM_READ};
+	uint64_t saved=tables[0];assert(ceph_vm_build(&pool,alias,1)==-1 && tables[0]==saved && !pool.used);
 	puts("GMU page tables: walk/W^X/aliases/capacity/overflow/preflight: PASS (offline)");
 }

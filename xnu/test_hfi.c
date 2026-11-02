@@ -33,6 +33,10 @@ int main(void)
 	assert(table[7]==0x600000e0 && table[42]==0 && table[45]==1024);
 	assert(ceph_hfi_table(table,54,0xfffff000u,20480)==CE_HFI_INVALID);
 	assert(ceph_hfi_table(table,53,0x60000000,20480)==CE_HFI_INVALID);
+	r=w=0;data[0]=msg[0];data[1]=msg[1];data[2]=msg[2];
+	assert(ceph_hfi_write(&q,data,3)==CE_HFI_INVALID && w==0);
+	assert(!ceph_hfi_write(&q,msg,3));
+	assert(ceph_hfi_read(&q,data,8,&n)==CE_HFI_INVALID && r==0 && n==0);
 	/* Never expose a new write index before data publication; any publication
 	 * or doorbell failure poisons the queue instead of duplicating commands. */
 	for(unsigned failure=1; failure<=3; ++failure) {
