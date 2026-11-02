@@ -275,3 +275,8 @@ sealed状态不再允许获取可写view，也不允许直接publish为GPU DMA�
 短物理段、旧句柄、封存后禁写/持读禁free、真实固件私有拷贝及complete失败保留。
 物理地址和IOKit操作是测试替身，不作为真机证据。arm64使用真实dsb屏障；
 非arm主机屏障仅在显式HOST_TEST且非KERNEL时可编译，不能进入XNU构建。
+
+内存池按实际`page_size`计费：SWEET为16KiB，GPU表仍为4KiB。20KiB HFI请求
+实际分配32KiB；4KiB请求实际占16KiB，均计入512KiB预算。CPU view返回实际
+分配容量，GPU只映射明确需要的4KiB区段。host测试刻意模拟16KiB主机页，
+并验证槽位用尽、页取整和固件valid-length不随allocation-size混淆。

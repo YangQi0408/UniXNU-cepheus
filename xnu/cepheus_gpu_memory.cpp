@@ -11,6 +11,7 @@
 #include <IOKit/IOLib.h>
 #include <IOKit/IOLocks.h>
 #include <mach/mach_types.h>
+#include <mach/vm_param.h>
 #include <sys/systm.h>
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_memory_state.h"
@@ -72,6 +73,11 @@ static int
 ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
 {
     if (!b || b->memory || !bytes || bytes>256*1024 || (bytes&4095u)) return -1;
+    /* SWEET XNU uses 16KiB host pages while GMU tables use 4KiB. Account
+     * physical allocation, not the smaller requested length. No odd geometry. */
+    size_t host_page=(size_t)page_size;
+    if(host_page!=4096 && host_page!=16384)return -1;
+    bytes=(bytes+host_page-1)&~(host_page-1);
     unsigned pages=(unsigned)(bytes/4096),used=__atomic_load_n(&ceph_memory_pages,__ATOMIC_ACQUIRE);
     do {
         if (used>128 || pages>128-used) return -1;

@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstdlib>
+#include <mach/vm_param.h>
 /* Test double for the IOKit allocator ONLY. Actual production .cpp is compiled
  * and linked into this host executable, not reimplemented. No GPU simulated. */
 namespace mock_io {
@@ -17,7 +18,8 @@ public:
         assert(mask==0x000000fffffff000ULL);
         if(mock_io::fail_alloc)return nullptr;
         auto *p=new IOBufferMemoryDescriptor;
-        if(posix_memalign(&p->memory,4096,bytes)){delete p;return nullptr;}
+        assert(!(bytes&(page_size-1)));
+        if(posix_memalign(&p->memory,page_size,bytes)){delete p;return nullptr;}
         p->length=bytes;++mock_io::live;return p;
     }
     int prepare(int){if(mock_io::fail_prepare)return -1;assert(!wired);wired=true;++mock_io::prepared;return 0;}

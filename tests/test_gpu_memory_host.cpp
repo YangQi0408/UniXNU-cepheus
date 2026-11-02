@@ -15,13 +15,17 @@ int main(int argc,char **argv)
     mock_io::fail_prepare=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && !mock_io::live);mock_io::fail_prepare=0;
     mock_io::bad_segment=1;assert(cepheus_gpu_memory_alloc(8192,&h)<0 && !h && !mock_io::live && !mock_io::prepared);mock_io::bad_segment=0;
     assert(!cepheus_gpu_memory_alloc(8192,&h));struct ceph_gpu_memory_view view={};
-    assert(!cepheus_gpu_memory_view_get(h,&view) && view.bytes==8192 && view.pa==0x120000000ULL);
+    assert(!cepheus_gpu_memory_view_get(h,&view) && view.bytes==16384 && view.pa==0x120000000ULL);
     assert(cepheus_gpu_memory_publish(h)<0 && cepheus_gpu_memory_release_cpu(h)<0);
     memset(view.cpu,0xab,view.bytes);assert(!cepheus_gpu_memory_view_put(h));
     uint64_t stale=h;assert(!cepheus_gpu_memory_release_cpu(h) && !mock_io::live);
     assert(!cepheus_gpu_memory_alloc(4096,&h) && h!=stale);
     assert(cepheus_gpu_memory_view_get(stale,&view)<0 && cepheus_gpu_memory_release_cpu(stale)<0);
     assert(!cepheus_gpu_memory_release_cpu(h));
+    uint64_t slots[16];
+    for(auto &x:slots)assert(!cepheus_gpu_memory_alloc(4096,&x));
+    uint64_t extra;assert(cepheus_gpu_memory_alloc(4096,&extra)<0);
+    for(auto x:slots)assert(!cepheus_gpu_memory_release_cpu(x));
     /* Exercise exact pool mutex and allocation-outside-lock implementation. */
     std::vector<std::thread> threads;
     for(unsigned i=0;i<8;++i)threads.emplace_back([]{
