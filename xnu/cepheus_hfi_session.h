@@ -15,6 +15,7 @@ struct ceph_hfi_session {
     int (*fault)(void *); /* poll actual CM3/SMMU errors, 0 means no error */
     unsigned sequence;
     int poisoned,busy;
+    uint32_t active_header;
 };
 static inline int ceph_hfi_session_poison(struct ceph_hfi_session *s,int error)
 {
@@ -33,7 +34,7 @@ static inline int ceph_hfi_exchange(struct ceph_hfi_session *s,const uint32_t *c
     if(s->sequence>=4095)return CE_HFI_INVALID;
     uint32_t wire[255],response[255];
     for(unsigned i=0;i<words;++i)wire[i]=cmd[i];
-    wire[0]|=(++s->sequence)<<20;s->busy=1;
+    wire[0]|=(++s->sequence)<<20;s->busy=1;s->active_header=wire[0];
     uint64_t start,last,now;
     if(s->now_ns(s->ctx,&start))return ceph_hfi_session_poison(s,CE_HFI_IO);
     last=start;int sent=0;

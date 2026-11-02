@@ -7,6 +7,8 @@ libs=()
 if [[ $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -I"$root/xnu" \
     -c "$root/xnu/cepheus_gpu_retire.c" -o "$tmp/retire.o"
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -I"$root/xnu" \
+    -c "$root/xnu/cepheus_gmu_hfi_link.c" -o "$tmp/cepheus_gmu_hfi_link.c.o"
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=undefined -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gpu_memory_host.cpp" "$tmp/retire.o" \
@@ -29,5 +31,15 @@ if [[ $# -ge 1 ]]; then "$tmp/upload" "$1"; else "$tmp/upload"; fi
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=undefined -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gpu_retire_main.cpp" \
-    "$tmp/workspace.o" "$tmp/retire.o" "$tmp/retire_test.o" -o "$tmp/retire_test" "${libs[@]}"
+    "$tmp/workspace.o" "$tmp/retire.o" "$tmp/retire_test.o" "$tmp/cepheus_gmu_hfi_link.c.o" -o "$tmp/retire_test" "${libs[@]}"
 for mode in 0 1 2 3 4 5; do "$tmp/retire_test" "$mode"; done
+for unit in xnu/cepheus_gmu_hfi_link.c tests/test_gmu_hfi_link.c; do
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -I"$root/xnu" \
+        -c "$root/$unit" -o "$tmp/$(basename "$unit").o"
+done
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=undefined -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gmu_hfi_link_main.cpp" \
+    "$tmp/workspace.o" "$tmp/retire.o" "$tmp/cepheus_gmu_hfi_link.c.o" "$tmp/test_gmu_hfi_link.c.o" \
+    -o "$tmp/link" "${libs[@]}"
+"$tmp/link"

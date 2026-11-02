@@ -473,3 +473,13 @@ CI41494467129发现IOKit导出头没有pmap_cache_attributes声明（MACH_KERNEL
 隔离）。改用XNU已有C ABI桥`IODefaultCacheBits(pa)`，其真实实现正是
 `pmap_cache_attributes(pa >> PAGE_SHIFT)`；不设置MACH私有宏污染整个IOKit编译。
 仍逐页检查实际WCOMB属性，未把检查删掉。该修复需要下一次完整构建确认。
+
+### 工作区与实际HFI队列头绑定
+
+`cepheus_gmu_hfi_link.c`将已发布的NC工作区与HFI session连接：read/write index
+直接指向共享ABI queue header，不再用独立host变量。绑定前要求原始队列表
+完整一致且无已消费数据，不通过重置指针丢弃旧消息。每次访问核对group身份、
+状态和平台租约；退休状态只允许当前session的PREPARE_SLUMBER(id33,length3)
+交换，普通命令拒绝。成功/失败退休后显式invalidate清掉CPU指针。
+联测使用同一条已绑定session先查询版本，再通过该session完成slumber/park/
+detach/释放或四阶段失败隔离，防止“另造session”掩盖退休状态的协议冲突。

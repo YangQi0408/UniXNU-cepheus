@@ -7,6 +7,7 @@
 #include "cepheus_gmu_slumber.h"
 #include "cepheus_gmu_park.h"
 #include "cepheus_smmu_detach.h"
+#include "cepheus_gmu_hfi_link.h"
 struct fake {
     struct ceph_hfi_queue tx,rx,fw_rx,fw_tx;
     uint32_t tr,tw,rr,rw;
@@ -17,7 +18,9 @@ struct fake {
 static int okay(void *p){(void)p;return 0;}
 static int now(void *p,uint64_t *t){struct fake *f=p;f->time+=10000;*t=f->time;return 0;}
 static int notify(void *p){struct fake *f=p;uint32_t cmd[3];unsigned n;
-    assert(!ceph_hfi_read(&f->fw_rx,cmd,3,&n) && n==3 && (cmd[0]&255)==33);++f->notifies;
+    assert(!ceph_hfi_read(&f->fw_rx,cmd,3,&n));
+    if((cmd[0]&255)==1){uint32_t version[]={ceph_hfi_header(1,4,1,0),cmd[0],0,0x20000042};assert(!ceph_hfi_write(&f->fw_tx,version,4));return 0;}
+    assert(n==3 && (cmd[0]&255)==33);++f->notifies;
     uint32_t ack[]={ceph_hfi_header(33,3,1,0),cmd[0],f->mode==2?1u:0u};
     assert(!ceph_hfi_write(&f->fw_tx,ack,3));f->state=15;f->gx=0xc0;return 0;}
 static int slbegin(void *p){struct fake *f=p;f->phase=1;return f->mode==1?-1:0;}
@@ -52,18 +55,21 @@ int ceph_test_retire_path(unsigned mode)
     assert(!cepheus_gmu_workspace_share(&w,&plan) && w.state==CE_WS_SHARED && w.leased==31);
     assert(cepheus_gpu_memory_release_cpu(w.handles[0])<0 && cepheus_gpu_memory_view_put(w.handles[0])<0);
     assert(cepheus_gpu_memory_view_get(w.handles[0],&extra)<0);
-    struct fake f={.mode=mode};uint32_t *hfi=w.views[2].cpu;
-    f.tx=(struct ceph_hfi_queue){hfi+56,&f.tr,&f.tw,1024,2,{&f,okay,okay,okay,notify},0};
-    f.rx=(struct ceph_hfi_queue){hfi+56+1024,&f.rr,&f.rw,1024,2,{&f,okay,okay,okay,okay},0};
-    f.fw_rx=f.tx;f.fw_rx.io.notify=okay;f.fw_tx=f.rx;
-    struct ceph_hfi_session session={&f.tx,&f.rx,&f,now,okay,okay,8,0,0};
+    struct fake f={.mode=mode};struct ceph_gmu_hfi_link link={0};
+    struct ceph_gmu_hfi_transport transport={&f,okay,notify,now,okay,okay};
+    assert(!cepheus_gmu_hfi_bind(&link,&w,&transport));
+    f.fw_rx=link.tx;f.fw_rx.io=(struct ceph_hfi_ops){&f,okay,okay,okay,okay};
+    f.fw_tx=link.rx;f.fw_tx.io=f.fw_rx.io;
+    uint32_t version_cmd[2],version_reply[8];unsigned version_count;
+    ceph_hfi_fw_version(version_cmd,2,2,0);
+    assert(!ceph_hfi_exchange(&link.session,version_cmd,2,version_reply,8,&version_count));
     struct ceph_gmu_slumber_ops sl={&f,slbegin,okay,slread,slwrite,okay,now,okay,slend};
     struct ceph_gmu_park_ops pk={&f,pkbegin,okay,pkread,pkwrite,okay,now,okay,pkend};
     struct ceph_smmu_detach_ops dt={&f,dtbegin,okay,dtread,dtwrite,okay,delayus,dtend};
     f.smmu[CE_SM_SMR]=plan.smr;f.smmu[CE_SM_S2CR]=plan.s2cr_translate;f.smmu[CE_SM_SCTLR]=plan.sctlr;
     f.smmu[CE_SM_TTBR0]=plan.ttbr0;f.smmu[CE_SM_TTBR1]=plan.ttbr1;f.smmu[CE_SM_TCR]=plan.tcr;f.smmu[CE_SM_TCR2]=plan.tcr2;
     f.smmu[CE_SM_MAIR0]=plan.mair0;f.smmu[CE_SM_MAIR1]=plan.mair1;f.smmu[CE_SM_CBAR]=plan.cbar;f.smmu[CE_SM_CBA2R]=plan.cba2r;
-    struct ceph_gpu_retire_ops ops={&sl,&pk,&dt,&session,&plan,3,1,12,8};
+    struct ceph_gpu_retire_ops ops={&sl,&pk,&dt,&link.session,&plan,3,1,12,8};
     struct ceph_gpu_publication forged=w.publication;forged.group^=0x100;
     assert(cepheus_gpu_memory_retire_workspace(&forged,&ops)<0 && !f.phase);
     forged=w.publication;forged.handles[1]=forged.handles[0];
@@ -72,6 +78,7 @@ int ceph_test_retire_path(unsigned mode)
     uint64_t group=w.publication.group;
     assert(!cepheus_gpu_memory_group_status(group,&status) && status.state==CE_GPU_GROUP_SHARED && status.retained_buffers==5);
     int e=cepheus_gmu_workspace_retire(&w,&ops);
+    cepheus_gmu_hfi_invalidate(&link);
     assert(!w.table.words && !w.leased && !w.views[2].cpu);
     if(!mode)assert(!e && w.state==CE_WS_RELEASED && f.detached && f.notifies==1 && !w.handles[0]);
     else {

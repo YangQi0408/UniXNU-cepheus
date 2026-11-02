@@ -62,6 +62,7 @@ class Integration(unittest.TestCase):
             self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gpu_compile.c'), 1)
             self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gmu_workspace.c'), 1)
             self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gpu_retire.c'), 1)
+            self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gmu_hfi_link.c'), 1)
             self.assertEqual((tree / 'iokit/conf/files.arm64').read_text().count('cepheus_gpu_memory.cpp'), 1)
 
     def test_memory_uses_explicit_nc_mapping(self):

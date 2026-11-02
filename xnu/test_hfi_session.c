@@ -43,7 +43,7 @@ static void init(struct fixture *f)
     f->tx=(struct ceph_hfi_queue){f->cmd,&f->cr,&f->cw,1024,2,{f,okay,okay,okay,notify},0};
     f->rx=(struct ceph_hfi_queue){f->reply,&f->rr,&f->rw,1024,2,{f,okay,okay,okay,okay},0};
     f->fw_rx=f->tx;f->fw_rx.io.notify=okay;f->fw_tx=f->rx;
-    f->session=(struct ceph_hfi_session){&f->tx,&f->rx,f,now,okay,fault,0,0,0};
+    f->session=(struct ceph_hfi_session){&f->tx,&f->rx,f,now,okay,fault,0,0,0,0};
 }
 int main(void)
 {
