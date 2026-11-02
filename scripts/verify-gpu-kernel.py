@@ -23,7 +23,7 @@ def main():
     for name in HEADERS:
         if (args.xnu / 'bsd/dev' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged BSD source mismatch: {name}')
-    for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h'):
+    for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h'):
         if (args.xnu / 'iokit/Kernel/arm' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged IOKit source mismatch: {name}')
     data = args.kernel.read_bytes()
@@ -41,9 +41,13 @@ def main():
                 '_cepheus_gpu_ring_submit', '_cepheus_gpu_sqe_copy'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
+    memory_api={'_cepheus_gpu_memory_alloc','_cepheus_gpu_memory_view_get','_cepheus_gpu_memory_view_put',
+                '_cepheus_gpu_memory_publish','_cepheus_gpu_memory_release_cpu'}
+    if memory_api - symbols:
+        raise ValueError(f'missing linked memory lifecycle APIs: {sorted(memory_api - symbols)}')
     if subprocess.check_output([nm, '-u', str(args.kernel)], text=True).strip():
         raise ValueError('kernel has unresolved symbols')
-    print('GPU staged sources and nine real linked entrypoints: PASS (not execution or hardware readiness)')
+    print('GPU staged sources, nine core entrypoints and five memory lifecycle APIs: PASS (not hardware readiness)')
 
 
 if __name__ == '__main__':
