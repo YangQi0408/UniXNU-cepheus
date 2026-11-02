@@ -122,3 +122,16 @@ HFI v2 ring和三层32-bit VA/40-bit PA页表。HFI补上payload发布完成后�
 write index的顺序；发布或doorbell不确定时将queue标为不可重试，防止重复命令。
 实际HFI头部含双方字段，仍需coherent映射或证明cache-line所有权安全的后端。
 这些模块目前没有真实供电/SMMU后端，不会启动固件或执行GPU命令。
+
+### 本轮构建产物
+
+提交`d336276`的CI `41389359723`完整XNU构建、10组C/UBSan回归和镜像标记检查
+通过，确认新内核含`CX_HW_CTRL=`且不含已取消的USB控制端点标记。
+kernel SHA256：`b89909eb2633861d01a79c721e3c76446e6b3e9a6e3bdc2215d6820274de22a1`。
+
+独立临时启动候选：`boot-cepheus-gpu-preflight-d336276.img`，SHA256：
+`3799c82a5668409a0402e9851ae94fa0735f872298871afd4a4e12369dda6d92`。
+宿主机缺mcopy，使用已有`cepheus-build:latest`容器（禁网络、当前UID）完成
+打包，未安装系统软件。保留ADT/UEFI/DTB、GPIO触摸及PON电源键；`cephsoc=1`
+只读探测，未启用CPU boost。现有触摸回退镜像哈希再次验证未变。
+**该候选尚未真机启动**；不能将构建和打包通过写成GPU可用或加速已实现。
