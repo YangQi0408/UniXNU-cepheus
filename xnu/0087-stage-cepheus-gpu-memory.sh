@@ -11,6 +11,6 @@ install -m 0644 "$here/cepheus_gpu_retire.c" "$here/cepheus_gpu_retire.h" "$here
 for header in cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
     cepheus_arc.h cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h \
     cepheus_smmu_install.h cepheus_gpu_power.h cepheus_gpu_power_txn.h cepheus_gpu_submit.h cepheus_gmu_start.h \
-    cepheus_gpu_ring.h cepheus_a640_pm4.h cepheus_sqe.h cepheus_gpu_bw.h cepheus_bcm.h cepheus_gpu_firmware.h cepheus_gpu_fault.h cepheus_gpu_vm.h cepheus_gpu_va.h cepheus_gpu_pdc.h cepheus_gpu_bin.h cepheus_gpu_thermal.h cepheus_cp_init.h cepheus_smmu_detach.h cepheus_gmu_park.h cepheus_gmu_slumber.h cepheus_cp_protect.h cepheus_qmp_acd.h cepheus_smmu_geometry.h cepheus_smmu_mmio.h; do
+    cepheus_gpu_ring.h cepheus_a640_pm4.h cepheus_sqe.h cepheus_gpu_bw.h cepheus_bcm.h cepheus_gpu_firmware.h cepheus_gpu_fault.h cepheus_gpu_vm.h cepheus_gpu_va.h cepheus_gpu_pdc.h cepheus_gpu_bin.h cepheus_gpu_thermal.h cepheus_cp_init.h cepheus_smmu_detach.h cepheus_gmu_park.h cepheus_gmu_slumber.h cepheus_cp_protect.h cepheus_qmp_acd.h cepheus_smmu_geometry.h cepheus_smmu_mmio.h cepheus_gmu_oob.h; do
     install -m 0644 "$here/$header" bsd/dev/
 done

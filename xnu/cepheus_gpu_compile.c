@@ -68,3 +68,7 @@ int cepheus_gpu_smmu_mmio_read(void *m,enum ceph_smmu_reg r,uint64_t *value)
 { return ceph_smmu_mmio_read(m,r,value); }
 int cepheus_gpu_smmu_mmio_write(void *m,enum ceph_smmu_reg r,uint64_t value)
 { return ceph_smmu_mmio_write(m,r,value); }
+int cepheus_gpu_oob_acquire(struct ceph_gmu_oob *s,struct ceph_oob_ops *b,uint32_t version)
+{ return ceph_gmu_oob_acquire(s,b,version); }
+int cepheus_gpu_oob_release(struct ceph_gmu_oob *s,struct ceph_oob_ops *b)
+{ return ceph_gmu_oob_release(s,b); }

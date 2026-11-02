@@ -121,7 +121,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前36个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前37个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -447,3 +447,8 @@ SMMU几何解码器根据实际ID0/1/2生成bank数量、GR1/CB偏移、PA/SID�
 必须等于plan定义的配置或合法禁用值；没有FSR清除、global reset、全局TLBI或
 任意offset接口。lease回调每次操作前检查归属/电源/TBU，当前只在RAM aperture
 测试，未接任何手机启动路径；真实lease实现仍是启用前置。
+
+OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/新位编码；
+要求fresh ACK且GX power/clock均on才报告HELD，清ACK不释放请求。有未完成任务
+不能释放OOB；发release也不当作GX已off。失败保留请求和资源供后端恢复，不写
+保留的boot-slumber/DCVS OOB id6/7。此模块仍以假寄存器测试，不构成实际GX上电。
