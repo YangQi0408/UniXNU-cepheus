@@ -134,4 +134,29 @@ kernel SHA256：`b89909eb2633861d01a79c721e3c76446e6b3e9a6e3bdc2215d6820274de22a
 宿主机缺mcopy，使用已有`cepheus-build:latest`容器（禁网络、当前UID）完成
 打包，未安装系统软件。保留ADT/UEFI/DTB、GPIO触摸及PON电源键；`cephsoc=1`
 只读探测，未启用CPU boost。现有触摸回退镜像哈希再次验证未变。
-**该候选尚未真机启动**；不能将构建和打包通过写成GPU可用或加速已实现。
+以下记录该候选的首次真机探测；不能将构建、启动或识别写成GPU加速已实现。
+
+### 真机只读探测（2026-11-02）
+
+核对fastboot序列号`67eea163`、product`cepheus`及镜像SHA后临时启动，未刷写
+任何分区。日志：`logs/gpu-preflight-d336276-20261102-1259.log`（cepheus-port目录）。
+USB CDC-ECM日志已收到，host使用仅匹配`02:00:5e:77:ee:01`的临时NetworkManager
+内存连接，IP `192.168.7.1/24`；不设置默认路由、不修改Wi-Fi。
+
+```
+GCC CFG_AHB=0x1 MEMNOC=0x80000221 SNOC_DVM=0x80000001 DDR_AXI=0
+CX_GDSCR=0x222001 GX_GDSCR=0x222001 AHB=0x80000001 GMU_CLK=0x80004220
+CXO=0x80000001 SLEEP=0x80000000 RCG=0x80000000 CFG=0
+CX_HW_CTRL=0x5ff4 gmu_blockers=0x7a memory_blockers=0x37a
+GMU powered/clocked state not confirmed; skipped
+```
+
+CX硬件状态bit31为0，证实尚未上电；GMU blockers为CX、AHB、GMU、CXO、RCG，
+memory另加MEMNOC和SNOC_DVM。DDR_AXI原始值为0，仅表示该状态检查未见halt位，
+不证明DDR时钟供电、有效频率或所有权。已把该实测快照加入离线回归测试。
+探测按门槛跳过GMU，没有GX/SMMU访问、GPU供电写入或固件执行。
+
+同次日志中SpringBoard已活动，触摸芯片ID`36:39`、active scan err=0，
+CPU温度样本38.8°C；快速熄屏clear_us=913。上述是日志证据，主屏幕视觉、
+真实触摸和电源键体验仍待用户确认。下一阶段需要实现有依据的CX父电源ARC
+投票、GDSC初始化及200MHz GMU时钟配置，不能直接跳到固件或Metal。

@@ -32,5 +32,14 @@ int main(void)
     assert(ceph_gpu_memory_blockers(&s) == CE_GPU_DDR_OFF);
     s.memnoc = s.dvm = 0x80000001;
     assert(ceph_gpu_memory_blockers(&s) == (CE_GPU_DDR_OFF | CE_GPU_MEMNOC_OFF | CE_GPU_DVM_OFF));
+    /* Cepheus d336276 boot, 2026-11-02: real hardware status is OFF.
+     * DDR_AXI=0 has no halt bit, but that is not proof of clock ownership. */
+    s = (struct ceph_gpu_power_snapshot){
+        .cx_gdscr=0x222001, .cx_hw=0x5ff4, .gx_gdscr=0x222001,
+        .cfg=1, .ahb=0x80000001, .gmu=0x80004220, .cxo=0x80000001,
+        .rcg=0x80000000, .ddr=0, .memnoc=0x80000221, .dvm=0x80000001,
+    };
+    assert(ceph_gpu_gmu_blockers(&s) == 0x7a);
+    assert(ceph_gpu_memory_blockers(&s) == 0x37a);
     puts("GPU power: CX hardware status, invalid reads, clocks and RCG fail-closed: PASS (no MMIO)");
 }
