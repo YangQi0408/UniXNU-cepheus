@@ -70,6 +70,8 @@ class Integration(unittest.TestCase):
         self.assertIn('kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache', source)
         self.assertIn('b->mapping->getVirtualAddress()', source)
         self.assertNotIn('b->memory->getBytesNoCopy()', source)
+        self.assertIn('pmap_cache_attributes(page)&VM_WIMG_MASK', source)
+        self.assertIn('if(attrs!=VM_WIMG_WCOMB)', source)
 
     def test_wrappers_compile_without_runtime_backend(self):
         with tempfile.TemporaryDirectory() as directory:

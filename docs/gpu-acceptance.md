@@ -431,3 +431,8 @@ GPT-5.5只读审查8bcaf2e0针对26c528a报告：
 slumber/park/detach→释放；并分别注入四个阶段失败，断言五分配/映射全部保留。
 这些是模拟寄存器/IOKit测试，尚不能证明真实平台租约、缓存转换或停稳；
 不得启用硬件后端或将审查修复误报为GPU加速完成。
+
+进一步的kernel-only门槛逐个host page查询`pmap_cache_attributes`，必须实际为
+VM_WIMG_WCOMB才返回CPU view；若mapping选项与pmap有效属性不一致，清理分配
+并拒绝使用，不自动强改物理页属性。该分支不在host替身中模拟为成功，需真实
+XNU构建及后续CPU-only真机自检确认，避免只依赖getMapOptions的请求值。

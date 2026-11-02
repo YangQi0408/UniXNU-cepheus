@@ -12,6 +12,10 @@
 #include <IOKit/IOLocks.h>
 #include <mach/mach_types.h>
 #include <mach/vm_param.h>
+#if defined(KERNEL)
+#include <vm/pmap.h>
+#include <vm/memory_types.h>
+#endif
 #include <sys/systm.h>
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_memory_state.h"
@@ -119,6 +123,19 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
         b->pa>=(1ULL<<40) || bytes>(1ULL<<40)-b->pa || b->memory->getLength()!=bytes) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
+#if defined(KERNEL)
+    /* Attribute options describe the request; independently verify pmap's
+     * effective host-page cache attributes before exposing any shared view.
+     * Never repair this by forcing attributes on an unowned physical page. */
+    for(size_t offset=0;offset<bytes;offset+=host_page) {
+        ppnum_t page=(ppnum_t)((b->pa+offset)/host_page);
+        unsigned attrs=pmap_cache_attributes(page)&VM_WIMG_MASK;
+        if(attrs!=VM_WIMG_WCOMB) {
+            printf("CEPHEUS GPU MEM: pmap cache mismatch attrs=%#x expected=%#x; allocation refused\n",attrs,VM_WIMG_WCOMB);
+            ceph_gpu_buffer_dispose_cpu(b);return -1;
+        }
+    }
+#endif
     bzero(b->cpu,bytes);
     ceph_gpu_memory_barrier();
     return 0;
