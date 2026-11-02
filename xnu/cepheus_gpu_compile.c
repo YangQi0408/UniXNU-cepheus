@@ -13,3 +13,5 @@ int cepheus_gpu_power_start(struct ceph_power_txn *t,struct ceph_power_ops *b)
 { return ceph_power_start(t,b); }
 int cepheus_gpu_submit(struct ceph_submit *s,struct ceph_submit_ops *b,uint32_t seq)
 { return ceph_submit_once(s,b,seq); }
+int cepheus_gpu_gmu_start(struct ceph_gmu_start *s,struct ceph_gmu_start_ops *b,const struct ceph_gmu_start_config *c)
+{ return ceph_gmu_start_cold(s,b,c); }

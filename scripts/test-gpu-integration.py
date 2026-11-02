@@ -9,6 +9,26 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Integration(unittest.TestCase):
+    def test_real_config_sources_when_supplied(self):
+        # Optional explicit reference; synthetic coverage is not presented as
+        # real source application. CI verifies the actual applied build tree.
+        import os
+        source = os.environ.get('CEPHEUS_XNU_REFERENCE')
+        if not source:
+            self.skipTest('set CEPHEUS_XNU_REFERENCE for actual pre-GPU conf files')
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(tree)], check=True)
+            for name in ('bsd/conf/files', 'iokit/conf/files.arm64'):
+                (tree / name).parent.mkdir(parents=True, exist_ok=True)
+                (tree / name).write_bytes((Path(source) / name).read_bytes())
+            conf = (tree / 'bsd/conf/files').read_text()
+            patches = []
+            if 'bsd/dev/cepheus_touch.c' not in conf: patches.append('0082-cepheus-touch.patch')
+            if 'bsd/dev/cepheus_soc.c' not in conf: patches.append('0085-cepheus-soc.patch')
+            for patch in patches + ['0087-cepheus-gpu-memory.patch']:
+                subprocess.run(['git', '-C', str(tree), 'apply', str(ROOT / 'xnu' / patch)], check=True)
+
     def test_headers_stage_before_patch_sources(self):
         with tempfile.TemporaryDirectory() as directory:
             tree = Path(directory)

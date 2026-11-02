@@ -159,7 +159,7 @@ CI41396451358（b51f525）通过14组C/UBSan、patch顺序测试及完整XNU构�
 cache屏障后才能连到硬件；模拟成功不代替实际GMU启动。命令输入由内核构建，
 不作为应用任意PM4或任意电源投票接口。
 
-## XNU集成续作（构建待验证）
+## XNU集成续作（54e8951构建通过，未真机执行）
 
 `cepheus_smmu_install.h`现已实现限定context安装顺序：验证预留资源→发布全部
 表→配置CBA2R/CBAR/TCR/TTBR/MAIR/ACTLR→限定ASID失效与有界TLBSYNC→先SCTLR，
@@ -177,3 +177,10 @@ CPU-only自检：分配20KiB、显式prepare、MapperNone读取host PA并验证�
 InhibitCache/Device DRAM；后者可能触发XNU managed-page保护或错误访问语义。
 核对了pmap的缓存属性更新路径，但该自检尚未真机执行，不能证明缓存行为。
 已发布给设备的buffer没有bool式“done”释放捷径，仍需真实停止/解除映射实现。
+
+CI41456898966首次链接失败因0087缺少尾部patch上下文，被git按EOF语义拒绝；
+54e8951加入SweetBattery后文并在实际XNU配置副本apply验证。
+CI41458264813完整通过18组C/UBSan、集成/patch测试与六入口链接检查，下载
+内核SHA256 `757d6d5fa85650fddb94e9ddb0596ec6a9039639978934d518c481ecf63b5690`。
+这证明真实XNU API/编译链接可用，不证明设备内存属性、DMA、供电或提交已验收。
+RpmhDxe进一步证据与限制见[rpmh-firmware-evidence.md](rpmh-firmware-evidence.md)。
