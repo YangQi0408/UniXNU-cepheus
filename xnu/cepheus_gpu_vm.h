@@ -10,7 +10,7 @@
 #include <stdint.h>
 #define CE_VM_PAGE 4096u
 #define CE_VM_PA_MASK 0x000000fffffff000ULL
-enum { CE_VM_READ=1, CE_VM_WRITE=2, CE_VM_EXEC=4 };
+enum { CE_VM_READ=1, CE_VM_WRITE=2, CE_VM_EXEC=4, CE_VM_UNPRIV=8, CE_VM_NOCACHE=16 };
 struct ceph_vm_region { uint64_t va, pa, bytes; unsigned permissions; };
 struct ceph_vm_pool { uint64_t *words; uint64_t pa; unsigned pages, used; };
 static int ceph_vm_valid(const struct ceph_vm_region *r)
@@ -18,15 +18,18 @@ static int ceph_vm_valid(const struct ceph_vm_region *r)
 	if (!r->bytes || ((r->va | r->pa | r->bytes) & 4095u) ||
 	    r->va >= (1ULL<<32) || r->bytes > (1ULL<<32)-r->va ||
 	    r->pa >= (1ULL<<40) || r->bytes > (1ULL<<40)-r->pa ||
-	    !(r->permissions & CE_VM_READ) || (r->permissions & ~7u) ||
+	    !(r->permissions & CE_VM_READ) || (r->permissions & ~31u) ||
 	    ((r->permissions & (CE_VM_WRITE|CE_VM_EXEC)) == (CE_VM_WRITE|CE_VM_EXEC))) { return 0; }
 	return 1;
 }
 static uint64_t ceph_vm_leaf(uint64_t pa, unsigned permissions)
 {
-	/* MAIR[0]=normal WBWA, AF, outer-shareable, privileged RW/RO. */
-	uint64_t pte=(pa & CE_VM_PA_MASK)|3u|(1u<<10)|(2u<<8);
+	/* MAIR[0]=WBWA (0xff), MAIR[1]=normal NC (0x44). nG is mandatory
+	 * for ASID-scoped invalidation. HFI is unprivileged RW in kgsl_gmu.c. */
+	uint64_t pte=(pa & CE_VM_PA_MASK)|3u|(1u<<10)|(1u<<11)|(2u<<8);
 	if (!(permissions & CE_VM_WRITE)) { pte|=2u<<6; }
+	if (permissions & CE_VM_UNPRIV) { pte|=1u<<6; }
+	if (permissions & CE_VM_NOCACHE) { pte|=1u<<2; }
 	if (!(permissions & CE_VM_EXEC)) { pte|=3ULL<<53; }
 	return pte;
 }
@@ -87,7 +90,8 @@ static int ceph_vm_build(struct ceph_vm_pool *p,const struct ceph_vm_region *reg
 }
 static int ceph_vm_lookup(struct ceph_vm_pool *p,uint64_t va,uint64_t *pa,uint64_t *flags)
 {
-	if (!p || !p->used || va>=(1ULL<<32) || !pa || !flags) { return -1; }
+	if (!p || !p->words || !p->used || p->used>p->pages || p->pages>64 ||
+	    ((uintptr_t)p->words & 7u) || (p->pa & 4095u) || va>=(1ULL<<32) || !pa || !flags) { return -1; }
 	uint64_t *t=ceph_vm_table(p,p->words[va>>30]);if(!t)return -1;
 	t=ceph_vm_table(p,t[(va>>21)&511u]);if(!t)return -1;
 	uint64_t v=t[(va>>12)&511u];if((v&3)!=3)return -1;

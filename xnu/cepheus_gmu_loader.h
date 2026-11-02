@@ -33,6 +33,10 @@ static int ceph_gmu_boot(struct ceph_gmu_loader *l, struct ceph_gmu_backend *b,
 	unsigned count = 0;
 	int error = ceph_gmu_plan(file,size,plan,capacity,&count);
 	if (error) { l->error=error; return error; } // preflight: zero hardware effects
+	int has_itcm=0;
+	for(unsigned i=0;i<count;++i)
+		if(plan[i].size && plan[i].region==CE_GMU_ITCM) has_itcm=1;
+	if(!has_itcm) { l->error=-1;return -1; } // metadata alone cannot boot CM3
 	l->stage=CE_GMU_VALIDATED;
 #define CE_STAGE(stage_name, call) do { l->stage=(stage_name); error=(call); if (error) goto failed; } while (0)
 	CE_STAGE(CE_GMU_POWER,b->power_acquire(b->ctx));

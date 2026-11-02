@@ -199,3 +199,20 @@ CM3仍在reset。所有寄存器操作限于命名资源；500us有界轮询。�
 事务。prepare/validate_lease接口不是现成所有权证明。mock对每个回调位置
 注入失败，验证零副作用拒绝与有副作用隔离；仍需要真实ARC read响应语义和
 HLOS继承投票证据，不能把mock完成当成供电功能完成。
+
+### 映射/完成语义补齐（离线）
+
+- GMU页表加入nG位以支持ASID限定失效，HFI缓冲支持非特权RW和Normal-NC属性；
+  MAIR约定`[0]=0xff WBWA,[1]=0x44 NC`。CPU映射属性必须与共享内存协议配套，
+  不允许把缓存失效回调当成任意混合CPU缓存别名的万能修复。
+- 新SMMU计划只接受SID4/5、mask0x400、空且FAULT的SMR槽和未启用CB；拒绝
+  重叠stream mask、共享外部CB、越界ASID/PA。输出32-bit VA/40-bit PA、
+  4K三级表的TCR/TTBR/MAIR计划，不写全局SMMU。ACTLR/TBU/安全归属、CB/ASID
+  预留与TLB同步仍须平台后端实现，不能仅凭空槽判断可占用。
+- scratch PM4追加CP_EVENT_WRITE/CACHE_FLUSH_TS(4)完成戳，写入独立fence地址；
+  one-shot提交状态机区分数据发布、doorbell、fence观察和quiesce。100ms deadline
+  加10000次硬上限，故障/时钟倒退/陈旧fence/停稳失败一律隔离，不复用内存。
+- GMU块计划限制最多256记录，拒绝仅元数据但没有ITCM内容的启动；每个阶段
+  失败仍由后端先停止再释放，不确定则隔离。
+
+上述新模块仅在离线/mock中执行，尚无真实XNU allocator/cache/SMMU/CP提交后端。

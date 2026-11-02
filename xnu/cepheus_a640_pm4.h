@@ -5,6 +5,7 @@
  */
 #ifndef CEPHEUS_A640_PM4_H
 #define CEPHEUS_A640_PM4_H
+#include <stdint.h>
 static unsigned ceph_pm4_odd(uint32_t value)
 {
 	unsigned parity = 1;
@@ -39,5 +40,21 @@ static int ceph_a640_write_test(uint32_t *out, unsigned capacity,
 	out[3] = value;
 	out[4] = ceph_pm4_type7(0x26, 0);
 	return 5;
+}
+/* End-of-pipeline completion for a future scratch test. CACHE_FLUSH_TS=4,
+ * CP_EVENT_WRITE payload=event + 64-bit address + value. No interrupt request.
+ * Caller still needs CPU cache invalidation AND quiescence before unmapping.
+ */
+static inline int ceph_a640_fenced_write_test(uint32_t *out,unsigned capacity,
+    uint64_t scratch_base,uint64_t scratch_bytes,uint64_t data_address,uint32_t value,
+    uint64_t fence_address,uint32_t sequence)
+{
+    if(!out || capacity<10 || !sequence || data_address==fence_address ||
+        (fence_address&3u) || scratch_bytes<4 || scratch_base>UINT64_MAX-scratch_bytes ||
+        fence_address<scratch_base || fence_address-scratch_base>scratch_bytes-4) return -1;
+    if(ceph_a640_write_test(out,capacity,scratch_base,scratch_bytes,data_address,value)!=5) return -1;
+    out[5]=ceph_pm4_type7(0x46,4);out[6]=4;
+    out[7]=(uint32_t)fence_address;out[8]=(uint32_t)(fence_address>>32);out[9]=sequence;
+    return 10;
 }
 #endif

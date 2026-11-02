@@ -27,5 +27,7 @@ int main(void)
 	struct mock m={0};struct ceph_gmu_loader l={0};
 	struct ceph_gmu_backend b={&m,step,maps,step,step,block,step,step,step,init,hfi,cleanup};
 	assert(ceph_gmu_boot(&l,&b,fw,19,plan,2)<0 && m.calls==0);
+	uint8_t metadata[16]={0};
+	assert(ceph_gmu_boot(&l,&b,metadata,sizeof(metadata),plan,2)<0 && m.calls==0);
 	puts("GMU staged loader: success, each failure, cleanup/quarantine and preflight: PASS (mock)");
 }

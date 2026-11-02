@@ -39,7 +39,7 @@ static int ceph_gmu_plan(const uint8_t *file, size_t size,
 {
 	if (!count) { return -1; }
 	*count = 0;
-	if (!file || !plan || !size || size > 1024u * 1024u || !capacity) { return -1; }
+	if (!file || !plan || !size || size > 1024u * 1024u || !capacity || capacity>256) { return -1; }
 	size_t pos = 0;
 	unsigned n = 0;
 	while (pos < size) {
