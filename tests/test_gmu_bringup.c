@@ -90,7 +90,15 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.smmu[CE_SM_S2CR]=2u<<16;h.gmu[CE_GMU_SYSRESET]=1;h.gmu[CE_GMU_HFI_VERSION]=0x20000001;
     int e=cepheus_gmu_bringup_start(&s);
     if(!mode || mode==8)assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
-    else assert(e && h.failed && s.stage==CE_BR_FAILED);
+    else {
+        assert(e && h.failed && s.stage==CE_BR_FAILED);
+        if(mode>=3) {
+            struct ceph_gpu_group_status status;
+            assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
+            assert(!cepheus_gpu_memory_group_status(s.workspace.publication.group,&status));
+            assert(status.state==CE_GPU_GROUP_UNCERTAIN && status.pool_terminal && status.retained_buffers==CE_GPU_WORKSPACE_BUFFERS);
+        }
+    }
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;
 }

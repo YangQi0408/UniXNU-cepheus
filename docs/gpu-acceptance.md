@@ -20,6 +20,10 @@ PDC、SMMU、上传、CM3及同一HFI session。七阶段失败测试保留对�
 begin约定），并为bin1在CM3启动前走真实QMP固定ACD消息；bin0不发送该通知。
 host整链测试覆盖bin0和bin1两个完整序列及七阶段失败，仍不执行手机硬件。
 
+已发布工作区的启动失败现在触发one-way abandon：将整个组隔离、pool设为
+terminal、保留所有backing和身份、清掉对外工作区指针。不是仅调用failed日志
+回调后继续保留SHARED就绪状态；测试对PDC/SMMU/upload/CM3/HFI失败均核对。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

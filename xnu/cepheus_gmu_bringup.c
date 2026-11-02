@@ -68,6 +68,15 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
 failed:
     s->failed_stage=s->stage;s->stage=CE_BR_FAILED;s->error=e;
     if(s->link.bound)cepheus_gmu_hfi_invalidate(&s->link);
+    if(s->workspace.state==CE_WS_SHARED) {
+        (void)cepheus_gpu_memory_abandon_workspace(&s->workspace.publication);
+        s->workspace.state=CE_WS_RETAINED;
+        /* Record handles/group, but never leave accessible aliases advertised
+         * as a ready workspace after a failed device-visible transition. */
+        s->workspace.table=(struct ceph_vm_pool){0};
+        s->workspace.layout=(struct ceph_gpu_va_plan){0};s->workspace.leased=0;
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)s->workspace.views[i]=(struct ceph_gpu_memory_view){0};
+    }
     b->failed(b->owner,s->failed_stage,e);
     return e;
 }

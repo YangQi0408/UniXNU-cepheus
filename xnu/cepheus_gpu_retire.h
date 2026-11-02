@@ -46,6 +46,9 @@ int cepheus_gpu_memory_retire_workspace(const struct ceph_gpu_publication *,stru
  * ends this diagnostic GPU session for the boot, deliberately not recoverable
  * through a blind timeout retry. Group/context evidence survives partial free. */
 int cepheus_gpu_memory_group_status(uint64_t,struct ceph_gpu_group_status *);
+/* One-way abandonment after uncertain startup. Never frees, detaches or writes
+ * hardware. Blocks new pool allocation and all shared-session access for boot. */
+int cepheus_gpu_memory_abandon_workspace(const struct ceph_gpu_publication *);
 #ifdef __cplusplus
 }
 #endif

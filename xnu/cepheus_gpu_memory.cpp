@@ -406,4 +406,18 @@ extern "C" int cepheus_gpu_memory_group_status(uint64_t group,struct ceph_gpu_gr
     }
     IOLockUnlock(lock);return 0;
 }
+
+extern "C" int cepheus_gpu_memory_abandon_workspace(const struct ceph_gpu_publication *p)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];
+    int group=ceph_memory_group_indices(p,indices);
+    if(group<0 || ceph_group_status[group]!=CE_GPU_GROUP_SHARED) {IOLockUnlock(lock);return -1;}
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)
+        if(ceph_pool[indices[i]].state.state!=CE_MEM_SHARED) {IOLockUnlock(lock);return -1;}
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
+    ceph_group_status[group]=CE_GPU_GROUP_UNCERTAIN;ceph_pool_terminal=1;
+    printf("CEPHEUS GPU MEM: startup abandoned group=%#llx; all backing retained, pool terminal\n",(unsigned long long)p->group);
+    IOLockUnlock(lock);return 0;
+}
 #endif
