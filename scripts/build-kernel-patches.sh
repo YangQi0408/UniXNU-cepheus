@@ -22,5 +22,6 @@ install -m 644 "$ROOT/xnu/cepheus_i2c_bitbang.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/0085-stage-cepheus-soc.sh" "$ROOT/xnu/0085-cepheus-soc.patch" "$ROOT/xnu/cepheus_soc.c" "$ROOT/xnu/cepheus_soc.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/cepheus_cpu_policy.h" "$DEST/xnu/patches/"
 install -m 644 "$ROOT/xnu/cepheus_gpu_power.h" "$DEST/xnu/patches/"
+install -m 644 "$ROOT/xnu/0086-cepheus-gpu-arc.patch" "$ROOT/xnu/0086-stage-cepheus-gpu-arc.sh" "$ROOT/xnu/cepheus_arc.h" "$ROOT/xnu/cepheus_arc_probe.h" "$DEST/xnu/patches/"
 echo "installed 0082-cepheus-touch.patch into $DEST/xnu/patches"
 ls -l "$DEST/xnu/patches/" | tail -3

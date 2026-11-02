@@ -158,5 +158,24 @@ memory另加MEMNOC和SNOC_DVM。DDR_AXI原始值为0，仅表示该状态检查�
 
 同次日志中SpringBoard已活动，触摸芯片ID`36:39`、active scan err=0，
 CPU温度样本38.8°C；快速熄屏clear_us=913。上述是日志证据，主屏幕视觉、
-真实触摸和电源键体验仍待用户确认。下一阶段需要实现有依据的CX父电源ARC
+真实触摸和电源键体验已由用户确认均正常。下一阶段需要实现有依据的CX父电源ARC
 投票、GDSC初始化及200MHz GMU时钟配置，不能直接跳到固件或Metal。
+
+日志接收器按预设420秒租约退出（systemd Result=timeout/退出信号15），不是
+手机崩溃。封存日志SHA256：
+`cd6acfd583dbc9c7f6a3cec17a715fbe7f8071064ac127a1a31db57c65925668`。
+
+### ARC只读取证接入（待下一次构建/真机验证）
+
+`cephsoc=1 cepharc=1`新增一次只读cmd-db/TCS快照，复用触摸电源传输的同一把
+`rh_lock`，不调用rh_write/rh_sync/rh_send。只读取固件locator给出的有界cmd-db，
+校验头、地址、重复资源、LE u16电压表与尾部零填充，输出cx.lvl/mx.lvl/gfx.lvl
+索引映射。200MHz GMU的VDD_MIN为raw VLVL48；传输数据应为对应的hlvl索引，
+不是48mV，也不是Linux的+1消费者编码。CX/MX配对必须满足MX>=CX，诊断只提出
+精确48的候选，不会发送投票。所有未知格式与越界输入均拒绝。
+
+同时记录apps DRV2的8个普通ACTIVE/SLEEP/WAKE槽（不访问隐藏CONTROL槽）。
+只有已enable且地址精确匹配ARC资源的命令才输出内容，并二次核对槽头是否改变。
+**空槽、稳定快照、cmd-db优先级都不证明该DRV当前电源投票为0或归本驱动所有**：
+完成后的投票可能仍保存在RPMh硬件，后续写入还需要明确的当前投票读取/继承策略。
+此诊断不会将“不确定”转为上电许可。默认无cepharc参数时不执行。

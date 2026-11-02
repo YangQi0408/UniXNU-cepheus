@@ -1,0 +1,83 @@
+/* Included only by sweet_rpmh.c, after its transport definitions. Reuses the
+ * SAME rh_lock as touch power. Never calls rh_write/rh_sync/rh_send.
+ */
+#ifndef CEPHEUS_ARC_PROBE_H
+#define CEPHEUS_ARC_PROBE_H
+#include "cepheus_arc.h"
+void cepheus_gpu_arc_probe(void);
+
+static uint32_t
+ceph_arc_read_db(void *ctx __unused, uint32_t offset)
+{
+    return rh_read(rh_db, offset);
+}
+
+void
+cepheus_gpu_arc_probe(void)
+{
+    if (__atomic_exchange_n(&rh_lock, 1, __ATOMIC_ACQUIRE)) {
+        printf("CEPHEUS ARC: transport busy; no retry or writes\n");
+        return;
+    }
+    int error = EIO;
+    if (rh_poisoned) goto out;
+    error = rh_map();
+    if (error) goto out;
+    struct ceph_arc_db db = {NULL, rh_db_size, ceph_arc_read_db};
+    struct ceph_arc_resource rails[3];
+    const char *names[] = {"cx.lvl", "mx.lvl", "gfx.lvl"};
+    for (unsigned i=0; i<3; ++i) {
+        error = ceph_arc_lookup(&db, names[i], &rails[i]);
+        if (error) {
+            printf("CEPHEUS ARC: %s lookup error=%d\n", names[i], error);
+            goto out;
+        }
+        printf("CEPHEUS ARC: %s addr=%#x aux_version=%#x priority=%#x:%#x count=%u\n",
+            names[i], rails[i].address, rails[i].aux_version,
+            rails[i].priority[0], rails[i].priority[1], rails[i].count);
+        for (unsigned j=0; j<rails[i].count; ++j)
+            printf("CEPHEUS ARC: %s hlvl=%u raw_vlvl=%u\n", names[i], j, rails[i].levels[j]);
+    }
+    unsigned cx=0, mx=0;
+    /* 200MHz GPUCC GMU entry uses VDD_MIN: raw MIN_SVS=48, not mV.
+     * Require exact minimum for this diagnostic proposal, no silent overvote. */
+    error = ceph_arc_pair(&rails[0], &rails[1], 48, 48, &cx, &mx);
+    if (!error)
+        printf("CEPHEUS ARC: 200MHz minimum candidate cx_hlvl=%u mx_hlvl=%u (NOT SENT)\n", cx, mx);
+    else
+        printf("CEPHEUS ARC: no exact MIN_SVS pair error=%d (NOT SENT)\n", error);
+    for (unsigned t=0; t<RH_NORMAL_N; ++t) {
+        uint32_t base=t*RH_TCS_STRIDE;
+        uint32_t control=rh_read(rh_tcs,base+RH_CONTROL);
+        uint32_t enable=rh_read(rh_tcs,base+RH_ENABLE);
+        uint32_t wait=rh_read(rh_tcs,base+RH_WAIT);
+        uint32_t status=rh_read(rh_tcs,base+RH_STATUS);
+        printf("CEPHEUS ARC: TCS%u %s control=%#x enable=%#x wait=%#x status=%#x\n",
+            t, t<2 ? "ACTIVE" : (t<5 ? "SLEEP" : "WAKE"), control, enable, wait, status);
+        if (control==UINT32_MAX || wait==UINT32_MAX || status==UINT32_MAX ||
+            (enable & ~((1u<<rh_ncpt)-1u))) {
+            error=EIO; goto out;
+        }
+        for (unsigned c=0; c<rh_ncpt; ++c) {
+            if (!(enable & (1u<<c))) continue;
+            uint32_t offset=base+c*RH_CMD_STRIDE;
+            uint32_t address=rh_read(rh_tcs,offset+RH_ADDR);
+            for (unsigned r=0; r<3; ++r) {
+                if (address!=rails[r].address) continue;
+                printf("CEPHEUS ARC: TCS%u cmd%u %s msg=%#x data=%#x status=%#x\n",
+                    t,c,names[r],rh_read(rh_tcs,offset+RH_MSGID),
+                    rh_read(rh_tcs,offset+RH_DATA),rh_read(rh_tcs,offset+RH_CMD_STATUS));
+            }
+        }
+        if (control!=rh_read(rh_tcs,base+RH_CONTROL) ||
+            enable!=rh_read(rh_tcs,base+RH_ENABLE) || wait!=rh_read(rh_tcs,base+RH_WAIT) ||
+            status!=rh_read(rh_tcs,base+RH_STATUS)) {
+            printf("CEPHEUS ARC: TCS%u changed during snapshot; do not infer ownership\n",t);
+            error=EBUSY; goto out;
+        }
+    }
+out:
+    printf("CEPHEUS ARC: read-only result=%d; current ARC vote UNKNOWN, no power writes\n",error);
+    __atomic_store_n(&rh_lock, 0, __ATOMIC_RELEASE);
+}
+#endif

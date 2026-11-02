@@ -20,6 +20,7 @@ extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
 void cepheus_soc_init(void);
 void cepheus_cpu_activity(void);
+extern void cepheus_gpu_arc_probe(void);
 static uint64_t activity_ticks;
 void cepheus_cpu_activity(void)
 {
@@ -235,6 +236,9 @@ static void soc_thread(void *arg, wait_result_t wr)
 	swait(45000); // keep boot/USB alive before the hardware probe
 	for (unsigned n = 0; n < 4; ++n) { osm_dump(&banks[n]); }
 	gpu_probe();
+	int arc = 0;
+	PE_parse_boot_argn("cepharc", &arc, sizeof(arc));
+	if (arc == 1) { cepheus_gpu_arc_probe(); }
 	osm_sample(0);
 	int temperature = 0, temperature_valid = cpu_temperature(&temperature);
 	printf("CEPHEUS TSENS: valid=%d CPU_max_mc=%d (no sensor configuration writes)\n", temperature_valid, temperature);
