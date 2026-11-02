@@ -4,7 +4,7 @@
 #include "cepheus_gpu_power_txn.h"
 struct mock {
     struct ceph_power_input in;uint32_t reg[CE_PWR_REG_COUNT];
-    unsigned call,fail,finishes,kept,writes,votes,delays;int timeout,live;
+    unsigned call,fail,finishes,kept,writes,votes,delays,root_on,root_off;int timeout,live;
     uint32_t vote_addr[2];unsigned vote_index[2];
 };
 static int step(struct mock *m) {return ++m->call==m->fail ? -9 : 0;}
@@ -14,6 +14,9 @@ static int readreg(void *p,enum ceph_power_reg r,uint32_t *v) {struct mock *m=p;
 static int writereg(void *p,enum ceph_power_reg r,uint32_t v)
 {
     struct mock *m=p;assert(r!=CE_PWR_GX && r!=CE_PWR_CM3_RESET && r!=CE_PWR_CX_STATUS);
+    if(r==CE_PWR_RCG_CFG) assert(m->reg[CE_PWR_RCG]&2u);
+    if(r==CE_PWR_RCG && (v&2u)) m->root_on++;
+    if(r==CE_PWR_RCG && !(v&2u)) m->root_off++;
     ++m->writes;m->reg[r]=v; /* even a failed transport can write */
     int e=step(m);if(e)return e;
     if(!m->timeout) {
@@ -22,7 +25,11 @@ static int writereg(void *p,enum ceph_power_reg r,uint32_t v)
             for(unsigned c=CE_PWR_GMU;c<=CE_PWR_DVM;++c)
                 if(m->reg[c]&1u) m->reg[c]&=~(1u<<31);
         }
-        if(r==CE_PWR_RCG) m->reg[r]&=~1u;
+        if(r==CE_PWR_RCG) {
+            m->reg[r]&=~1u;
+            if((v&2u) || (m->reg[CE_PWR_GMU]&1u)) m->reg[r]&=~(1u<<31);
+            else m->reg[r]|=1u<<31;
+        }
         if(r>=CE_PWR_GMU && r<=CE_PWR_DVM && (v&1)) m->reg[r]&=~(1u<<31);
         if(r==CE_PWR_GMU) m->reg[CE_PWR_RCG]&=~(1u<<31);
     }
@@ -53,6 +60,7 @@ int main(void)
     assert(!ceph_power_start(&t,&b) && t.state==CE_PWR_READY && m.kept && m.finishes==1);
     assert(m.votes==2 && m.vote_addr[0]==0x30004 && m.vote_addr[1]==0x30000);
     assert(m.vote_index[0]==2 && m.vote_index[1]==2 && m.reg[CE_PWR_RCG_CFG]==0x602);
+    assert(m.root_on && m.root_off==1 && !(m.reg[CE_PWR_RCG]&2u));
     unsigned total=m.call;assert(ceph_power_start(&t,&b)==CE_PWR_INVALID && m.call==total);
     for(unsigned f=1;f<=total;++f) {
         m=fixture();m.fail=f;b=ops(&m);t=(struct ceph_power_txn){0};

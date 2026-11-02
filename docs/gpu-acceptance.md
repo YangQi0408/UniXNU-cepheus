@@ -38,7 +38,9 @@ USB自动重启功能已取消，不恢复。用户离开电脑后不重启手�
 - 冷启动要求CX/GX都off、HLOS软件控制、GMU halted；GDSC配置REST2/FEW8/
   CLK_DIS_WAIT8后clear collapse，轮询GPUCC0x1540，不只看0x106c。
 - GPLL0-div需真实300MHz及父时钟租约，RCG0x1124选择6/div1.5，UPDATE完成后
-  才开分支。复用当前代码的命名寄存器接口，不能开放任意MMIO。
+  才开分支。该RCG启用safe_config，按照clk_rcg2_enable在切换期间force-enable
+  root、等待root on，再改配置/UPDATE并撤销强制位；新旧父时钟须已持有。
+  复用当前代码的命名寄存器接口，不能开放任意MMIO。
 - power_txn故障处理只是“保留而不降票”，不是热安全方案。实际部署还需要
   温度监测、有限会话和可证明的停止路径，否则不允许长期带电试验。
 

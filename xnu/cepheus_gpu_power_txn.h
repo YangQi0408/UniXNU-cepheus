@@ -1,7 +1,7 @@
 /* A640 cold-start power transaction, platform backend NOT provided/enabled.
  * prepare() must acquire shared ARC/clock/GDSC ownership and return CURRENT
  * apps-DRV votes (not empty TCS contents), decoded cmd-db tables and a measured
- * 300MHz GPLL0-div parent. Verify under the same lease; no bare ready flags.
+ * 300MHz GPLL0-div parent AND live CXO. Verify under the same lease; no bare ready flags.
  * Reads/writes are narrowly named resources, not arbitrary caller MMIO.
  * No GX writes, firmware upload, reset release, voltage lowering or global reset.
  */
@@ -102,7 +102,7 @@ static inline int ceph_power_start(struct ceph_power_txn *t,struct ceph_power_op
     }
     if ((cx&7u)!=1u || (hw&(1u<<31)) || (gx&(1u<<31)) || !(gx&1u) ||
         !ceph_gpu_branch_active(cfg) || !(gmu&(1u<<31)) || (gmu&1u) ||
-        !(rcg&(1u<<31)) || (rcg&1u)) { e=CE_PWR_BUSY;goto failed; }
+        !(rcg&(1u<<31)) || (rcg&3u)) { e=CE_PWR_BUSY;goto failed; }
     t->state=CE_PWR_VOTES;
     const unsigned wanted[]={plan.mx_index,plan.cx_index};
     const unsigned current[]={in.current_mx,in.current_cx};
@@ -120,12 +120,17 @@ static inline int ceph_power_start(struct ceph_power_txn *t,struct ceph_power_op
     e=ceph_power_poll(b,CE_PWR_CX_STATUS,1u<<31,1u<<31,500);if(e) goto failed;
     if(b->delay_us(b->ctx,2)) {e=CE_PWR_IO;goto failed;}
     t->state=CE_PWR_CLOCKS;
-    /* RCG disabled during reparent; no PLL programming. Disable dual-edge mode
+    /* GPUCC enables safe_config: clk_rcg2_enable forces the root during mux
+     * switching, then relinquishes the force vote. Both parent sources are
+     * already held by prepare(). No PLL programming. Disable dual-edge mode
      * (bits13:12) and HW clock control(bit20) per clk-rcg2.c before UPDATE. */
+    e=ceph_power_update(t,b,CE_PWR_RCG,2u,2u);if(e) goto failed;
+    e=ceph_power_poll(b,CE_PWR_RCG,1u<<31,0,500);if(e) goto failed;
     e=ceph_power_update(t,b,CE_PWR_RCG_CFG,0x0010371fu,plan.rcg_cfg);if(e) goto failed;
     uint32_t cmd;if(ceph_power_read(b,CE_PWR_RCG,&cmd)) {e=CE_PWR_IO;goto failed;}
     ++t->effects;e=b->write(b->ctx,CE_PWR_RCG,cmd|1u);if(e) goto failed;
     e=ceph_power_poll(b,CE_PWR_RCG,1u,0,500);if(e) goto failed;
+    e=ceph_power_update(t,b,CE_PWR_RCG,2u,0);if(e) goto failed;
     const enum ceph_power_reg clocks[]={CE_PWR_GMU,CE_PWR_CXO,CE_PWR_DDR,
         CE_PWR_MEMNOC,CE_PWR_AHB,CE_PWR_DVM};
     for(unsigned i=0;i<sizeof(clocks)/sizeof(clocks[0]);++i) {
