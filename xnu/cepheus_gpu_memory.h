@@ -17,6 +17,14 @@ int cepheus_gpu_memory_view_get(uint64_t handle,struct ceph_gpu_memory_view *vie
 int cepheus_gpu_memory_view_put(uint64_t handle);
 int cepheus_gpu_memory_publish(uint64_t handle);
 int cepheus_gpu_memory_release_cpu(uint64_t handle);
+/* Exact-size GMU(kind=0) or SQE(kind=1) firmware snapshot. Input must be a
+ * readable, pinned KERNEL buffer, never a raw userspace address. Snapshotting
+ * hashes the PRIVATE copy, seals mutable views, and stores kind/valid length.
+ * Readonly leases block release for the whole hash/use interval. They are not
+ * hardware page protection against malicious kernel code; no user mapping. */
+struct ceph_gpu_firmware_view {const uint8_t *data;size_t bytes;unsigned kind;};
+int cepheus_gpu_firmware_snapshot(unsigned kind,const uint8_t *data,size_t bytes,uint64_t *handle);
+int cepheus_gpu_firmware_get(uint64_t handle,unsigned expected_kind,struct ceph_gpu_firmware_view *view);
 #ifdef __cplusplus
 }
 #endif

@@ -10,6 +10,7 @@
 #include "cepheus_sqe.h"
 #include "cepheus_gpu_bw.h"
 #include "cepheus_gpu_fault.h"
+#include "cepheus_gpu_memory.h"
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
@@ -20,4 +21,7 @@ int cepheus_gpu_ring_submit(struct ceph_gpu_ring *,uint64_t,uint64_t,uint64_t,ui
 int cepheus_gpu_sqe_copy(const uint8_t *,size_t,uint8_t *,size_t,struct ceph_sqe_image *);
 int cepheus_gpu_bandwidth_table(const struct ceph_bw_route *,const struct ceph_bw_level *,const struct ceph_bw_route *,const struct ceph_bw_level *,unsigned,struct ceph_hfi_bw *);
 int cepheus_gpu_fault_read(struct ceph_gpu_fault_ops *,struct ceph_gpu_fault_record *);
+/* Preferred sealed-snapshot entrypoints: hold immutable view through use. */
+int cepheus_gpu_upload_snapshot(struct ceph_gmu_upload *,uint64_t,struct ceph_gmu_block *,unsigned);
+int cepheus_gpu_sqe_snapshot_copy(uint64_t,uint8_t *,size_t,struct ceph_sqe_image *);
 #endif

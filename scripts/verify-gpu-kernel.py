@@ -24,7 +24,7 @@ def main():
     for name in HEADERS:
         if (args.xnu / 'bsd/dev' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged BSD source mismatch: {name}')
-    for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h'):
+    for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h','cepheus_gpu_firmware.h'):
         if (args.xnu / 'iokit/Kernel/arm' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged IOKit source mismatch: {name}')
     data = args.kernel.read_bytes()
@@ -39,16 +39,18 @@ def main():
     symbols = {line.split()[-1] for line in output.splitlines() if len(line.split()) == 3 and line.split()[-2].upper() != 'U'}
     required = {'_cepheus_gpu_hfi_boot', '_cepheus_gpu_upload', '_cepheus_gpu_smmu_install',
                 '_cepheus_gpu_power_start', '_cepheus_gpu_submit', '_cepheus_gpu_memory_selftest', '_cepheus_gpu_gmu_start',
-                '_cepheus_gpu_ring_submit', '_cepheus_gpu_sqe_copy','_cepheus_gpu_bandwidth_table','_cepheus_gpu_fault_read'}
+                '_cepheus_gpu_ring_submit', '_cepheus_gpu_sqe_copy','_cepheus_gpu_bandwidth_table','_cepheus_gpu_fault_read',
+                '_cepheus_gpu_upload_snapshot','_cepheus_gpu_sqe_snapshot_copy'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
     memory_api={'_cepheus_gpu_memory_alloc','_cepheus_gpu_memory_view_get','_cepheus_gpu_memory_view_put',
-                '_cepheus_gpu_memory_publish','_cepheus_gpu_memory_release_cpu'}
+                '_cepheus_gpu_memory_publish','_cepheus_gpu_memory_release_cpu',
+                '_cepheus_gpu_firmware_snapshot','_cepheus_gpu_firmware_get'}
     if memory_api - symbols:
         raise ValueError(f'missing linked memory lifecycle APIs: {sorted(memory_api - symbols)}')
     if subprocess.check_output([nm, '-u', str(args.kernel)], text=True).strip():
         raise ValueError('kernel has unresolved symbols')
-    print('GPU staged sources, eleven core entrypoints and five memory lifecycle APIs: PASS (not hardware readiness)')
+    print('GPU staged sources, thirteen core entrypoints and seven memory/firmware APIs: PASS (not hardware readiness)')
 
 
 if __name__ == '__main__':

@@ -24,3 +24,19 @@ int cepheus_gpu_bandwidth_table(const struct ceph_bw_route *c,const struct ceph_
 { return ceph_gpu_bw_table(c,cl,d,dl,count,out); }
 int cepheus_gpu_fault_read(struct ceph_gpu_fault_ops *b,struct ceph_gpu_fault_record *r)
 { return ceph_gpu_fault_snapshot(b,r); }
+int cepheus_gpu_upload_snapshot(struct ceph_gmu_upload *u,uint64_t handle,struct ceph_gmu_block *plan,unsigned capacity)
+{
+    struct ceph_gpu_firmware_view view;
+    if(cepheus_gpu_firmware_get(handle,CE_FW_A640_GMU,&view))return -1;
+    int result=cepheus_gpu_upload(u,view.data,view.bytes,plan,capacity);
+    if(cepheus_gpu_memory_view_put(handle))return -1;
+    return result;
+}
+int cepheus_gpu_sqe_snapshot_copy(uint64_t handle,uint8_t *destination,size_t capacity,struct ceph_sqe_image *image)
+{
+    struct ceph_gpu_firmware_view view;
+    if(cepheus_gpu_firmware_get(handle,CE_FW_A630_SQE,&view))return -1;
+    int result=cepheus_gpu_sqe_copy(view.data,view.bytes,destination,capacity,image);
+    if(cepheus_gpu_memory_view_put(handle))return -1;
+    return result;
+}

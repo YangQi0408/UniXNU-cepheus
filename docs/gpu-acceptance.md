@@ -263,3 +263,9 @@ XNU GMU upload和SQE copy入口现在先用corecrypto SHA256验证固定本地ar
 就不读GX，未读域不能记成clean。保留CP fault/protect、SMMU FSR/FSYNR/FAR及
 时间戳，FSR前后改变或MULTI时不声称FAR原子一致。不做IRQ W1C/clear/reset，
 避免破坏第一现场或误清其他客户端错误。该接口仍是具名寄存器后端，不对应用开放。
+
+固件生命周期进一步使用真实XNU私有快照：copy之后对私有内存计算固定digest，
+sealed状态不再允许获取可写view，也不允许直接publish为GPU DMA目标；只读lease
+在实际GMU上传/SQE复制整个期间阻止free。内部调用者必须传入可读固定的内核源，
+不是裸用户指针；seal是可信内核API约束，不声称能防恶意内核代码直接改指针。
+快照不执行文件系统读取、不自动加载专有固件、不暴露用户态方法。

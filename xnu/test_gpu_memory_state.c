@@ -14,5 +14,10 @@ int main(void)
     assert(s.state==CE_MEM_QUARANTINED && ceph_mem_reserve(&s)<0 && ceph_mem_release_begin(&s)<0);
     s=(struct ceph_mem_slot){.generation=UINT32_MAX};assert(ceph_mem_reserve(&s)<0 && s.state==CE_MEM_RETIRED);
     s=(struct ceph_mem_slot){.state=CE_MEM_CPU,.generation=1,.views=UINT32_MAX};assert(ceph_mem_view_get(&s)<0);
+    s=(struct ceph_mem_slot){.state=CE_MEM_CPU,.generation=7};
+    assert(!ceph_mem_view_get(&s) && ceph_mem_seal(&s)<0);assert(!ceph_mem_view_put(&s));
+    assert(!ceph_mem_seal(&s) && ceph_mem_view_get(&s)<0 && ceph_mem_publish(&s)<0);
+    assert(!ceph_mem_readonly_get(&s) && ceph_mem_release_begin(&s)<0);
+    assert(!ceph_mem_view_put(&s) && !ceph_mem_release_begin(&s));
     puts("GPU memory lifecycle: leases, stale handles, publication, uncertain completion and generation wrap PASS");
 }

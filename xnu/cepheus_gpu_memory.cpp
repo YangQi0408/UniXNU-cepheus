@@ -14,6 +14,7 @@
 #include <sys/systm.h>
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_memory_state.h"
+#include "cepheus_gpu_firmware.h"
 
 struct ceph_gpu_buffer {
     IOBufferMemoryDescriptor *memory;
@@ -26,7 +27,7 @@ struct ceph_gpu_buffer {
 /* One-shot selftest counter and bounded outstanding buffer budget. */
 static unsigned ceph_memory_once,ceph_memory_pages;
 static IOLock *ceph_pool_lock;
-static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;} ceph_pool[16];
+static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;} ceph_pool[16];
 
 static IOLock *
 ceph_gpu_pool_lock(void)
@@ -108,10 +109,49 @@ cepheus_gpu_memory_alloc(size_t bytes,uint64_t *handle)
     for(unsigned i=0;i<16;++i)if(!ceph_mem_reserve(&ceph_pool[i].state)){index=(int)i;break;}
     IOLockUnlock(lock);if(index<0)return -1;
     auto *slot=&ceph_pool[index];
+    slot->firmware_bytes=0;slot->firmware_kind=0;
     int e=ceph_gpu_buffer_alloc_cpu(&slot->buffer,bytes);
     IOLockLock(lock);
     (void)ceph_mem_finish_allocation(&slot->state,!e,slot->buffer.published);
     if(!e)*handle=ceph_mem_handle((unsigned)index,slot->state.generation);
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int
+cepheus_gpu_firmware_snapshot(unsigned kind,const uint8_t *data,size_t bytes,uint64_t *handle)
+{
+    if(!handle)return -1;
+    *handle=0;
+    if(!data || !((kind==CE_FW_A640_GMU && bytes==37680) ||
+        (kind==CE_FW_A630_SQE && bytes==32304)))return -1;
+    uint64_t id=0;
+    if(cepheus_gpu_memory_alloc((bytes+4095u)&~(size_t)4095u,&id))return -1;
+    struct ceph_gpu_memory_view view={};
+    if(cepheus_gpu_memory_view_get(id,&view)) { (void)cepheus_gpu_memory_release_cpu(id);return -1; }
+    memcpy(view.cpu,data,bytes);
+    __asm__ volatile("dsb sy" ::: "memory");
+    int e=ceph_firmware_verify((enum ceph_firmware_kind)kind,(const uint8_t *)view.cpu,bytes);
+    (void)cepheus_gpu_memory_view_put(id);
+    if(e) { (void)cepheus_gpu_memory_release_cpu(id);return -1; }
+    IOLock *lock=ceph_gpu_pool_lock(); /* already allocated by memory_alloc */
+    IOLockLock(lock);int index=ceph_gpu_pool_index(id);
+    e=index<0?-1:ceph_mem_seal(&ceph_pool[index].state);
+    if(!e) {ceph_pool[index].firmware_bytes=bytes;ceph_pool[index].firmware_kind=kind;*handle=id;}
+    IOLockUnlock(lock);
+    if(e)(void)cepheus_gpu_memory_release_cpu(id);
+    return e;
+}
+
+extern "C" int
+cepheus_gpu_firmware_get(uint64_t handle,unsigned expected_kind,struct ceph_gpu_firmware_view *view)
+{
+    if(!view || expected_kind>CE_FW_A630_SQE)return -1;
+    *view={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int index=ceph_gpu_pool_index(handle),e=-1;
+    if(index>=0 && ceph_pool[index].firmware_bytes && ceph_pool[index].firmware_kind==expected_kind &&
+        !ceph_mem_readonly_get(&ceph_pool[index].state)) {
+        *view={(const uint8_t *)ceph_pool[index].buffer.cpu,ceph_pool[index].firmware_bytes,expected_kind};e=0;
+    }
     IOLockUnlock(lock);return e;
 }
 

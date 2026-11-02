@@ -5,7 +5,7 @@
 #define CEPHEUS_GPU_MEMORY_STATE_H
 #include <stddef.h>
 #include <stdint.h>
-enum ceph_mem_state {CE_MEM_FREE,CE_MEM_ALLOCATING,CE_MEM_CPU,CE_MEM_PUBLISHED,CE_MEM_QUARANTINED,CE_MEM_RETIRED};
+enum ceph_mem_state {CE_MEM_FREE,CE_MEM_ALLOCATING,CE_MEM_CPU,CE_MEM_PUBLISHED,CE_MEM_QUARANTINED,CE_MEM_RETIRED,CE_MEM_SEALED};
 struct ceph_mem_slot {enum ceph_mem_state state;uint32_t generation;unsigned views;};
 static inline uint64_t ceph_mem_handle(unsigned slot,uint32_t generation)
 {return ((uint64_t)generation<<32)|(slot+1u);}
@@ -32,7 +32,8 @@ static inline int ceph_mem_view_get(struct ceph_mem_slot *s)
 }
 static inline int ceph_mem_view_put(struct ceph_mem_slot *s)
 {
-    if(!s || !s->views || (s->state!=CE_MEM_CPU && s->state!=CE_MEM_PUBLISHED && s->state!=CE_MEM_QUARANTINED))return -1;
+    if(!s || !s->views || (s->state!=CE_MEM_CPU && s->state!=CE_MEM_PUBLISHED &&
+        s->state!=CE_MEM_QUARANTINED && s->state!=CE_MEM_SEALED))return -1;
     --s->views;return 0;
 }
 static inline int ceph_mem_publish(struct ceph_mem_slot *s)
@@ -42,7 +43,17 @@ static inline int ceph_mem_publish(struct ceph_mem_slot *s)
 }
 static inline int ceph_mem_release_begin(struct ceph_mem_slot *s)
 {
-    if(!s || s->state!=CE_MEM_CPU || s->views)return -1;
+    if(!s || (s->state!=CE_MEM_CPU && s->state!=CE_MEM_SEALED) || s->views)return -1;
     s->state=CE_MEM_ALLOCATING;return 0; /* reserve slot while complete/release sleeps */
+}
+static inline int ceph_mem_seal(struct ceph_mem_slot *s)
+{
+    if(!s || s->state!=CE_MEM_CPU || s->views)return -1;
+    s->state=CE_MEM_SEALED;return 0;
+}
+static inline int ceph_mem_readonly_get(struct ceph_mem_slot *s)
+{
+    if(!s || s->state!=CE_MEM_SEALED || s->views==UINT32_MAX)return -1;
+    ++s->views;return 0;
 }
 #endif
