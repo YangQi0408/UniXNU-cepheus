@@ -16,6 +16,18 @@ PATCHES = Path(sys.argv[1]) if len(sys.argv) > 1 else None
 
 
 class ArcIntegrationTests(unittest.TestCase):
+    def test_stage_before_source_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            (tree / "bsd/conf").mkdir(parents=True)
+            (tree / "bsd/dev").mkdir()
+            (tree / "bsd/conf/files").write_text("base XNU inventory\n")
+            subprocess.run(["bash", str(ROOT / "xnu/0086-stage-cepheus-gpu-arc.sh")],
+                           cwd=tree, check=True)
+            for name in ("cepheus_arc.h", "cepheus_arc_probe.h"):
+                self.assertEqual((tree / "bsd/dev" / name).read_bytes(), (ROOT / "xnu" / name).read_bytes())
+            self.assertFalse((tree / "bsd/dev/sweet_rpmh.c").exists())
+
     def test_real_patch_after_touch_enable_only(self):
         self.assertIsNotNone(PATCHES, "supply pinned ios-sweet/xnu/patches")
         self.assertTrue(PATCHES.is_dir())
