@@ -13,8 +13,10 @@
 #include <mach/mach_types.h>
 #include <mach/vm_param.h>
 #if defined(KERNEL)
+extern "C" {
 #include <vm/pmap.h>
 #include <vm/memory_types.h>
+}
 #endif
 #include <sys/systm.h>
 #include "cepheus_gpu_memory.h"
