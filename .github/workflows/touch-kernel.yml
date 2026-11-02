@@ -82,6 +82,7 @@ jobs:
           /tmp/pm4-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test
           /tmp/gmu-test
+          bash cepheus/scripts/test-gpu-sanitizers.sh
           for name in gpu_power gpu_power_txn gpu_memory_state gpu_firmware gpu_fault gpu_pdc gpu_thermal gmu_loader gmu_upload gmu_start gmu_park gmu_slumber hfi hfi_messages hfi_session gpu_vm gpu_va smmu_plan smmu_install smmu_detach gpu_submit gpu_ring cp_init qmp_acd sqe arc bcm gpu_bw; do
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"

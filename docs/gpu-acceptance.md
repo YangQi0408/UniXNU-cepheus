@@ -394,3 +394,10 @@ bin1 ACD还需要AOP通知。`cepheus_qmp_acd.h`只允许固定32字节GPU ACD�
 等待length清零消费确认；busy/租约改变/1秒或次数超限均拒绝并保留不确定状态。
 没有任意消息接口，也不抢占或重连其他客户端通道。尚缺真实QMP连接/所有权
 后端；消费确认也不等于应用层ACD已成功，须结合HFI feature状态验收。
+
+### 输入内存错误检测
+
+`test-gpu-sanitizers.sh`对14个解析/映射/消息测试程序启用AddressSanitizer+
+UBSan。新增固定seed的20000组GMU/ARC/BCM/HFI畸形输入，回调对每个cmd-db
+读取地址做越界/对齐断言，失败不得返回残留记录数。当前检测通过，仅为有界
+负面覆盖，不声称穷尽fuzz或替代真实设备/并发验收。
