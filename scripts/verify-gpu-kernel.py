@@ -30,6 +30,7 @@ HEADERS += ('cepheus_smmu_mmio.h',)
 HEADERS += ('cepheus_gmu_oob.h',)
 HEADERS += ('cepheus_gpu_retire.c','cepheus_gpu_retire.h','cepheus_gpu_memory_private.h')
 HEADERS += ('cepheus_gmu_hfi_link.c','cepheus_gmu_hfi_link.h')
+HEADERS += ('cepheus_gmu_mmio.h',)
 HEADERS += ('cepheus_gmu_workspace.c','cepheus_gmu_workspace.h')
 
 
@@ -65,7 +66,8 @@ def main():
                 '_cepheus_gpu_smmu_detach','_cepheus_gpu_gmu_park','_cepheus_gpu_gmu_slumber','_cepheus_gpu_acd_message',
                 '_cepheus_gpu_smmu_geometry','_cepheus_gpu_smmu_mmio_read','_cepheus_gpu_smmu_mmio_write',
                 '_cepheus_gpu_oob_acquire','_cepheus_gpu_oob_release',
-                '_cepheus_gmu_hfi_bind','_cepheus_gmu_hfi_invalidate'}
+                '_cepheus_gmu_hfi_bind','_cepheus_gmu_hfi_invalidate',
+                '_cepheus_gpu_gmu_read','_cepheus_gpu_gmu_write','_cepheus_gpu_hfi_notify','_cepheus_gpu_gmu_fault'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
     memory_api={'_cepheus_gpu_memory_alloc','_cepheus_gpu_memory_view_get','_cepheus_gpu_memory_view_put',

@@ -121,7 +121,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前37个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前38个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -483,3 +483,9 @@ CI41494467129发现IOKit导出头没有pmap_cache_attributes声明（MACH_KERNEL
 交换，普通命令拒绝。成功/失败退休后显式invalidate清掉CPU指针。
 联测使用同一条已绑定session先查询版本，再通过该session完成slumber/park/
 detach/释放或四阶段失败隔离，防止“另造session”掩盖退休状态的协议冲突。
+
+统一GMU MMIO adapter现在将具名CM3寄存器、OOB0及HFI doorbell转换为同一
+0x30000 GMU aperture的volatile访问。配置写入只允许精确启动plan的值，
+RPMh capability只允许保留旧位再OR规定mask，OOB只允许当前版本bit编码；
+status清除与普通配置隔离。host用RAM aperture测试实际读写落点及越界/错值/
+租约失效拒绝。adapter不负责创建映射或取得lease，没有接入自动startup。

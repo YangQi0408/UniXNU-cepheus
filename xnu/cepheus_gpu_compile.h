@@ -23,6 +23,7 @@
 #include "cepheus_smmu_geometry.h"
 #include "cepheus_smmu_mmio.h"
 #include "cepheus_gmu_oob.h"
+#include "cepheus_gmu_mmio.h"
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
@@ -52,4 +53,8 @@ int cepheus_gpu_smmu_mmio_read(void *,enum ceph_smmu_reg,uint64_t *);
 int cepheus_gpu_smmu_mmio_write(void *,enum ceph_smmu_reg,uint64_t);
 int cepheus_gpu_oob_acquire(struct ceph_gmu_oob *,struct ceph_oob_ops *,uint32_t);
 int cepheus_gpu_oob_release(struct ceph_gmu_oob *,struct ceph_oob_ops *);
+int cepheus_gpu_gmu_read(void *,enum ceph_gmu_reg,uint32_t *);
+int cepheus_gpu_gmu_write(void *,enum ceph_gmu_reg,uint32_t);
+int cepheus_gpu_hfi_notify(void *);
+int cepheus_gpu_gmu_fault(void *);
 #endif
