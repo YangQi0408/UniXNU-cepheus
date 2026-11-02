@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前20个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前22个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -218,3 +218,15 @@ MC0/ACV；CNOC为GPU→GEMNOC-SNOC→GEMNOC→CNOC，BCM为SH2/SN15/SN3。
 值饱和到14bit，零流量仍可携带commit但valid=0。真实cmd-db元数据只读探测新增
 上述六资源，不写票；ACV是RSC相关bitmask资源，不能套普通BW归一化。还没有
 声称这些输入足以生成最终HFI BW表：需完成ACV身份/聚合策略及实际cmd-db采样。
+
+### 有界scratch ring与SQE装载格式
+
+`cepheus_gpu_ring.h`按KGSL32KiB ring实现空间预留、尾部NOP wrap和publish→WPTR
+顺序。它只接受内核生成的10 DWORD scratch+fence包，不接受任意用户PM4；
+检查scratch与ring VA不重叠、容量、read/write指针及已有inflight状态。发布失败
+之后不回滚写指针或释放内存。成功只表示入队，仍须fence+停稳验证，当前是一发
+测试路径，未提供清除inflight来绕过回收门槛。
+
+`cepheus_sqe.h`对应`_load_firmware/adreno_get_ucode_version`处理SQE第一DWORD
+剥离与版本编码；实际a630_sqe.fw（原记录SHA未变）解析为version0x16ee190、
+8075 DWORD、32300字节payload，RAM拷贝逐字节校验通过。没有启用SQE或绕过ZAP。

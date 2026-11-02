@@ -15,3 +15,7 @@ int cepheus_gpu_submit(struct ceph_submit *s,struct ceph_submit_ops *b,uint32_t 
 { return ceph_submit_once(s,b,seq); }
 int cepheus_gpu_gmu_start(struct ceph_gmu_start *s,struct ceph_gmu_start_ops *b,const struct ceph_gmu_start_config *c)
 { return ceph_gmu_start_cold(s,b,c); }
+int cepheus_gpu_ring_submit(struct ceph_gpu_ring *r,uint64_t scratch,uint64_t bytes,uint64_t address,uint32_t value,uint64_t fence,uint32_t sequence)
+{ return ceph_gpu_ring_scratch(r,scratch,bytes,address,value,fence,sequence); }
+int cepheus_gpu_sqe_copy(const uint8_t *f,size_t bytes,uint8_t *d,size_t capacity,struct ceph_sqe_image *out)
+{ return ceph_sqe_copy(f,bytes,d,capacity,out); }

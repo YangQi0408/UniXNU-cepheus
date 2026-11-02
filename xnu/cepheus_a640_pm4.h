@@ -6,18 +6,18 @@
 #ifndef CEPHEUS_A640_PM4_H
 #define CEPHEUS_A640_PM4_H
 #include <stdint.h>
-static unsigned ceph_pm4_odd(uint32_t value)
+static inline unsigned ceph_pm4_odd(uint32_t value)
 {
 	unsigned parity = 1;
 	while (value) { parity ^= value & 1u; value >>= 1; }
 	return parity;
 }
-static uint32_t ceph_pm4_type7(unsigned opcode, unsigned count)
+static inline uint32_t ceph_pm4_type7(unsigned opcode, unsigned count)
 {
 	return 0x70000000u | count | (ceph_pm4_odd(count) << 15) |
 	    (opcode << 16) | (ceph_pm4_odd(opcode) << 23);
 }
-static int ceph_pm4_valid_type7(uint32_t header)
+static inline int ceph_pm4_valid_type7(uint32_t header)
 {
 	unsigned opcode = (header >> 16) & 0x7fu, count = header & 0x3fffu;
 	return (header & 0xff004000u) == 0x70000000u &&
@@ -28,7 +28,7 @@ static int ceph_pm4_valid_type7(uint32_t header)
  * destination to a caller-owned, already-GPU-mapped scratch allocation.
  * Passing CPU PA as gpu_address without an established mapping is invalid.
  */
-static int ceph_a640_write_test(uint32_t *out, unsigned capacity,
+static inline int ceph_a640_write_test(uint32_t *out, unsigned capacity,
     uint64_t scratch_base, uint64_t scratch_bytes, uint64_t gpu_address, uint32_t value)
 {
 	if (!out || capacity < 5 || (gpu_address & 3u) || scratch_bytes < 4 ||

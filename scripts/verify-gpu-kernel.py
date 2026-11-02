@@ -12,6 +12,7 @@ HEADERS = ('cepheus_hfi.h', 'cepheus_hfi_boot.h', 'cepheus_hfi_messages.h', 'cep
            'cepheus_smmu_install.h', 'cepheus_gpu_power.h', 'cepheus_gpu_power_txn.h', 'cepheus_gpu_submit.h',
            'cepheus_gpu_compile.c', 'cepheus_gpu_compile.h', 'cepheus_gpu_memory.h')
 HEADERS += ('cepheus_gmu_start.h','cepheus_bcm.h')
+HEADERS += ('cepheus_gpu_ring.h','cepheus_a640_pm4.h','cepheus_sqe.h')
 
 
 def main():
@@ -36,12 +37,13 @@ def main():
     output = subprocess.check_output([nm, str(args.kernel)], text=True)
     symbols = {line.split()[-1] for line in output.splitlines() if len(line.split()) == 3 and line.split()[-2].upper() != 'U'}
     required = {'_cepheus_gpu_hfi_boot', '_cepheus_gpu_upload', '_cepheus_gpu_smmu_install',
-                '_cepheus_gpu_power_start', '_cepheus_gpu_submit', '_cepheus_gpu_memory_selftest', '_cepheus_gpu_gmu_start'}
+                '_cepheus_gpu_power_start', '_cepheus_gpu_submit', '_cepheus_gpu_memory_selftest', '_cepheus_gpu_gmu_start',
+                '_cepheus_gpu_ring_submit', '_cepheus_gpu_sqe_copy'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
     if subprocess.check_output([nm, '-u', str(args.kernel)], text=True).strip():
         raise ValueError('kernel has unresolved symbols')
-    print('GPU staged sources and seven real linked entrypoints: PASS (not execution or hardware readiness)')
+    print('GPU staged sources and nine real linked entrypoints: PASS (not execution or hardware readiness)')
 
 
 if __name__ == '__main__':
