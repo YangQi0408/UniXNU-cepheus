@@ -173,7 +173,7 @@ ACTLR不是随意填0，begin后端必须验证该平台策略；当前测试使
 `cepheus_gpu_memory.cpp`接入真实IOKit内存API，并提供默认关闭的`cephmem=1`
 CPU-only自检：分配20KiB、显式prepare、MapperNone读取host PA并验证连续性，
 写入/读取pattern后complete和release。不使用kernel VA强转PA。40bit PA mask
-与4KiB对齐，单次<=256KiB、总预算512KiB。选择WriteCombine/Normal-NC，而非
+与4KiB对齐，单次<=256KiB、总预算后续扩至1MiB。选择WriteCombine/Normal-NC，而非
 InhibitCache/Device DRAM；后者可能触发XNU managed-page保护或错误访问语义。
 核对了pmap的缓存属性更新路径，但该自检尚未真机执行，不能证明缓存行为。
 已发布给设备的buffer没有bool式“done”释放捷径，仍需真实停止/解除映射实现。
@@ -363,3 +363,10 @@ slumber部分现有直接HFI实现：命令ID33、payload顺序bw/freq，先由�
 轮询真实RPMh状态15和GX power/clock off。ACK成功但状态不变会超时，不会
 继续park/unmap。仅支持GMU拥有IFPC/SPTP的路径，不替代host管理SPTP的流程；
 不支持的所有权状态必须拒绝。源结构memcmp与真实ring模拟响应测试均覆盖。
+
+### 联合工作区/固件测试
+
+同一host测试进程已连接实际固件→私有sealed快照→真实分配池接口→GMU workspace
+页表/HFI→RAM模拟TCM与ICACHE/DCACHE上传→完整CPU清理。逐块比较7个固件区段，
+并将缓存VA经生成页表解析为分配器返回的PA以交叉核对；不是分别测试后假设
+模块可以拼接。实际IOKit分配器由host替身提供、TCM为RAM，仍不代表真机GPU执行。
