@@ -7,17 +7,20 @@
 #define CEPHEUS_GPU_VA_H
 #include "cepheus_gpu_vm.h"
 #include "cepheus_gmu_start.h"
-enum ceph_gmu_buffer_role {CE_BUF_ICACHE,CE_BUF_DCACHE,CE_BUF_HFI,CE_BUF_LOG,CE_BUF_COUNT};
+enum ceph_gmu_buffer_role {CE_BUF_ICACHE,CE_BUF_DCACHE,CE_BUF_HFI,CE_BUF_LOG,CE_BUF_PERSIST,CE_BUF_COUNT};
 struct ceph_gpu_backing {uint64_t pa;size_t capacity;};
 struct ceph_gpu_va_plan {struct ceph_vm_region regions[CE_BUF_COUNT];struct ceph_gmu_start_config start;};
 static inline int ceph_gpu_va_plan(const struct ceph_gpu_backing backing[CE_BUF_COUNT],struct ceph_gpu_va_plan *out)
 {
     if(!backing || !out)return -1;
-    static const uint32_t va[]={0x4000,0x44000,0x60000000,0x60100000};
-    static const uint32_t length[]={0x3c000,0x3c000,5*4096,4096};
+    /* KGSL requires dummy/persist as first uncached slot; next slots are
+     * separated by1MiB. HFI/log addresses are given to firmware explicitly. */
+    static const uint32_t va[]={0x4000,0x44000,0x60100000,0x60200000,0x60000000};
+    static const uint32_t length[]={0x3c000,0x3c000,5*4096,4096,4096};
     static const unsigned permissions[]={CE_VM_READ|CE_VM_EXEC|CE_VM_NOCACHE,
         CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,
         CE_VM_READ|CE_VM_WRITE|CE_VM_UNPRIV|CE_VM_NOCACHE,
+        CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,
         CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
 #ifdef __cplusplus
     struct ceph_gpu_va_plan p={};

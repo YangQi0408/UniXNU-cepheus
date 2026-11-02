@@ -47,12 +47,12 @@ int ceph_test_retire_path(unsigned mode)
     struct ceph_smmu_stream streams[8]={0};for(unsigned i=0;i<8;++i)streams[i].s2cr=2u<<16;
     struct ceph_smmu_plan plan;assert(!ceph_smmu_gmu_plan(streams,8,2,3,8,5,4,w.table.pa,0,&plan));
     /* Duplicate handles, wrong root and extra views refuse atomically. */
-    uint64_t bad[5];for(unsigned i=0;i<5;++i)bad[i]=w.handles[i];bad[1]=bad[0];
+    uint64_t bad[CE_GPU_WORKSPACE_BUFFERS];for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)bad[i]=w.handles[i];bad[1]=bad[0];
     struct ceph_gpu_publication publication;
     assert(cepheus_gpu_memory_share_workspace(bad,&plan,&publication)<0);
     struct ceph_gpu_memory_view extra;assert(!cepheus_gpu_memory_view_get(w.handles[0],&extra));
     assert(cepheus_gmu_workspace_share(&w,&plan)<0);assert(!cepheus_gpu_memory_view_put(w.handles[0]));
-    assert(!cepheus_gmu_workspace_share(&w,&plan) && w.state==CE_WS_SHARED && w.leased==31);
+    assert(!cepheus_gmu_workspace_share(&w,&plan) && w.state==CE_WS_SHARED && w.leased==CE_GPU_WORKSPACE_VIEWS);
     assert(cepheus_gpu_memory_release_cpu(w.handles[0])<0 && cepheus_gpu_memory_view_put(w.handles[0])<0);
     assert(cepheus_gpu_memory_view_get(w.handles[0],&extra)<0);
     struct fake f={.mode=mode};struct ceph_gmu_hfi_link link={0};
@@ -76,7 +76,7 @@ int ceph_test_retire_path(unsigned mode)
     assert(cepheus_gpu_memory_retire_workspace(&forged,&ops)<0 && !f.phase);
     struct ceph_gpu_group_status status;
     uint64_t group=w.publication.group;
-    assert(!cepheus_gpu_memory_group_status(group,&status) && status.state==CE_GPU_GROUP_SHARED && status.retained_buffers==5);
+    assert(!cepheus_gpu_memory_group_status(group,&status) && status.state==CE_GPU_GROUP_SHARED && status.retained_buffers==CE_GPU_WORKSPACE_BUFFERS);
     int e=cepheus_gmu_workspace_retire(&w,&ops);
     cepheus_gmu_hfi_invalidate(&link);
     assert(!w.table.words && !w.leased && !w.views[2].cpu);
@@ -84,7 +84,7 @@ int ceph_test_retire_path(unsigned mode)
     else {
         assert(e && w.state==CE_WS_RETAINED);
         assert(!cepheus_gpu_memory_group_status(group,&status) && status.pool_terminal);
-        assert(status.identity.ttbr0==plan.ttbr0 && status.retained_buffers==5);
+        assert(status.identity.ttbr0==plan.ttbr0 && status.retained_buffers==CE_GPU_WORKSPACE_BUFFERS);
         assert(status.state==(mode==5?CE_GPU_GROUP_DETACHED_RETAINED:CE_GPU_GROUP_UNCERTAIN));
         assert(f.detached==(mode==5));
         uint64_t handle;assert(cepheus_gpu_memory_alloc(4096,&handle)<0);

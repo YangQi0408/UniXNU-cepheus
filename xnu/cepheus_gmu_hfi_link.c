@@ -14,13 +14,13 @@ static int link_validate(void *ctx)
 {
     struct ceph_gmu_hfi_link *l=ctx;
     if(!l || !l->bound || !l->workspace || l->workspace->state!=CE_WS_SHARED ||
-        l->workspace->publication.group!=l->identity.group || l->workspace->leased!=31)return -1;
+        l->workspace->publication.group!=l->identity.group || l->workspace->leased!=CE_GPU_WORKSPACE_VIEWS)return -1;
     struct ceph_gpu_group_status status;
     if(cepheus_gpu_memory_group_status(l->identity.group,&status) || status.pool_terminal)return -1;
     if(status.state!=CE_GPU_GROUP_SHARED &&
         !(status.state==CE_GPU_GROUP_RETIRING && l->session.busy &&
           (l->session.active_header&0xfffffu)==0x321u))return -1;
-    for(unsigned i=0;i<5;++i)
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)
         if(l->workspace->handles[i]!=l->identity.handles[i] || status.identity.handles[i]!=l->identity.handles[i])return -1;
     return l->transport.validate(l->transport.ctx);
 }
@@ -34,7 +34,7 @@ static int link_fault(void *ctx){struct ceph_gmu_hfi_link *l=ctx;if(link_validat
 
 int cepheus_gmu_hfi_bind(struct ceph_gmu_hfi_link *l,struct ceph_gmu_workspace *w,const struct ceph_gmu_hfi_transport *b)
 {
-    if(!l || l->bound || !w || w->state!=CE_WS_SHARED || w->leased!=31 ||
+    if(!l || l->bound || !w || w->state!=CE_WS_SHARED || w->leased!=CE_GPU_WORKSPACE_VIEWS ||
         !b || !b->validate || !b->doorbell || !b->now_ns || !b->pause || !b->fault ||
         !w->views[2].cpu || ((uintptr_t)w->views[2].cpu&3u) || w->views[2].bytes<20480 ||
         w->layout.start.hfi_bytes!=20480)return -1;

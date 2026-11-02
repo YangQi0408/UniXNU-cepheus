@@ -4,6 +4,12 @@
 workspace持有view却无法发布；这两点不是可用GPU链路。下方“独立审查修复”
 记录后续显式IOMemoryMap、批量共享和真实协议退休实现。所有硬件结论仍待验收。
 
+**最新布局修正：** GMU持久dummy页为0x60000000，HFI为0x60100000，log为
+0x60200000；工作区现有6个分配。早期“五buffer/HFI首槽”描述仅为历史，不能
+作为实际固件布局。依据kgsl_gmu.c的“WB DUMMY PAGE Must be the first alloc”。
+持久页独立分配、privileged RW/NC/NX，VA计划共5段；table需要6个4KiB页，
+预留的8页仍足够。全部发布/退休/诊断句柄和联合HFI测试已改用统一数量常量。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

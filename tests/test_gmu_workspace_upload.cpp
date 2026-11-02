@@ -37,7 +37,7 @@ int main(int argc,char **argv)
             assert(pa==v.pa+b.address-(b.region==CE_GMU_ICACHE?0x4000:0x44000));}
     }
     uint32_t *hfi=(uint32_t *)workspace.views[2].cpu;
-    assert(hfi[1]==54 && hfi[7]==0x600000e0 && hfi[42]==0);
+    assert(hfi[1]==54 && hfi[7]==0x601000e0 && hfi[42]==0);
     assert(!cepheus_gpu_memory_view_put(image));assert(!cepheus_gpu_memory_release_cpu(image));
     assert(!cepheus_gmu_workspace_release_cpu(&workspace) && !mock_io::live && !mock_io::prepared);
     puts("Integration: exact firmware -> sealed XNU-pool copy -> workspace/VM -> RAM TCM+cache upload -> cleanup PASS (no device)");

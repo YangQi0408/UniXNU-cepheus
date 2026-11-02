@@ -11,9 +11,10 @@ struct ceph_gmu_slumber_ops;
 struct ceph_gmu_park_ops;
 struct ceph_smmu_detach_ops;
 struct ceph_hfi_session;
+enum {CE_GPU_WORKSPACE_BUFFERS=6,CE_GPU_WORKSPACE_ROOT=5,CE_GPU_WORKSPACE_VIEWS=(1u<<6)-1};
 struct ceph_gpu_publication {
     uint64_t group;
-    uint64_t handles[5];
+    uint64_t handles[CE_GPU_WORKSPACE_BUFFERS];
     /* Matches owned root/context identity at publication, not a pointer to
      * mutable caller storage. Caller must not map this memory elsewhere. */
     uint64_t ttbr0,ttbr1;
@@ -36,10 +37,10 @@ struct ceph_gpu_group_status {
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Atomic five-buffer transition CPU+one view -> SHARED+same view. No MMIO.
- * Buffer index4 is root pool. Publish BEFORE exposing addresses to hardware.
+/* Atomic six-buffer transition CPU+one view -> SHARED+same view. No MMIO.
+ * Buffer index5 is root pool. Publish BEFORE exposing addresses to hardware.
  * Geometry/materialized plan must be validated by higher-level workspace. */
-int cepheus_gpu_memory_share_workspace(const uint64_t handles[5],const struct ceph_smmu_plan *,struct ceph_gpu_publication *);
+int cepheus_gpu_memory_share_workspace(const uint64_t handles[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_smmu_plan *,struct ceph_gpu_publication *);
 int cepheus_gpu_memory_retire_workspace(const struct ceph_gpu_publication *,struct ceph_gpu_retire_ops *);
 /* Diagnosis only: no clear/reset/retry controls. Failed hardware retirement
  * ends this diagnostic GPU session for the boot, deliberately not recoverable

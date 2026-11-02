@@ -3,7 +3,7 @@
 #include "cepheus_gmu_slumber.h"
 #include "cepheus_gmu_park.h"
 
-int cepheus_gpu_memory_share_workspace(const uint64_t handles[5],const struct ceph_smmu_plan *p,struct ceph_gpu_publication *out)
+int cepheus_gpu_memory_share_workspace(const uint64_t handles[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_smmu_plan *p,struct ceph_gpu_publication *out)
 {
     if(!ceph_smmu_plan_canonical(p) || !out)return -1;
     struct ceph_gpu_publication identity={0};

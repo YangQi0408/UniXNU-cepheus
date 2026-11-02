@@ -299,7 +299,7 @@ cepheus_gpu_memory_selftest(void)
 
 /* These batch operations preserve exact handles, root PA and group membership.
  * All-or-none checks happen under the pool lock before state mutations. */
-static int ceph_memory_group_indices(const struct ceph_gpu_publication *p,int indices[5])
+static int ceph_memory_group_indices(const struct ceph_gpu_publication *p,int indices[CE_GPU_WORKSPACE_BUFFERS])
 {
     if(!p || !p->group)return -1;
     unsigned group=(unsigned)(p->group&255u);
@@ -307,7 +307,7 @@ static int ceph_memory_group_indices(const struct ceph_gpu_publication *p,int in
     const auto *saved=&ceph_groups[group-1];
     if(saved->group!=p->group || saved->ttbr0!=p->ttbr0 || saved->ttbr1!=p->ttbr1 ||
         saved->smr!=p->smr || saved->cb!=p->cb || saved->slot!=p->slot || saved->asid!=p->asid)return -1;
-    for(unsigned i=0;i<5;++i) {
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i) {
         if(saved->handles[i]!=p->handles[i])return -1;
         indices[i]=ceph_gpu_pool_index(p->handles[i]);
         if(indices[i]<0 || ceph_pool[indices[i]].group!=p->group)return -1;
@@ -315,27 +315,27 @@ static int ceph_memory_group_indices(const struct ceph_gpu_publication *p,int in
     return (int)group-1;
 }
 
-extern "C" int ceph_memory_share_group(const uint64_t handles[5],const struct ceph_gpu_publication *identity,
+extern "C" int ceph_memory_share_group(const uint64_t handles[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_gpu_publication *identity,
     struct ceph_gpu_publication *out)
 {
     if(!handles || !identity || !out)return -1;
     *out={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
-    IOLockLock(lock);int indices[5],group=-1,e=-1;
-    for(unsigned i=0;i<5;++i) {
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS],group=-1,e=-1;
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i) {
         indices[i]=ceph_gpu_pool_index(handles[i]);
         if(indices[i]<0 || !ceph_mem_can_share(&ceph_pool[indices[i]].state) ||
             ceph_pool[indices[i]].buffer.published || ceph_pool[indices[i]].group)goto done;
         for(unsigned j=0;j<i;++j)if(indices[j]==indices[i])goto done;
     }
-    if((identity->ttbr0&0xffffffffffULL)!=ceph_pool[indices[4]].buffer.pa)goto done;
+    if((identity->ttbr0&0xffffffffffULL)!=ceph_pool[indices[CE_GPU_WORKSPACE_ROOT]].buffer.pa)goto done;
     for(unsigned i=0;i<16;++i)if(!ceph_groups[i].group){group=(int)i;break;}
     if(group<0 || ceph_group_generation==0x00ffffffffffffffULL)goto done;
     {
         struct ceph_gpu_publication p=*identity;
         p.group=(++ceph_group_generation<<8)|((unsigned)group+1u);
-        for(unsigned i=0;i<5;++i)p.handles[i]=handles[i];
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)p.handles[i]=handles[i];
         ceph_gpu_memory_barrier();
-        for(unsigned i=0;i<5;++i) {
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i) {
             auto *slot=&ceph_pool[indices[i]];
             slot->state.state=CE_MEM_SHARED;slot->buffer.published=true;slot->group=p.group;
         }
@@ -347,10 +347,10 @@ done:IOLockUnlock(lock);return e;
 extern "C" int ceph_memory_retire_begin(const struct ceph_gpu_publication *p)
 {
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
-    IOLockLock(lock);int indices[5],e=-1;
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS],e=-1;
     if(ceph_memory_group_indices(p,indices)<0)goto done;
-    for(unsigned i=0;i<5;++i)if(!ceph_mem_can_retire(&ceph_pool[indices[i]].state))goto done;
-    for(unsigned i=0;i<5;++i)ceph_pool[indices[i]].state.state=CE_MEM_RETIRING;
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)if(!ceph_mem_can_retire(&ceph_pool[indices[i]].state))goto done;
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_RETIRING;
     ceph_group_status[(unsigned)(p->group&255u)-1]=CE_GPU_GROUP_RETIRING;
     e=0;
 done:IOLockUnlock(lock);return e;
@@ -359,26 +359,26 @@ done:IOLockUnlock(lock);return e;
 extern "C" int ceph_memory_retire_finish(const struct ceph_gpu_publication *p,int success)
 {
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
-    IOLockLock(lock);int indices[5];int group=ceph_memory_group_indices(p,indices);
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];int group=ceph_memory_group_indices(p,indices);
     if(group<0){IOLockUnlock(lock);return -1;}
-    for(unsigned i=0;i<5;++i)if(ceph_pool[indices[i]].state.state!=CE_MEM_RETIRING){IOLockUnlock(lock);return -1;}
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)if(ceph_pool[indices[i]].state.state!=CE_MEM_RETIRING){IOLockUnlock(lock);return -1;}
     if(!success) {
         ceph_pool_terminal=1;
         ceph_group_status[group]=CE_GPU_GROUP_UNCERTAIN;
-        for(unsigned i=0;i<5;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
-        printf("CEPHEUS GPU MEM: terminal GPU session group=%#llx; all five allocations retained; new allocations blocked\n",(unsigned long long)p->group);
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
+        printf("CEPHEUS GPU MEM: terminal GPU session group=%#llx; all six allocations retained; new allocations blocked\n",(unsigned long long)p->group);
         IOLockUnlock(lock);return -1;
     }
     /* Stop/unmap/TLB proof is complete, callers have surrendered CPU views.
      * Keep slots unobservable while slow IOKit completion runs. */
-    for(unsigned i=0;i<5;++i) {
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i) {
         ceph_pool[indices[i]].state.views=0;
         ceph_pool[indices[i]].state.state=CE_MEM_ALLOCATING;
         ceph_pool[indices[i]].buffer.published=false;
     }
     IOLockUnlock(lock);
     int e=0;
-    for(unsigned i=5;i>0;--i) {
+    for(unsigned i=CE_GPU_WORKSPACE_BUFFERS;i>0;--i) {
         auto *slot=&ceph_pool[indices[i-1]];ceph_gpu_buffer_dispose_cpu(&slot->buffer);
         IOLockLock(lock);
         if(slot->buffer.published)e=-1;

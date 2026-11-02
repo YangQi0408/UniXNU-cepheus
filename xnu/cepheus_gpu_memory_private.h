@@ -9,7 +9,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-int ceph_memory_share_group(const uint64_t[5],const struct ceph_gpu_publication *,struct ceph_gpu_publication *);
+int ceph_memory_share_group(const uint64_t[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_gpu_publication *,struct ceph_gpu_publication *);
 int ceph_memory_retire_begin(const struct ceph_gpu_publication *);
 /* success means the orchestrator finished all protocol operations, not a
  * caller assertion. False permanently quarantines the entire group. */

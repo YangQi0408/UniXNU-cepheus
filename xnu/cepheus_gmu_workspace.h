@@ -10,7 +10,7 @@
 enum ceph_workspace_state {CE_WS_NEW,CE_WS_BUILDING,CE_WS_READY_CPU,CE_WS_RELEASED,CE_WS_FAILED,CE_WS_RETAINED,CE_WS_SHARED};
 /* RETAINED is terminal for this workspace, not a retry indication. */
 struct ceph_gmu_workspace {
-    uint64_t handles[5];struct ceph_gpu_memory_view views[5];unsigned leased;
+    uint64_t handles[CE_GPU_WORKSPACE_BUFFERS];struct ceph_gpu_memory_view views[CE_GPU_WORKSPACE_BUFFERS];unsigned leased;
     struct ceph_gpu_va_plan layout;struct ceph_vm_pool table;
     enum ceph_workspace_state state;
     struct ceph_gpu_publication publication;
