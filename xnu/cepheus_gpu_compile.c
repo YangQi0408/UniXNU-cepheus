@@ -54,3 +54,5 @@ int cepheus_gpu_cp_init_packet(uint32_t *out,unsigned capacity,uint64_t va,size_
 { return ceph_cp_me_init(out,capacity,va,bytes); }
 int cepheus_gpu_cp_reglist(struct ceph_cp_snapshot_ops *b,uint32_t *out,unsigned words)
 { return ceph_cp_snapshot(b,out,words); }
+int cepheus_gpu_smmu_detach(struct ceph_smmu_detach *s,struct ceph_smmu_detach_ops *b,const struct ceph_smmu_plan *p)
+{ return ceph_smmu_detach_context(s,b,p); }
