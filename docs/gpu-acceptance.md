@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前28个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前29个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -315,3 +315,8 @@ chipid0x06040001和明确QFPROM读数(mask0xe0000000>>29)得到的0/1，其他�
 FDT仅提供可选bin，不能凭表存在推断本机是0或1；当前尚未读本机speed-bin。
 两种握手命令序列均有测试。独立TSENS/运行时限等热安全仍是平台要求，不能
 把原驱动关闭某硬件特性的bin策略误解为无需温控。
+
+`cepheus_gpu_thermal.h`给试验后端提供不可静默恢复的热门槛：传感器12/13均须
+有效且样本不老于100ms，任一>=60°C、时钟倒退或最多30秒试验期限到达时拒绝
+继续。停止不等于断电，真实后端还须安全停稳；没有把这个纯逻辑guard宣称为
+已运行的GPU温控。平台必须把真实TSENS采样接入，不得传恒定温度伪造就绪。

@@ -48,3 +48,5 @@ int cepheus_gpu_va_build(const struct ceph_gpu_backing *backing,struct ceph_gpu_
 { return ceph_gpu_va_plan(backing,plan); }
 int cepheus_gpu_pdc_install(struct ceph_pdc_install *s,struct ceph_pdc_ops *b,const struct ceph_pdc_input *in)
 { return ceph_pdc_install_a640v2(s,b,in); }
+int cepheus_gpu_thermal_guard(struct ceph_gpu_thermal *t,const struct ceph_gpu_temperature *s,uint64_t now)
+{ return ceph_gpu_thermal_check(t,s,now); }
