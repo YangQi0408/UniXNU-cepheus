@@ -6,6 +6,7 @@
 #ifndef CEPHEUS_CP_INIT_H
 #define CEPHEUS_CP_INIT_H
 #include "cepheus_a640_pm4.h"
+#include "cepheus_cp_protect.h"
 enum {CE_CP_IFPC_REGS=38,CE_CP_PREEMPT_REGS=28,CE_CP_REGLIST_WORDS=136};
 static const uint32_t ceph_cp_restore_offsets[66]={
     0x10,0x11,0x841,0x843,0x84f,0x850,0x851,0x852,0x853,0x854,0x855,0x856,
@@ -35,6 +36,10 @@ static inline int ceph_cp_snapshot(struct ceph_cp_snapshot_ops *b,uint32_t *out,
         /* Some protection register values legitimately contain all ones.
          * Transport validity must be signaled by callback, not guessed by data. */
         if(i==4 && (value&11u)!=11u)goto done;
+        if(i>=5 && i<37) {
+            uint32_t expected;
+            if(ceph_cp_protect_word(i-5,&expected) || value!=expected)goto done;
+        }
         if(i>=38 && i<48 && !(value&1u))goto done; /* all address modes64 */
         data[4+2*i]=ceph_cp_restore_offsets[i];data[5+2*i]=value;
     }

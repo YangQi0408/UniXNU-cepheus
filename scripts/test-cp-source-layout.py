@@ -22,17 +22,25 @@ def main():
         arrays.extend(values)
     if len(arrays)!=66:raise ValueError('source register count changed')
     lock=re.search(r'struct cpu_gpu_lock\s*\{[^{}]*\};',(a.kgsl_dir/'adreno_a6xx.h').read_text()).group(0)
+    spans=re.search(r'a630_protected_regs\[\]\s*=\s*\{(.*?)\n\};',source,re.S).group(1)
+    expected_spans=[]
+    for index,first,last,deny in re.findall(r'\{\s*A6XX_CP_PROTECT_REG\s*\+\s*(\d+)\s*,\s*(0x[0-9a-f]+)\s*,\s*(0x[0-9a-f]+)\s*,\s*([01])\s*\}',spans):
+        if int(index)!=len(expected_spans):raise ValueError('unexpected protection order')
+        a,b=int(first,16),int(last,16);expected_spans.append(a|((b-a)<<18)|(int(deny)<<31))
+    if len(expected_spans)!=32:raise ValueError('source protection count changed')
     snippet=r'''
 #include <stdint.h>
 #include <stddef.h>
 #include <assert.h>
 #include "cepheus_cp_init.h"
-''' + lock + '\nstatic const uint32_t offsets[]={' + ','.join(hex(v) for v in arrays) + '};\n' + r'''
+''' + lock + '\nstatic const uint32_t offsets[]={' + ','.join(hex(v) for v in arrays) + '};\n' + \
+        'static const uint32_t spans[]={' + ','.join(hex(v) for v in expected_spans) + '};\n' + r'''
 _Static_assert(sizeof(struct cpu_gpu_lock)==16,"lock size");
 _Static_assert(offsetof(struct cpu_gpu_lock,list_length)==12,"length offset");
 _Static_assert(offsetof(struct cpu_gpu_lock,list_offset)==14,"list offset");
 int main(void) {
     for(unsigned i=0;i<66;++i)assert(offsets[i]==ceph_cp_restore_offsets[i]);
+    for(unsigned i=0;i<32;++i){uint32_t value;assert(!ceph_cp_protect_word(i,&value) && value==spans[i]);}
     uint32_t packet[12];assert(ceph_cp_me_init(packet,12,0x100004000ULL,4096)==12);
     const uint32_t expected[]={0x70c8000b,0x16f,3,0x20000000,0,0,0,2,0x4000,1,0,0};
     for(unsigned i=0;i<12;++i)assert(packet[i]==expected[i]);

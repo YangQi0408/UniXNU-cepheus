@@ -23,6 +23,7 @@ HEADERS += ('cepheus_cp_init.h',)
 HEADERS += ('cepheus_smmu_detach.h',)
 HEADERS += ('cepheus_gmu_park.h',)
 HEADERS += ('cepheus_gmu_slumber.h',)
+HEADERS += ('cepheus_cp_protect.h',)
 HEADERS += ('cepheus_gmu_workspace.c','cepheus_gmu_workspace.h')
 
 
