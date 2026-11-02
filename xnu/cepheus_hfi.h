@@ -27,16 +27,16 @@ struct ceph_hfi_queue {
 	struct ceph_hfi_ops io;
 	int poisoned; /* uncertain publication: no retries until reset/recreation */
 };
-static uint32_t ceph_hfi_header(unsigned id, unsigned words, unsigned type, unsigned seq)
+static inline uint32_t ceph_hfi_header(unsigned id, unsigned words, unsigned type, unsigned seq)
 {
 	if (id > 255 || !words || words > 255 || type > 15 || seq > 4095) { return 0; }
 	return id | (words << 8) | (type << 16) | (seq << 20);
 }
-static unsigned ceph_hfi_padded(unsigned count, unsigned major)
+static inline unsigned ceph_hfi_padded(unsigned count, unsigned major)
 {
 	return major == 2 ? (count + 3u) & ~3u : count;
 }
-static int ceph_hfi_indices(struct ceph_hfi_queue *q, unsigned *r, unsigned *w)
+static inline int ceph_hfi_indices(struct ceph_hfi_queue *q, unsigned *r, unsigned *w)
 {
 	if (!q || !q->words || !q->read_index || !q->write_index ||
 	    !q->io.acquire || !q->io.publish_data || !q->io.publish_index || !q->io.notify ||
@@ -49,7 +49,7 @@ static int ceph_hfi_indices(struct ceph_hfi_queue *q, unsigned *r, unsigned *w)
 	    (q->major == 2 && ((*r | *w) & 3u))) { return CE_HFI_INVALID; }
 	return 0;
 }
-static int ceph_hfi_write(struct ceph_hfi_queue *q, const uint32_t *msg, unsigned count)
+static inline int ceph_hfi_write(struct ceph_hfi_queue *q, const uint32_t *msg, unsigned count)
 {
 	unsigned r, w;
 	int error = ceph_hfi_indices(q, &r, &w);
@@ -68,7 +68,7 @@ static int ceph_hfi_write(struct ceph_hfi_queue *q, const uint32_t *msg, unsigne
 	}
 	return 0;
 }
-static int ceph_hfi_read(struct ceph_hfi_queue *q, uint32_t *out, unsigned capacity, unsigned *count)
+static inline int ceph_hfi_read(struct ceph_hfi_queue *q, uint32_t *out, unsigned capacity, unsigned *count)
 {
 	if (!count) { return CE_HFI_INVALID; }
 	*count = 0;
@@ -91,14 +91,14 @@ static int ceph_hfi_read(struct ceph_hfi_queue *q, uint32_t *out, unsigned capac
  * Match the ENTIRE header (id/type/length/sequence), not just wrapping seq.
  * Caller must not reuse a sequence while an older command is outstanding.
  */
-static int ceph_hfi_ack(const uint32_t *msg, unsigned count, uint32_t sent)
+static inline int ceph_hfi_ack(const uint32_t *msg, unsigned count, uint32_t sent)
 {
 	return msg && count >= 3 && ((msg[0] >> 8) & 255u) == count &&
 	    ((msg[0] >> 16) & 15u) == 1 && msg[1] == sent && msg[2] == 0;
 }
 /* Queue table matches 4 headers (12 DWORDs), three enabled, DSP disabled.
  * table requires 54 DWORDs; rings start at 224 bytes, each 4KiB. */
-static int ceph_hfi_table(uint32_t *table, unsigned words, uint64_t gmu_base, size_t bytes)
+static inline int ceph_hfi_table(uint32_t *table, unsigned words, uint64_t gmu_base, size_t bytes)
 {
 	if (!table || words < 54 || (gmu_base & 4095u) || bytes < 224 + 4 * 4096 ||
 	    gmu_base > UINT32_MAX - (224 + 4 * 4096)) { return CE_HFI_INVALID; }

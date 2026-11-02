@@ -21,7 +21,7 @@ USB自动重启功能已取消，不恢复。用户离开电脑后不重启手�
 | 电源时钟 | gpu_power_txn | 每回调故障注入通过，只有mock | 当前DRV投票/资源归属、真实ACK、频率实测 |
 | 内存映射 | gpu_vm + smmu_plan | 属性/越界/冲突离线通过 | allocator/缓存/TBU/CB/ASID归属，实际fault检查 |
 | GMU启动 | gmu_firmware + gmu_loader | 本地固件7块解析、mock每阶段失败 | PDC/RSC序列、映射、CM3新鲜BABEFACE |
-| HFI | ring/table/ACK | wrap/full/poison等离线通过 | 固件版本与INIT/PERF/BW/START真实协商 |
+| HFI | ring/table/消息/会话/boot | 真实ring模拟固件握手、线格式对照通过 | A640版本/PERF/BW/功能/CORE_START真机协商 |
 | GPU CP | PM4/fenced submit | 有界scratch包与超时mock通过 | GX/SQE/ZAP/non-secure、实际scratch/fence |
 | 离屏绘制 | 尚无实现 | 无 | 有限格式clear/blit/三角形及hash对照 |
 | 显示加速 | 现有SweetSurface/Framebuffer软件路径 | 源码与此前实测 | GPU buffer导入、fence同步、软件回退 |
@@ -63,8 +63,8 @@ HFI/log地址、AHB fence与power config，并重新确认固件/数据cache发�
 BABEFACE只表明CM3初始化，不表明HFI/硬件GPU可用。
 
 HFI v2队列还必须管理固件版本、单一producer、超时后不重用seq、错误队列和
-CM3 fault。INIT/PERF/BW/START消息依赖真实频率、电压和互连表，不能用空表骗过
-握手。共享queue header包含双方字段，应使用coherent或匹配的uncached映射；
+CM3 fault。A640的源码明确跳过legacy INIT；版本/PERF/BW/FEATURE/CORE_START
+消息依赖真实频率、电压和互连表，不能用空表骗过握手。共享queue header包含双方字段，应使用coherent或匹配的uncached映射；
 不能在有对方dirty数据的同一cache line上做粗暴invalidate。
 
 ## 3. CP/SQE/ZAP与最小GPU执行
@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（14个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前17个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -133,3 +133,28 @@ CI41396451358（b51f525）通过14组C/UBSan、patch顺序测试及完整XNU构�
 仅在已有无网络构建容器打包，保留原ADT/UEFI/DTB及触摸电源设置。
 **尚未启动该候选；用户不在场期间没有设备操作。** 电源事务/SMMU/提交模块
 仍为host-only测试，不在公共内核中执行；内核新接入只有ARC只读诊断。
+
+## 后续续作：HFI端到端与具体固件写入
+
+- `cepheus_hfi_messages.h`输出固定59-DWORD PERF表、160-DWORD BW表、17-DWORD
+  ACD表及FW_VER/FEATURE/CORE_START消息。频率Hz转kHz；ARC索引根据供应的真实
+  表选择，缺MX依赖/错序OPP/坏BCM地址/越界wait mask拒绝，未使用的尾部清零。
+- `test-hfi-source-layout.py /path/to/kgsl_hfi.h`读取本机Android结构定义到临时
+  编译fixture，实际sizeof/offsetof和完整字节比较通过，避免测试仅重复自己的
+  线格式假设。未把Android专有设备输入或固件加入仓库。
+- `cepheus_hfi_session.h`直接调用共享ring write/read，等待正确req_hdr ACK；
+  一次只允许一个未完成请求，4095序列用尽后不回绕，100ms/10000次双上限。
+  错误/不匹配/未知异步请求标记session与queue不可重试。ACK外层ID不强求等于
+  命令ID（KGSL匹配依据是回显req_hdr），避免虚构ABI要求。
+- `cepheus_hfi_boot.h`按A640顺序进行FW_VER→PERF→BW→ECP disable→可选ACD
+  配置→LM enable→CORE_START；要求调用者给出有效thermal throttle mask，不
+  悄悄跳过温控。模拟固件从真实ring取命令再回ACK，覆盖每条命令失败、队列
+  wrap/full、陈旧ACK、版本错误、异步错误、时钟倒退/冻结与超时。
+- `cepheus_gmu_upload.h`具体执行ITCM/DTCM的LE32 stores和ICACHE/DCACHE映射
+  拷贝，而非write_block成功桩。先验证全部目标、别名、计划/固件重叠和映射
+  范围，再在独占reset lease内写入并完成cache/MMIO发布。对本地a640_gmu.bin
+  实际7块内容在RAM模拟TCM/缓存窗口复制后逐字节比对通过。没有映射真机MMIO。
+
+上述仍需平台提供已验证的固件摘要/不可变缓冲、真实映射、reset/power租约和
+cache屏障后才能连到硬件；模拟成功不代替实际GMU启动。命令输入由内核构建，
+不作为应用任意PM4或任意电源投票接口。

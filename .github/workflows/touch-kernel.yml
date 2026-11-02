@@ -68,7 +68,7 @@ jobs:
           /tmp/pm4-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test
           /tmp/gmu-test
-          for name in gpu_power gpu_power_txn gmu_loader hfi gpu_vm smmu_plan gpu_submit arc; do
+          for name in gpu_power gpu_power_txn gmu_loader gmu_upload hfi hfi_messages hfi_session gpu_vm smmu_plan gpu_submit arc; do
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"
           done
