@@ -43,3 +43,14 @@ done
     "$tmp/workspace.o" "$tmp/retire.o" "$tmp/cepheus_gmu_hfi_link.c.o" "$tmp/test_gmu_hfi_link.c.o" \
     -o "$tmp/link" "${libs[@]}"
 "$tmp/link"
+for unit in xnu/cepheus_gmu_bringup.c xnu/cepheus_gpu_compile.c tests/test_gmu_bringup.c; do
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined -I"$root/xnu" \
+        -c "$root/$unit" -o "$tmp/$(basename "$unit").o"
+done
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=undefined -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gmu_bringup_main.cpp" \
+    "$tmp/workspace.o" "$tmp/retire.o" "$tmp/cepheus_gmu_hfi_link.c.o" \
+    "$tmp/cepheus_gmu_bringup.c.o" "$tmp/cepheus_gpu_compile.c.o" "$tmp/test_gmu_bringup.c.o" \
+    -o "$tmp/bringup" "${libs[@]}"
+if [[ $# -ge 1 ]]; then for mode in 0 1 2 3 4 5 6 7; do "$tmp/bringup" "$1" "$mode"; done; else "$tmp/bringup"; fi

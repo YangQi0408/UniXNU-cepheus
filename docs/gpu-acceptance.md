@@ -10,6 +10,12 @@ workspace持有view却无法发布；这两点不是可用GPU链路。下方“�
 持久页独立分配、privileged RW/NC/NX，VA计划共5段；table需要6个4KiB页，
 预留的8页仍足够。全部发布/退休/诊断句柄和联合HFI测试已改用统一数量常量。
 
+整合入口`cepheus_gmu_bringup.c`现按实际依赖串接sealed固件、workspace、电源、
+PDC、SMMU、上传、CM3及同一HFI session。七阶段失败测试保留对应状态，不继续
+下一步。仍无可直接启用的真实platform bind/lease实现；整条链只在host模拟
+硬件上执行，不能据此宣称手机GMU已启动。启动前先校验完整OPP/BW/PDC输入，
+不允许在硬件副作用之后才用临时空表补配置。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
