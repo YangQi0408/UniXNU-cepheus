@@ -320,3 +320,15 @@ FDT仅提供可选bin，不能凭表存在推断本机是0或1；当前尚未读
 有效且样本不老于100ms，任一>=60°C、时钟倒退或最多30秒试验期限到达时拒绝
 继续。停止不等于断电，真实后端还须安全停稳；没有把这个纯逻辑guard宣称为
 已运行的GPU温控。平台必须把真实TSENS采样接入，不得传恒定温度伪造就绪。
+
+### ZAP容器/认证输入核对
+
+REA open_binary对本地a640_zap.elf返回unsupported ELF architecture（ELF标识为
+Qualcomm DSP6），未反编译或执行。使用readelf和受测解析器
+`inspect-zap-layout.py`只核对容器：ELF32 LE、3个program headers；148字节
+header片段、6712字节hash段、1968字节relocatable LOAD。三个.b00/.b01/.b02
+均与ELF对应片段逐字节一致，MDT恰为header+hash（6860字节）。
+按本地PIL源码：逻辑mem_setup区域4KiB，实际分配按p_align策略为1MiB；
+入口在重定位区域offset0。PAS ID由FDT确定为13。这不代表签名通过，也不代表
+可复用普通GMU池作为secure memory。需要独立的可信SCM/PAS、缓存/保护域与
+认证后生命周期实现；不使用no_auth或直接写trust-control作替代。
