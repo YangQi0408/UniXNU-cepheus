@@ -16,6 +16,10 @@ PDC、SMMU、上传、CM3及同一HFI session。七阶段失败测试保留对�
 硬件上执行，不能据此宣称手机GMU已启动。启动前先校验完整OPP/BW/PDC输入，
 不允许在硬件副作用之后才用临时空表补配置。
 
+整合路径显式在PDC/上传前设置GENERAL_7 TCM retention（不再隐含于backend
+begin约定），并为bin1在CM3启动前走真实QMP固定ACD消息；bin0不发送该通知。
+host整链测试覆盖bin0和bin1两个完整序列及七阶段失败，仍不执行手机硬件。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

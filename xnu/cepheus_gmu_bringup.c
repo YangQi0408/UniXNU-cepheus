@@ -25,6 +25,8 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
         ceph_hfi_bandwidth(bw,160,b->hfi.bw)!=160 ||
         (b->hfi.acd && ceph_hfi_acd_table(acd,17,b->hfi.acd)!=17) ||
         ceph_pdc_plan_a640v2(&b->pdc_input,&pdc_plan))return -1;
+    if(b->hfi.policy->acd && (!b->acd.begin || !b->acd.validate || !b->acd.read32 ||
+        !b->acd.write32 || !b->acd.barrier || !b->acd.notify || !b->acd.now_ns || !b->acd.pause || !b->acd.end))return -1;
     s->stage=CE_BR_POWER;e=ceph_power_start(&s->power,&b->power);if(e)goto failed;
     s->stage=CE_BR_BOUND;e=b->bind(b->owner,s);if(e)goto failed;
     /* Bind cannot swap/forge the prepared root; exact resource identities are
@@ -39,6 +41,16 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
      * at0x60000000 for firmware's write-buffer dummy access. */
     s->upload_maps[2]=(struct ceph_gmu_mapping){0x60000000,4096,s->workspace.views[4].cpu,CE_GMU_KERNEL};
     b->upload.maps=s->upload_maps;b->upload.map_count=3;
+    /* GENERAL_7 enables TCM retention before PDC scripts and firmware upload,
+     * as required by a6xx_gmu_fw_start cold boot. Do not leave it as an implicit
+     * undocumented obligation inside CM3 begin(). */
+    uint32_t reset;
+    if(!b->cm3.validate || !b->cm3.read || !b->cm3.write || !b->cm3.barrier ||
+        b->cm3.validate(b->cm3.ctx) || b->cm3.read(b->cm3.ctx,CE_GMU_SYSRESET,&reset) || reset!=1) {e=-1;goto failed;}
+    struct ceph_gmu_start retention={0};
+    e=ceph_gmu_start_write(&retention,&b->cm3,CE_GMU_TCM_RETENTION,1,1);
+    s->retention_writes=retention.effects;if(e)goto failed;
+    if(b->hfi.policy->acd) {e=ceph_qmp_send_acd(&s->acd,&b->acd,1);if(e)goto failed;}
     s->stage=CE_BR_SHARED;e=cepheus_gmu_workspace_share(&s->workspace,&b->smmu_plan);if(e)goto failed;
     s->stage=CE_BR_PDC;e=ceph_pdc_install_a640v2(&s->pdc,&b->pdc,&b->pdc_input);if(e)goto failed;
     s->stage=CE_BR_SMMU;e=ceph_smmu_install_context(&s->smmu,&b->smmu,&b->smmu_plan,0x303);if(e)goto failed;

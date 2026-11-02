@@ -11,6 +11,7 @@
 #include "cepheus_gmu_upload.h"
 #include "cepheus_gmu_hfi_link.h"
 #include "cepheus_hfi_boot.h"
+#include "cepheus_qmp_acd.h"
 enum ceph_bringup_stage {CE_BR_NEW,CE_BR_MEMORY,CE_BR_POWER,CE_BR_BOUND,CE_BR_SHARED,
     CE_BR_PDC,CE_BR_SMMU,CE_BR_UPLOAD,CE_BR_CM3,CE_BR_HFI,CE_BR_FAILED};
 struct ceph_gmu_bringup;
@@ -23,6 +24,7 @@ struct ceph_gmu_bringup_backends {
     struct ceph_pdc_ops pdc;
     struct ceph_smmu_ops smmu;
     struct ceph_gmu_start_ops cm3;
+    struct ceph_qmp_ops acd; /* bin1 must notify AOP before GMU startup */
     struct ceph_gmu_hfi_transport transport;
     struct ceph_hfi_boot_config hfi;
     struct ceph_pdc_input pdc_input;
@@ -33,12 +35,14 @@ struct ceph_gmu_bringup_backends {
 struct ceph_gmu_bringup {
     enum ceph_bringup_stage stage,failed_stage;
     int error;
+    unsigned retention_writes;
     uint64_t firmware;
     struct ceph_gmu_workspace workspace;
     struct ceph_power_txn power;
     struct ceph_pdc_install pdc;
     struct ceph_smmu_install smmu;
     struct ceph_gmu_start cm3;
+    struct ceph_qmp_tx acd;
     struct ceph_gmu_hfi_link link;
     struct ceph_gmu_mapping upload_maps[3];
     struct ceph_gmu_block blocks[32];

@@ -65,6 +65,7 @@ static inline int ceph_gmu_mmio_start_write(void *ctx,enum ceph_gmu_reg reg,uint
     case CE_GMU_QTBL_ADDR:allowed=v==m->config.hfi_va;break;
     case CE_GMU_QTBL_INFO: case CE_GMU_SYS_BUS: case CE_GMU_ICACHE_CFG:
     case CE_GMU_DCACHE_CFG: case CE_GMU_HFI_INIT:allowed=v==1;break;
+    case CE_GMU_TCM_RETENTION:allowed=v==1;break;
     case CE_GMU_FENCE_RANGE:allowed=v==p.fence;break;
     case CE_GMU_SFR_ADDR:allowed=v==p.chip;break;
     case CE_GMU_LOG_INFO:allowed=v==p.log;break;

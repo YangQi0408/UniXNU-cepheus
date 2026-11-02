@@ -14,14 +14,14 @@ enum ceph_gmu_reg {
     CE_GMU_LOG_INFO,CE_GMU_SYS_BUS,CE_GMU_ICACHE_CFG,CE_GMU_DCACHE_CFG,
     CE_GMU_INTER_FRAME_CTRL,CE_GMU_INTER_FRAME_HYST,CE_GMU_SPTPRAC_HYST,
     CE_GMU_RPMH_CTRL,CE_GMU_WFI_CONFIG,CE_GMU_HFI_INIT,CE_GMU_HFI_STATUS,
-    CE_GMU_HFI_VERSION,CE_GMU_AO_STATUS,CE_GMU_HFI_IRQ_STATUS,CE_GMU_REG_COUNT
+    CE_GMU_HFI_VERSION,CE_GMU_AO_STATUS,CE_GMU_HFI_IRQ_STATUS,CE_GMU_TCM_RETENTION,CE_GMU_REG_COUNT
 };
 static inline int ceph_gmu_register_offset(enum ceph_gmu_reg r,uint32_t *offset)
 {
     static const uint32_t words[]={0x1f800,0x1f81c,0x1f801,0x1f82d,0x1f985,
         0x1f984,0x23b11,0x1f982,0x1f900,0x1f40f,0x1f400,0x1f401,
         0x1f8c0,0x1f8c1,0x1f8c2,0x1f8e8,0x1f802,0x1f986,0x1f980,
-        0x1f981,0x23b05,0x1f992};
+        0x1f981,0x23b05,0x1f992,0x1f9cc};
     if(!offset || (unsigned)r>=CE_GMU_REG_COUNT)return -1;
     *offset=words[r]*4u-0x6a000u;
     return *offset<=0x30000u-4u?0:-1;

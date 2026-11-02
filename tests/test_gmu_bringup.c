@@ -11,7 +11,7 @@ struct hw {
     struct ceph_gmu_bringup *s;unsigned mode,phase,votes,commands,failed;
     uint32_t power[CE_PWR_REG_COUNT],gmu[CE_GMU_REG_COUNT],pdc[3][0xc000];
     uint64_t smmu[CE_SM_REG_COUNT],time;
-    uint32_t itcm[4096],dtcm[4096];struct ceph_hfi_queue fw_rx,fw_tx;
+    uint32_t itcm[4096],dtcm[4096],qmp[64];unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;return 0;}
@@ -28,7 +28,7 @@ static int power_write(void *p,enum ceph_power_reg r,uint32_t v){struct hw *h=p;
     if(r==CE_PWR_GMU)h->power[CE_PWR_RCG]&=~(1u<<31);
     return 0;}
 static int vote(void *p,uint32_t address,unsigned v){struct hw *h=p;assert(v==2 && address==(h->votes?0x30000u:0x30004u));h->votes++;return 0;}
-static int pdc_begin(void *p,const struct ceph_pdc_input *i){struct hw *h=p;assert(h->s->workspace.state==CE_WS_SHARED && i->cfg_pa==0xb290000);return h->mode==3?-13:0;}
+static int pdc_begin(void *p,const struct ceph_pdc_input *i){struct hw *h=p;assert(h->s->workspace.state==CE_WS_SHARED && i->cfg_pa==0xb290000 && h->gmu[CE_GMU_TCM_RETENTION]==1);return h->mode==3?-13:0;}
 static int pdc_read(void *p,enum ceph_pdc_window w,uint32_t o,uint32_t *v){*v=((struct hw *)p)->pdc[w][o/4];return 0;}
 static int pdc_write(void *p,enum ceph_pdc_window w,uint32_t o,uint32_t v){struct hw *h=p;h->pdc[w][o/4]=v;return 0;}
 static int smmu_begin(void *p,const struct ceph_smmu_plan *plan,uint32_t actlr){struct hw *h=p;assert(h->s->pdc.attempted==48 && actlr==0x303 && plan->cb==3);return h->mode==4?-14:0;}
@@ -47,10 +47,16 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     h->fw_rx=h->s->link.tx;h->fw_tx=h->s->link.rx;
     h->fw_rx.io=(struct ceph_hfi_ops){h,guard,guard,guard,guard};h->fw_tx.io=h->fw_rx.io;
     assert(!ceph_hfi_read(&h->fw_rx,cmd,255,&count));
-    const unsigned ids[]={1,4,3,11,14};assert(h->commands<5 && (cmd[0]&255)==ids[h->commands]);h->commands++;
+    const unsigned ids0[]={1,4,3,11,14},ids1[]={1,4,3,11,7,11,11,14};
+    const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?8:5;
+    assert(h->commands<total && (cmd[0]&255)==ids[h->commands]);h->commands++;
     unsigned n=(cmd[0]&255)==1?4:3;uint32_t ack[]={ceph_hfi_header(cmd[0]&255,n,1,0),cmd[0],h->mode==7?1u:0u,0x20000042};
     return ceph_hfi_write(&h->fw_tx,ack,n);}
 static void failed(void *p,enum ceph_bringup_stage stage,int e){struct hw *h=p;assert(e && stage>=CE_BR_POWER);h->failed=1;}
+static int qbegin(void *p,struct ceph_qmp_layout *l){(void)p;*l=(struct ceph_qmp_layout){64,128};return 0;}
+static int qread(void *p,uint32_t off,uint32_t *v){struct hw *h=p;*v=h->qmp[off/4];return 0;}
+static int qwrite(void *p,uint32_t off,uint32_t v){struct hw *h=p;h->qmp[off/4]=v;return 0;}
+static int qnotify(void *p){struct hw *h=p;assert(h->qmp[16]==32 && !memcmp(h->qmp+17,"{class: gpu, res: acd, value: 1}",32));h->qmp[16]=0;h->qmp_notified=1;return 0;}
 static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==s && s->power.state==CE_PWR_READY);if(h->mode==2)return -12;
     struct ceph_smmu_stream streams[16]={0};for(unsigned i=0;i<16;++i)streams[i].s2cr=2u<<16;
     assert(!ceph_smmu_gmu_plan(streams,16,2,3,8,5,4,s->workspace.table.pa,0,&s->backend.smmu_plan));
@@ -72,8 +78,10 @@ int ceph_test_bringup(const char *path,unsigned mode)
     struct ceph_hfi_opp gx[]={{0,0},{257000000,64},{345000000,128},{427000000,192},{499200000,224},{585000000,256},{675000000,320},{770000000,320}};
     struct ceph_hfi_opp cx[]={{0,0},{200000000,48}};
     struct ceph_hfi_bw bw={.levels=2,.cnoc_count=1,.ddr_count=1,.cnoc_addr={0x50000},.ddr_addr={0x50004}};
-    struct ceph_gpu_bin_policy bin;assert(!ceph_gpu_bin_policy(0x06040001,0,&bin));
-    b->hfi=(struct ceph_hfi_boot_config){0x20000001,0,0x80,gx,cx,8,2,&rail,&rail,&rail,&bw,NULL,&bin};
+    struct ceph_gpu_bin_policy bin;assert(!ceph_gpu_bin_policy(0x06040001,mode==8?0x20000000:0,&bin));
+    struct ceph_hfi_acd acd={.enable_mask=0x7e,.stride=2,.levels=6,.data={1,2,3,4,5,6,7,8,9,10,11,12}};
+    b->hfi=(struct ceph_hfi_boot_config){0x20000001,0,bin.throttle_mask,gx,cx,bin.gx_levels,2,&rail,&rail,&rail,&bw,mode==8?&acd:NULL,&bin};
+    b->acd=(struct ceph_qmp_ops){&h,qbegin,guard,qread,qwrite,guard,qnotify,now,guard,end};
     b->pdc_input=(struct ceph_pdc_input){.chipid=0x06040001,.cfg_pa=0xb290000,.seq_pa=0xb490000};
     for(unsigned i=0;i<3;++i){b->pdc_input.resources[i]=rail;b->pdc_input.resources[i].address=(uint32_t[]){0x30010,0x30000,0x30090}[i];}
     h.power[CE_PWR_CX]=h.power[CE_PWR_GX]=0x222001;h.power[CE_PWR_CX_STATUS]=0x5ff4;h.power[CE_PWR_CFG_AHB]=1;
@@ -81,7 +89,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     for(unsigned i=CE_PWR_CXO;i<=CE_PWR_DVM;++i)h.power[i]=0x80000001;
     h.smmu[CE_SM_S2CR]=2u<<16;h.gmu[CE_GMU_SYSRESET]=1;h.gmu[CE_GMU_HFI_VERSION]=0x20000001;
     int e=cepheus_gmu_bringup_start(&s);
-    if(!mode)assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==5 && !s.firmware);
+    if(!mode || mode==8)assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
     else assert(e && h.failed && s.stage==CE_BR_FAILED);
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;
