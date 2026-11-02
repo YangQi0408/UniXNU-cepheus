@@ -37,12 +37,19 @@ jobs:
           cp cepheus/xnu/cepheus_cpu_policy.h dxb/patches/
           cp cepheus/xnu/cepheus_gpu_power.h dxb/patches/
           cp cepheus/xnu/cepheus_arc.h cepheus/xnu/cepheus_arc_probe.h dxb/patches/
+          for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
+            cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
+            cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h cepheus_smmu_install.h \
+            cepheus_gpu_power_txn.h cepheus_gpu_submit.h; do
+            cp "cepheus/xnu/$file" dxb/patches/
+          done
           # Retain the verified one-shot Home, PON-only keys and fast blank.
           python3 cepheus/scripts/prepare-performance-patch.py ios-sweet/xnu/patches dxb/patches/0083-cepheus-performance.patch
           python3 cepheus/scripts/test-performance.py
           python3 cepheus/scripts/prepare-touch-power-patch.py ios-sweet/xnu/patches dxb/patches/0084-cepheus-touch-power.patch
           python3 cepheus/scripts/test-touch-power.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches
+          python3 cepheus/scripts/test-gpu-integration.py
           # The SWEET kernel is plain arm64, not arm64e.
           python3 -c 'from pathlib import Path; p=Path("dxb/build.sh"); s=p.read_text(); old="ARCHS=\"x86_64 arm64e\" VALID_ARCHS=\"x86_64 arm64e\""; assert s.count(old)==1; p.write_text(s.replace(old,"ARCHS=\"x86_64 arm64e arm64\" VALID_ARCHS=\"x86_64 arm64e arm64\""))'
       - name: Toolchain and event parser regression
@@ -68,7 +75,7 @@ jobs:
           /tmp/pm4-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test
           /tmp/gmu-test
-          for name in gpu_power gpu_power_txn gmu_loader gmu_upload hfi hfi_messages hfi_session gpu_vm smmu_plan gpu_submit arc; do
+          for name in gpu_power gpu_power_txn gmu_loader gmu_upload hfi hfi_messages hfi_session gpu_vm smmu_plan smmu_install gpu_submit arc; do
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"
           done
@@ -81,7 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'Applying patch:' dxb/build.log | grep -F '0082-cepheus-touch.patch'
-          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-|0084-|0085-|0086-)'; then
+          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-|0084-|0085-|0086-|0087-)'; then
             echo 'critical patch skipped' >&2; exit 1
           fi
           grep -E '^bsd/dev/cepheus_touch.c[[:space:]]+standard$' dxb/xnu/bsd/conf/files
@@ -102,6 +109,7 @@ jobs:
           cmp cepheus/xnu/cepheus_arc_probe.h dxb/xnu/bsd/dev/cepheus_arc_probe.h
           grep -F '#include "cepheus_arc_probe.h"' dxb/xnu/bsd/dev/sweet_rpmh.c
           python3 -c 'from pathlib import Path; d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes(); assert b"CEPHEUS ARC:" in d and b"cepharc" in d'
+          python3 cepheus/scripts/verify-gpu-kernel.py dxb/xnu "$K"
           python3 -c 'from pathlib import Path; d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes(); assert b"CX_HW_CTRL=" in d; assert all(s not in d for s in (b"SWEET FASTBOOT:", b"sweetfastboot"))'
           python3 -c 'from pathlib import Path;d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes();assert all(s in d for s in (b"SWEET BLANK:",b"one-shot Home complete",b"SWEET GPI: SMMU"))'
           cp "$K" out/kernel.macho

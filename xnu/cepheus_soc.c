@@ -15,6 +15,7 @@
 #include "cepheus_soc.h"
 #include "cepheus_cpu_policy.h"
 #include "cepheus_gpu_power.h"
+#include "cepheus_gpu_memory.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
@@ -239,6 +240,9 @@ static void soc_thread(void *arg, wait_result_t wr)
 	int arc = 0;
 	PE_parse_boot_argn("cepharc", &arc, sizeof(arc));
 	if (arc == 1) { cepheus_gpu_arc_probe(); }
+	int memory_test = 0;
+	PE_parse_boot_argn("cephmem", &memory_test, sizeof(memory_test));
+	if (memory_test == 1) { cepheus_gpu_memory_selftest(); }
 	osm_sample(0);
 	int temperature = 0, temperature_valid = cpu_temperature(&temperature);
 	printf("CEPHEUS TSENS: valid=%d CPU_max_mc=%d (no sensor configuration writes)\n", temperature_valid, temperature);

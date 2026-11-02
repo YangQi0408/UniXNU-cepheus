@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前17个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前18个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -158,3 +158,22 @@ CI41396451358（b51f525）通过14组C/UBSan、patch顺序测试及完整XNU构�
 上述仍需平台提供已验证的固件摘要/不可变缓冲、真实映射、reset/power租约和
 cache屏障后才能连到硬件；模拟成功不代替实际GMU启动。命令输入由内核构建，
 不作为应用任意PM4或任意电源投票接口。
+
+## XNU集成续作（构建待验证）
+
+`cepheus_smmu_install.h`现已实现限定context安装顺序：验证预留资源→发布全部
+表→配置CBA2R/CBAR/TCR/TTBR/MAIR/ACTLR→限定ASID失效与有界TLBSYNC→先SCTLR，
+再SMR，最后S2CR由FAULT转TRANS。任何实际写入后失败均隔离，绝不全局reset。
+ACTLR不是随意填0，begin后端必须验证该平台策略；当前测试使用假寄存器。
+
+`cepheus_gpu_compile.c`把HFI boot、实际上传、SMMU install、电源事务和提交
+函数纳入真实XNU C编译/链接，后续CI核对所有源码以及符号。没有启动调用，
+不会因这些符号存在就执行供电或DMA。
+
+`cepheus_gpu_memory.cpp`接入真实IOKit内存API，并提供默认关闭的`cephmem=1`
+CPU-only自检：分配20KiB、显式prepare、MapperNone读取host PA并验证连续性，
+写入/读取pattern后complete和release。不使用kernel VA强转PA。40bit PA mask
+与4KiB对齐，单次<=256KiB、总预算512KiB。选择WriteCombine/Normal-NC，而非
+InhibitCache/Device DRAM；后者可能触发XNU managed-page保护或错误访问语义。
+核对了pmap的缓存属性更新路径，但该自检尚未真机执行，不能证明缓存行为。
+已发布给设备的buffer没有bool式“done”释放捷径，仍需真实停止/解除映射实现。
