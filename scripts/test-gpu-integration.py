@@ -61,7 +61,15 @@ class Integration(unittest.TestCase):
             subprocess.run(['git', '-C', str(tree), 'apply', str(ROOT / 'xnu/0087-cepheus-gpu-memory.patch')], check=True)
             self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gpu_compile.c'), 1)
             self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gmu_workspace.c'), 1)
+            self.assertEqual((tree / 'bsd/conf/files').read_text().count('cepheus_gpu_retire.c'), 1)
             self.assertEqual((tree / 'iokit/conf/files.arm64').read_text().count('cepheus_gpu_memory.cpp'), 1)
+
+    def test_memory_uses_explicit_nc_mapping(self):
+        source = (ROOT / 'xnu/cepheus_gpu_memory.cpp').read_text()
+        self.assertIn('createMappingInTask(kernel_task,0,', source)
+        self.assertIn('kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache', source)
+        self.assertIn('b->mapping->getVirtualAddress()', source)
+        self.assertNotIn('b->memory->getBytesNoCopy()', source)
 
     def test_wrappers_compile_without_runtime_backend(self):
         with tempfile.TemporaryDirectory() as directory:

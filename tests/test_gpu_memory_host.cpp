@@ -14,6 +14,8 @@ int main(int argc,char **argv)
     mock_io::fail_alloc=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && !mock_io::live);mock_io::fail_alloc=0;
     mock_io::fail_prepare=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && !mock_io::live);mock_io::fail_prepare=0;
     mock_io::bad_segment=1;assert(cepheus_gpu_memory_alloc(8192,&h)<0 && !h && !mock_io::live && !mock_io::prepared);mock_io::bad_segment=0;
+    mock_io::fail_map=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !mock_io::live && !mock_io::maps);mock_io::fail_map=0;
+    mock_io::bad_cache=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !mock_io::live && !mock_io::maps);mock_io::bad_cache=0;
     assert(!cepheus_gpu_memory_alloc(8192,&h));struct ceph_gpu_memory_view view={};
     assert(!cepheus_gpu_memory_view_get(h,&view) && view.bytes==16384 && view.pa>=0x120000000ULL && !(view.pa&0x3fff));
     assert(cepheus_gpu_memory_publish(h)<0 && cepheus_gpu_memory_release_cpu(h)<0);
@@ -49,6 +51,7 @@ int main(int argc,char **argv)
         assert(cepheus_gpu_memory_release_cpu(h)<0);assert(!cepheus_gpu_memory_view_put(h));assert(!cepheus_gpu_memory_release_cpu(h));
     }
     cepheus_gpu_memory_selftest();assert(!mock_io::live && !mock_io::prepared);
+    assert(!mock_io::maps && !mock_io::raw_views); /* only explicit mapped VA used */
     assert(!cepheus_gpu_memory_alloc(4096,&h));assert(!cepheus_gpu_memory_publish(h));
     assert(cepheus_gpu_memory_release_cpu(h)<0 && cepheus_gpu_memory_view_get(h,&view)<0);
     uint64_t bad;assert(!cepheus_gpu_memory_alloc(4096,&bad));mock_io::fail_complete=1;

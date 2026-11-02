@@ -1,5 +1,6 @@
 #include "cepheus_gmu_workspace.h"
 #include "cepheus_hfi.h"
+#include "cepheus_smmu_plan.h"
 #if defined(KERNEL)
 #include <sys/systm.h>
 #else
@@ -22,7 +23,10 @@ int cepheus_gmu_workspace_release_cpu(struct ceph_gmu_workspace *w)
         }
     }
     w->state=result?CE_WS_RETAINED:CE_WS_RELEASED;
-    if(!result){w->table=(struct ceph_vm_pool){0};w->layout=(struct ceph_gpu_va_plan){0};}
+    /* Some buffers may already have been released when another complete
+     * failed. Never leave callable page-table pointers into that freed memory.
+     * Retained handles and outstanding view bits preserve cleanup evidence. */
+    w->table=(struct ceph_vm_pool){0};w->layout=(struct ceph_gpu_va_plan){0};
     return result;
 }
 
@@ -68,4 +72,22 @@ void cepheus_gmu_workspace_selftest(void)
         w.table.used,w.layout.start.hfi_va,w.layout.start.log_va);
     int result=cepheus_gmu_workspace_release_cpu(&w);
     printf("CEPHEUS GMU MEM: CPU workspace release=%d state=%u\n",result,(unsigned)w.state);
+}
+
+int cepheus_gmu_workspace_share(struct ceph_gmu_workspace *w,const struct ceph_smmu_plan *p)
+{
+    if(!w || w->state!=CE_WS_READY_CPU || w->leased!=31 || !p || p->ttbr0!=(w->table.pa|((uint64_t)p->asid<<48)))return -1;
+    if(cepheus_gpu_memory_share_workspace(w->handles,p,&w->publication))return -1;
+    w->state=CE_WS_SHARED;return 0;
+}
+
+int cepheus_gmu_workspace_retire(struct ceph_gmu_workspace *w,struct ceph_gpu_retire_ops *b)
+{
+    if(!w || w->state!=CE_WS_SHARED)return -1;
+    int e=cepheus_gpu_memory_retire_workspace(&w->publication,b);
+    /* Whether freed or quarantined, callers must cease CPU use. */
+    w->table=(struct ceph_vm_pool){0};w->layout=(struct ceph_gpu_va_plan){0};w->leased=0;
+    for(unsigned i=0;i<5;++i)w->views[i]=(struct ceph_gpu_memory_view){0};
+    if(!e)for(unsigned i=0;i<5;++i)w->handles[i]=0;
+    w->state=e?CE_WS_RETAINED:CE_WS_RELEASED;return e;
 }

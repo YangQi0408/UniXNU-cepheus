@@ -19,5 +19,9 @@ int main(void)
     assert(!ceph_mem_seal(&s) && ceph_mem_view_get(&s)<0 && ceph_mem_publish(&s)<0);
     assert(!ceph_mem_readonly_get(&s) && ceph_mem_release_begin(&s)<0);
     assert(!ceph_mem_view_put(&s) && !ceph_mem_release_begin(&s));
+    s=(struct ceph_mem_slot){.state=CE_MEM_CPU,.generation=8,.views=1};
+    assert(ceph_mem_can_share(&s));s.state=CE_MEM_SHARED;
+    assert(ceph_mem_can_retire(&s) && ceph_mem_view_get(&s)<0 && ceph_mem_view_put(&s)<0 && ceph_mem_release_begin(&s)<0);
+    s.state=CE_MEM_RETIRING;assert(!ceph_mem_can_retire(&s) && ceph_mem_view_put(&s)<0);
     puts("GPU memory lifecycle: leases, stale handles, publication, uncertain completion and generation wrap PASS");
 }

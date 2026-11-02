@@ -5,7 +5,7 @@
 #define CEPHEUS_GPU_MEMORY_STATE_H
 #include <stddef.h>
 #include <stdint.h>
-enum ceph_mem_state {CE_MEM_FREE,CE_MEM_ALLOCATING,CE_MEM_CPU,CE_MEM_PUBLISHED,CE_MEM_QUARANTINED,CE_MEM_RETIRED,CE_MEM_SEALED};
+enum ceph_mem_state {CE_MEM_FREE,CE_MEM_ALLOCATING,CE_MEM_CPU,CE_MEM_PUBLISHED,CE_MEM_QUARANTINED,CE_MEM_RETIRED,CE_MEM_SEALED,CE_MEM_SHARED,CE_MEM_RETIRING};
 struct ceph_mem_slot {enum ceph_mem_state state;uint32_t generation;unsigned views;};
 static inline uint64_t ceph_mem_handle(unsigned slot,uint32_t generation)
 {return ((uint64_t)generation<<32)|(slot+1u);}
@@ -56,4 +56,10 @@ static inline int ceph_mem_readonly_get(struct ceph_mem_slot *s)
     if(!s || s->state!=CE_MEM_SEALED || s->views==UINT32_MAX)return -1;
     ++s->views;return 0;
 }
+/* Shared batch keeps the sole existing CPU view alive. No new views or puts
+ * are admitted: one trusted workspace owns the CPU/device synchronization. */
+static inline int ceph_mem_can_share(const struct ceph_mem_slot *s)
+{return s && s->state==CE_MEM_CPU && s->views==1;}
+static inline int ceph_mem_can_retire(const struct ceph_mem_slot *s)
+{return s && s->state==CE_MEM_SHARED && s->views==1;}
 #endif

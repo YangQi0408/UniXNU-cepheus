@@ -1,12 +1,13 @@
 --- a/bsd/conf/files
 +++ b/bsd/conf/files
-@@ -108,6 +108,8 @@
+@@ -108,6 +108,9 @@
  bsd/dev/sweet_sample.c			standard
  bsd/dev/sweet_keys.c			standard
  bsd/dev/cepheus_touch.c			standard
  bsd/dev/cepheus_soc.c			standard
 +bsd/dev/cepheus_gpu_compile.c		standard
 +bsd/dev/cepheus_gmu_workspace.c		standard
++bsd/dev/cepheus_gpu_retire.c		standard
  bsd/dev/sweet_rpmh.c			standard
  bsd/dev/sweet_spmi.c			standard
 --- a/iokit/conf/files.arm64

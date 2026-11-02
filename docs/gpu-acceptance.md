@@ -1,5 +1,9 @@
 # Adreno 640 实现路线与验收边界
 
+**后续独立审查修正优先于本文早期阶段描述。** 首版内存池未显式创建NC映射、
+workspace持有view却无法发布；这两点不是可用GPU链路。下方“独立审查修复”
+记录后续显式IOMemoryMap、批量共享和真实协议退休实现。所有硬件结论仍待验收。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
@@ -401,3 +405,29 @@ bin1 ACD还需要AOP通知。`cepheus_qmp_acd.h`只允许固定32字节GPU ACD�
 UBSan。新增固定seed的20000组GMU/ARC/BCM/HFI畸形输入，回调对每个cmd-db
 读取地址做越界/对齐断言，失败不得返回残留记录数。当前检测通过，仅为有界
 负面覆盖，不声称穷尽fuzz或替代真实设备/并发验收。
+
+## 独立审查修复（memory/VM/workspace限定范围）
+
+GPT-5.5只读审查8bcaf2e0针对26c528a报告：
+1. CPU view被workspace长期持有，原publish要求views=0导致发布不可达。
+2. 分配cache选项并不足以证明getBytesNoCopy返回的CPU VA为NC；dsb不清cache。
+3. 部分清理失败时table指针可能已悬空，隔离槽位需可追踪。
+
+修复：
+- 显式`createMappingInTask(kernel_task,0,kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache)`，
+  核对mapping长度/cache选项，**仅使用mapping VA**，从不使用原始getBytesNoCopy VA。
+  由XNU映射路径处理缓存属性转换；host mock给mapping分配与原buffer不同地址，
+  并断言raw_views=0。没有把getMapOptions当作真机PTE/总线一致性实测。
+- 五buffer原子共享保留各自唯一CPU view，状态转SHARED且普通get/put/free拒绝；
+  工作区用已有NC视图按HFI双向字段所有权和barrier协议访问。固件sealed不参与共享。
+- 公布的group记录保存generation句柄集合和SMMU root/slot/CB/ASID身份；退休
+  调用实际slumber→park→detach引擎，各步成功后才解除published并complete/free。
+  失败全组隔离，重复/伪造group、root、句柄或状态不匹配拒绝。私有finish bridge
+  仅为可信内核C/C++协作，不作为对恶意内核的隔离边界，也不对用户态开放。
+- 每次清理都使table/layout失效；部分失败保留handles供诊断。complete失败仍
+  隔离而不是强制free，日志记录slot/bytes/generation。ALLOCATING排他规则加注释。
+
+生产C/C++联合测试现在覆盖prepare→批量share→仍通过CPU视图进行HFI交换→
+slumber/park/detach→释放；并分别注入四个阶段失败，断言五分配/映射全部保留。
+这些是模拟寄存器/IOKit测试，尚不能证明真实平台租约、缓存转换或停稳；
+不得启用硬件后端或将审查修复误报为GPU加速完成。

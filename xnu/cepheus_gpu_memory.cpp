@@ -16,9 +16,11 @@
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_memory_state.h"
 #include "cepheus_gpu_firmware.h"
+#include "cepheus_gpu_memory_private.h"
 
 struct ceph_gpu_buffer {
     IOBufferMemoryDescriptor *memory;
+    IOMemoryMap *mapping;
     void *cpu;
     uint64_t pa;
     size_t bytes;
@@ -28,7 +30,9 @@ struct ceph_gpu_buffer {
 /* One-shot selftest counter and bounded outstanding buffer budget. */
 static unsigned ceph_memory_once,ceph_memory_pages;
 static IOLock *ceph_pool_lock;
-static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;} ceph_pool[16];
+static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;uint64_t group;} ceph_pool[16];
+static struct ceph_gpu_publication ceph_groups[16];
+static uint64_t ceph_group_generation;
 
 static void ceph_gpu_memory_barrier(void)
 {
@@ -64,9 +68,10 @@ ceph_gpu_buffer_dispose_cpu(struct ceph_gpu_buffer *b)
         printf("CEPHEUS GPU MEM: complete failed; allocation retained\n");
         return;
     }
+    if (b->mapping) b->mapping->release();
     if (b->memory) b->memory->release();
     __atomic_fetch_sub(&ceph_memory_pages,(unsigned)(b->bytes/4096),__ATOMIC_RELEASE);
-    b->memory=NULL;b->cpu=NULL;b->pa=0;b->bytes=0;b->prepared=false;
+    b->memory=NULL;b->mapping=NULL;b->cpu=NULL;b->pa=0;b->bytes=0;b->prepared=false;
 }
 
 static int
@@ -100,7 +105,16 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     b->prepared=true;
     IOByteCount length=0;
     b->pa=b->memory->getPhysicalSegment(0,&length,kIOMemoryMapperNone);
-    b->cpu=b->memory->getBytesNoCopy();
+    /* Allocation cache flags alone do not establish the attributes of the
+     * original getBytesNoCopy VA. Request an explicit NC kernel map and use
+     * ONLY its VA; XNU performs cache-mode/alias transitions while mapping. */
+    b->mapping=b->memory->createMappingInTask(kernel_task,0,
+        kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache,0,bytes);
+    if(!b->mapping || b->mapping->getLength()!=bytes ||
+        (b->mapping->getMapOptions()&kIOMapCacheMask)!=kIOMapWriteCombineCache) {
+        ceph_gpu_buffer_dispose_cpu(b);return -1;
+    }
+    b->cpu=(void *)(uintptr_t)b->mapping->getVirtualAddress();
     if (!b->cpu || !b->pa || ((b->pa|(uintptr_t)b->cpu)&4095u) || length<bytes ||
         b->pa>=(1ULL<<40) || bytes>(1ULL<<40)-b->pa || b->memory->getLength()!=bytes) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
@@ -128,11 +142,15 @@ cepheus_gpu_memory_alloc(size_t bytes,uint64_t *handle)
     for(unsigned i=0;i<16;++i)if(!ceph_mem_reserve(&ceph_pool[i].state)){index=(int)i;break;}
     IOLockUnlock(lock);if(index<0)return -1;
     auto *slot=&ceph_pool[index];
-    slot->firmware_bytes=0;slot->firmware_kind=0;
+    /* ALLOCATING excludes all handle lookups, so slow IOKit work and slot
+     * initialization can run outside the pool mutex without concurrent views. */
+    slot->firmware_bytes=0;slot->firmware_kind=0;slot->group=0;
     int e=ceph_gpu_buffer_alloc_cpu(&slot->buffer,bytes);
     IOLockLock(lock);
     (void)ceph_mem_finish_allocation(&slot->state,!e,slot->buffer.published);
     if(!e)*handle=ceph_mem_handle((unsigned)index,slot->state.generation);
+    if(e && slot->buffer.published)printf("CEPHEUS GPU MEM: retained slot=%u bytes=%lu generation=%u\n",
+        (unsigned)index,(unsigned long)slot->buffer.bytes,slot->state.generation);
     IOLockUnlock(lock);return e;
 }
 
@@ -219,6 +237,8 @@ cepheus_gpu_memory_release_cpu(uint64_t handle)
     IOLockLock(lock);
     int e=slot->buffer.published?-1:0;
     (void)ceph_mem_finish_allocation(&slot->state,0,slot->buffer.published);
+    if(e)printf("CEPHEUS GPU MEM: retained slot=%u bytes=%lu generation=%u\n",
+        (unsigned)index,(unsigned long)slot->buffer.bytes,slot->state.generation);
     IOLockUnlock(lock);return e;
 }
 
@@ -252,5 +272,96 @@ cepheus_gpu_memory_selftest(void)
         cepheus_gpu_memory_release_cpu(handle));
     printf("CEPHEUS GPU MEM: CPU-only test retained_pages=%u\n",
         __atomic_load_n(&ceph_memory_pages,__ATOMIC_ACQUIRE));
+}
+
+/* These batch operations preserve exact handles, root PA and group membership.
+ * All-or-none checks happen under the pool lock before state mutations. */
+static int ceph_memory_group_indices(const struct ceph_gpu_publication *p,int indices[5])
+{
+    if(!p || !p->group)return -1;
+    unsigned group=(unsigned)(p->group&255u);
+    if(!group || group>16)return -1;
+    const auto *saved=&ceph_groups[group-1];
+    if(saved->group!=p->group || saved->ttbr0!=p->ttbr0 || saved->ttbr1!=p->ttbr1 ||
+        saved->smr!=p->smr || saved->cb!=p->cb || saved->slot!=p->slot || saved->asid!=p->asid)return -1;
+    for(unsigned i=0;i<5;++i) {
+        if(saved->handles[i]!=p->handles[i])return -1;
+        indices[i]=ceph_gpu_pool_index(p->handles[i]);
+        if(indices[i]<0 || ceph_pool[indices[i]].group!=p->group)return -1;
+    }
+    return (int)group-1;
+}
+
+extern "C" int ceph_memory_share_group(const uint64_t handles[5],const struct ceph_gpu_publication *identity,
+    struct ceph_gpu_publication *out)
+{
+    if(!handles || !identity || !out)return -1;
+    *out={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[5],group=-1,e=-1;
+    for(unsigned i=0;i<5;++i) {
+        indices[i]=ceph_gpu_pool_index(handles[i]);
+        if(indices[i]<0 || !ceph_mem_can_share(&ceph_pool[indices[i]].state) ||
+            ceph_pool[indices[i]].buffer.published || ceph_pool[indices[i]].group)goto done;
+        for(unsigned j=0;j<i;++j)if(indices[j]==indices[i])goto done;
+    }
+    if((identity->ttbr0&0xffffffffffULL)!=ceph_pool[indices[4]].buffer.pa)goto done;
+    for(unsigned i=0;i<16;++i)if(!ceph_groups[i].group){group=(int)i;break;}
+    if(group<0 || ceph_group_generation==0x00ffffffffffffffULL)goto done;
+    {
+        struct ceph_gpu_publication p=*identity;
+        p.group=(++ceph_group_generation<<8)|((unsigned)group+1u);
+        for(unsigned i=0;i<5;++i)p.handles[i]=handles[i];
+        ceph_gpu_memory_barrier();
+        for(unsigned i=0;i<5;++i) {
+            auto *slot=&ceph_pool[indices[i]];
+            slot->state.state=CE_MEM_SHARED;slot->buffer.published=true;slot->group=p.group;
+        }
+        ceph_groups[group]=p;*out=p;e=0;
+    }
+done:IOLockUnlock(lock);return e;
+}
+
+extern "C" int ceph_memory_retire_begin(const struct ceph_gpu_publication *p)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[5],e=-1;
+    if(ceph_memory_group_indices(p,indices)<0)goto done;
+    for(unsigned i=0;i<5;++i)if(!ceph_mem_can_retire(&ceph_pool[indices[i]].state))goto done;
+    for(unsigned i=0;i<5;++i)ceph_pool[indices[i]].state.state=CE_MEM_RETIRING;
+    e=0;
+done:IOLockUnlock(lock);return e;
+}
+
+extern "C" int ceph_memory_retire_finish(const struct ceph_gpu_publication *p,int success)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[5];int group=ceph_memory_group_indices(p,indices);
+    if(group<0){IOLockUnlock(lock);return -1;}
+    for(unsigned i=0;i<5;++i)if(ceph_pool[indices[i]].state.state!=CE_MEM_RETIRING){IOLockUnlock(lock);return -1;}
+    if(!success) {
+        for(unsigned i=0;i<5;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
+        printf("CEPHEUS GPU MEM: retired group=%#llx failed; all five allocations retained\n",(unsigned long long)p->group);
+        IOLockUnlock(lock);return -1;
+    }
+    /* Stop/unmap/TLB proof is complete, callers have surrendered CPU views.
+     * Keep slots unobservable while slow IOKit completion runs. */
+    for(unsigned i=0;i<5;++i) {
+        ceph_pool[indices[i]].state.views=0;
+        ceph_pool[indices[i]].state.state=CE_MEM_ALLOCATING;
+        ceph_pool[indices[i]].buffer.published=false;
+    }
+    IOLockUnlock(lock);
+    int e=0;
+    for(unsigned i=5;i>0;--i) {
+        auto *slot=&ceph_pool[indices[i-1]];ceph_gpu_buffer_dispose_cpu(&slot->buffer);
+        IOLockLock(lock);
+        if(slot->buffer.published)e=-1;
+        (void)ceph_mem_finish_allocation(&slot->state,0,slot->buffer.published);
+        if(!slot->buffer.published)slot->group=0;
+        else printf("CEPHEUS GPU MEM: detached but complete failed slot=%u bytes=%lu\n",
+            (unsigned)indices[i-1],(unsigned long)slot->buffer.bytes);
+        IOLockUnlock(lock);
+    }
+    IOLockLock(lock);ceph_groups[group]={};IOLockUnlock(lock);return e;
 }
 #endif

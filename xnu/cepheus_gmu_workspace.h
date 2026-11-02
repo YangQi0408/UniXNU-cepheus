@@ -6,17 +6,21 @@
 #define CEPHEUS_GMU_WORKSPACE_H
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_va.h"
-enum ceph_workspace_state {CE_WS_NEW,CE_WS_BUILDING,CE_WS_READY_CPU,CE_WS_RELEASED,CE_WS_FAILED,CE_WS_RETAINED};
+#include "cepheus_gpu_retire.h"
+enum ceph_workspace_state {CE_WS_NEW,CE_WS_BUILDING,CE_WS_READY_CPU,CE_WS_RELEASED,CE_WS_FAILED,CE_WS_RETAINED,CE_WS_SHARED};
 struct ceph_gmu_workspace {
     uint64_t handles[5];struct ceph_gpu_memory_view views[5];unsigned leased;
     struct ceph_gpu_va_plan layout;struct ceph_vm_pool table;
     enum ceph_workspace_state state;
+    struct ceph_gpu_publication publication;
 };
 #ifdef __cplusplus
 extern "C" {
 #endif
 int cepheus_gmu_workspace_prepare(struct ceph_gmu_workspace *);
 int cepheus_gmu_workspace_release_cpu(struct ceph_gmu_workspace *);
+int cepheus_gmu_workspace_share(struct ceph_gmu_workspace *,const struct ceph_smmu_plan *);
+int cepheus_gmu_workspace_retire(struct ceph_gmu_workspace *,struct ceph_gpu_retire_ops *);
 void cepheus_gmu_workspace_selftest(void);
 #ifdef __cplusplus
 }

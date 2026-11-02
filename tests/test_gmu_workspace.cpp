@@ -22,5 +22,6 @@ int main(void)
     cepheus_gmu_workspace_selftest();assert(!mock_io::live && !mock_io::prepared);
     w={};assert(!cepheus_gmu_workspace_prepare(&w));mock_io::fail_complete=1;
     assert(cepheus_gmu_workspace_release_cpu(&w)<0 && w.state==CE_WS_RETAINED && mock_io::live==5);
+    assert(!w.table.words && !w.table.used && !w.layout.start.hfi_va && !mock_io::raw_views);
     puts("Real C workspace + real C++ pool with IOKit double: NC backing->VA->page tables->HFI and failure cleanup PASS");
 }

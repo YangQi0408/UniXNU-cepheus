@@ -3,14 +3,28 @@
 #include <atomic>
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 #include <mach/vm_param.h>
 /* Test double for the IOKit allocator ONLY. Actual production .cpp is compiled
  * and linked into this host executable, not reimplemented. No GPU simulated. */
 namespace mock_io {
 inline std::atomic<unsigned> live{0},prepared{0},released{0};
+inline std::atomic<unsigned> maps{0},raw_views{0};
 inline std::atomic<uint64_t> next_pa{0x120000000ULL};
 inline std::atomic<int> fail_alloc{0},fail_prepare{0},fail_complete{0},bad_segment{0};
+inline std::atomic<int> fail_map{0},bad_cache{0};
 }
+class IOMemoryMap {
+    void *mapped;size_t length;unsigned options;
+public:
+    IOMemoryMap(size_t bytes,unsigned flags):mapped(nullptr),length(bytes),options(flags){
+        assert(!posix_memalign(&mapped,page_size,bytes));memset(mapped,0xc3,bytes);++mock_io::maps;
+    }
+    uintptr_t getVirtualAddress(){return (uintptr_t)mapped;}
+    size_t getLength(){return length;}
+    unsigned getMapOptions(){return mock_io::bad_cache?0:options;}
+    void release(){free(mapped);--mock_io::maps;delete this;}
+};
 class IOBufferMemoryDescriptor {
     void *memory=nullptr;size_t length=0;bool wired=false;uint64_t pa=0;
 public:
@@ -29,7 +43,11 @@ public:
         assert(!offset && options==kIOMemoryMapperNone && wired);*bytes=mock_io::bad_segment?4096:length;
         return pa; /* simulated unique PA, never claim hardware mapping */
     }
-    void *getBytesNoCopy(){return memory;}
+    void *getBytesNoCopy(){++mock_io::raw_views;return memory;}
+    IOMemoryMap *createMappingInTask(void *,uint64_t address,unsigned flags,size_t offset,size_t bytes){
+        assert(wired && !address && !offset && bytes==length && flags==(kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache));
+        return mock_io::fail_map?nullptr:new IOMemoryMap(bytes,flags);
+    }
     size_t getLength(){return length;}
     void release(){assert(!wired);free(memory);--mock_io::live;++mock_io::released;delete this;}
 };
