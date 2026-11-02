@@ -64,3 +64,7 @@ int cepheus_gpu_acd_message(struct ceph_qmp_tx *s,struct ceph_qmp_ops *b,unsigne
 { return ceph_qmp_send_acd(s,b,enable); }
 int cepheus_gpu_smmu_geometry(uint32_t id0,uint32_t id1,uint32_t id2,uint32_t bytes,struct ceph_smmu_geometry *out)
 { return ceph_smmu_geometry(id0,id1,id2,bytes,out); }
+int cepheus_gpu_smmu_mmio_read(void *m,enum ceph_smmu_reg r,uint64_t *value)
+{ return ceph_smmu_mmio_read(m,r,value); }
+int cepheus_gpu_smmu_mmio_write(void *m,enum ceph_smmu_reg r,uint64_t value)
+{ return ceph_smmu_mmio_write(m,r,value); }

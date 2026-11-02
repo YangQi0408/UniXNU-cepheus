@@ -121,7 +121,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前35个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前36个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -441,3 +441,9 @@ SMMU几何解码器根据实际ID0/1/2生成bank数量、GR1/CB偏移、PA/SID�
 要求映射长度与硬件报告一致、支持4KiB stage1、拒绝EXIDS（当前installer只
 支持15-bit旧格式）和stage2-only bank。无ID样本时不采用假定的0x8000 CB基址；
 此处仍为纯解码，不自行读取未供电/未持有的SMMU。
+
+具名SMMU MMIO适配器现把上述plan/geometry转为实际32/64-bit volatile访问，
+只接受确认的64KiB窗口、4KiB寄存器页、ACTLR0x303和预留CB/SMR。所有写入值
+必须等于plan定义的配置或合法禁用值；没有FSR清除、global reset、全局TLBI或
+任意offset接口。lease回调每次操作前检查归属/电源/TBU，当前只在RAM aperture
+测试，未接任何手机启动路径；真实lease实现仍是启用前置。
