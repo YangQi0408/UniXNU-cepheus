@@ -165,7 +165,7 @@ CPU温度样本38.8°C；快速熄屏clear_us=913。上述是日志证据，主�
 手机崩溃。封存日志SHA256：
 `cd6acfd583dbc9c7f6a3cec17a715fbe7f8071064ac127a1a31db57c65925668`。
 
-### ARC只读取证接入（待下一次构建/真机验证）
+### ARC只读取证接入（构建通过，真机待验证）
 
 `cephsoc=1 cepharc=1`新增一次只读cmd-db/TCS快照，复用触摸电源传输的同一把
 `rh_lock`，不调用rh_write/rh_sync/rh_send。只读取固件locator给出的有界cmd-db，
@@ -179,3 +179,23 @@ CPU温度样本38.8°C；快速熄屏clear_us=913。上述是日志证据，主�
 **空槽、稳定快照、cmd-db优先级都不证明该DRV当前电源投票为0或归本驱动所有**：
 完成后的投票可能仍保存在RPMh硬件，后续写入还需要明确的当前投票读取/继承策略。
 此诊断不会将“不确定”转为上电许可。默认无cepharc参数时不执行。
+
+初次CI41393963305在stage阶段失败：stage脚本先于源码补丁执行，不能提前要求
+sweet_rpmh.c存在。58a944c修复并新增先stage测试；CI41394365108完整通过。
+下载核对的内核SHA256为
+`88ff361fc533bcc17ef4b701e8a02fcd0c51f46328cd8a348eb249f0c9070f8f`，符号表确认
+cepheus_gpu_arc_probe已链接。用户离开电脑后没有重启手机或部署该内核。
+
+### 电源事务核心（只在mock执行）
+
+`cepheus_gpu_power_txn.h`规定后端必须先持有共享ARC/时钟/GDSC所有权，提供
+当前apps-DRV投票和实测GPLL0-div=300MHz，才能计划200MHz GMU序列。它依次：
+不降旧投票、先提升MX覆盖CX、再提升CX、配置GDSC等待与collapse、轮询实际
+CX状态、配置RCG到GPLL0-div/1.5、使能GMU/CXO/DDR/MEMNOC/AHB/DVM，最后确认
+CM3仍在reset。所有寄存器操作限于命名资源；500us有界轮询。每次可能已到达
+硬件的失败都保留资源隔离，绝不自动降票、关闭共享时钟或解放DMA内存。
+
+当前**没有XNU硬件后端、没有自动rollback/断电实现**；公共内核不会执行该
+事务。prepare/validate_lease接口不是现成所有权证明。mock对每个回调位置
+注入失败，验证零副作用拒绝与有副作用隔离；仍需要真实ARC read响应语义和
+HLOS继承投票证据，不能把mock完成当成供电功能完成。
