@@ -14,6 +14,7 @@
 #include <pexpert/pexpert.h>
 #include "cepheus_soc.h"
 #include "cepheus_cpu_policy.h"
+#include "cepheus_gpu_power.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern kern_return_t thread_terminate(thread_t);
@@ -195,17 +196,27 @@ static void gpu_probe(void)
 {
 	vm_offset_t gcc = ml_io_map(0x00100000, 0x90000);
 	if (!gcc) { return; }
-	uint32_t ahb = sr(gcc, 0x71004);
-	printf("CEPHEUS GPU: GCC CFG_AHB=%#x MEMNOC=%#x SNOC_DVM=%#x\n", ahb, sr(gcc, 0x7100c), sr(gcc, 0x71018));
-	if (!cepheus_gpu_clock_on(ahb, 1)) {
+	uint32_t ahb = sr(gcc, CE_GPU_GCC_CFG);
+	printf("CEPHEUS GPU: GCC CFG_AHB=%#x MEMNOC=%#x SNOC_DVM=%#x DDR_AXI=%#x\n",
+	    ahb, sr(gcc, CE_GPU_GCC_MEMNOC), sr(gcc, CE_GPU_GCC_DVM), sr(gcc, CE_GPU_GCC_DDR));
+	if (!ceph_gpu_branch_active(ahb)) {
 		printf("CEPHEUS GPU: CFG_AHB unavailable; GPUCC/GMU/GX not read\n"); return;
 	}
 	vm_offset_t cc = ml_io_map(0x02c90000, 0x9000);
 	if (!cc) { return; }
 	uint32_t cx = sr(cc, 0x106c), gx = sr(cc, 0x100c), gmuclk = sr(cc, 0x1098);
+	struct ceph_gpu_power_snapshot power = {
+	    .cx_gdscr = cx, .cx_hw = sr(cc, CE_GPU_CX_HW_CTRL), .gx_gdscr = gx,
+	    .cfg = ahb, .ahb = sr(cc, CE_GPU_AHB_CBCR), .gmu = gmuclk,
+	    .cxo = sr(cc, CE_GPU_CXO_CBCR), .rcg = sr(cc, CE_GPU_GMU_CMD),
+	    .ddr = sr(gcc, CE_GPU_GCC_DDR), .memnoc = sr(gcc, CE_GPU_GCC_MEMNOC),
+	    .dvm = sr(gcc, CE_GPU_GCC_DVM),
+	};
 	printf("CEPHEUS GPU: CX_GDSCR=%#x GX_GDSCR=%#x AHB=%#x GMU_CLK=%#x CXO=%#x SLEEP=%#x RCG=%#x CFG=%#x\n",
 	    cx, gx, sr(cc, 0x1078), gmuclk, sr(cc, 0x109c), sr(cc, 0x1090), sr(cc, 0x1120), sr(cc, 0x1124));
-	if (cx != 0xffffffffu && (cx & 0x80000000u) && cepheus_gpu_clock_on(gmuclk, 0)) {
+	printf("CEPHEUS GPU: CX_HW_CTRL=%#x gmu_blockers=%#x memory_blockers=%#x (not ownership)\n",
+	    power.cx_hw, ceph_gpu_gmu_blockers(&power), ceph_gpu_memory_blockers(&power));
+	if (!ceph_gpu_gmu_blockers(&power)) {
 		// GMU offsets are word offsets from GPU base, not byte offsets from GMU base.
 		vm_offset_t gmu = ml_io_map(0x02c6a000, 0x30000);
 		if (gmu) {

@@ -83,3 +83,42 @@ GPU基础新增 `cepheus_gmu_firmware.h`：依据源码格式规划GMU分块，�
 长度、对齐、地址域、重叠和溢出，零长度元数据不当成载入数据。当前测试使用
 合成数据，并未通过该模块上传真实固件；仍缺电源、GMU/HFI、SMMU和SQE初始化。
 PM4与固件规划模块均不发MMIO、不启动GPU，不构成Metal支持。
+
+## GPU续作：供电证据与诊断修正
+
+USB受控重启/诊断功能已由用户取消；回退提交`1b59abd`的代码树与`35561c0`
+完全相同。GPU在独立`feat/adreno640`分支继续，不携带USB控制代码。原有
+CDC-ECM日志保留。GPU分支单独选用macos-15/Xcode16.2以避免退役runner。
+
+新的`cepheus_gpu_power.h`及SoC探测补齐以下**只读**检查：
+
+- live FDT与Android `sm8150-gdsc.dtsi`指定CX的`hw-ctrl-addr`为
+  GPUCC+`0x1540`。`gdsc.c:poll_gdsc_status`实际轮询该寄存器bit31；
+  旧探测只看`0x106c`的GDSCR不足以判定CX实际状态。
+- GDSCR的collapse位是HLOS投票，不代表拥有该域；不能覆盖TZ/HYP等投票。
+- GMU寄存器只在CX实际on、CFG/AHB/GMU/CXO分支active及RCG非更新/非off时
+  才允许本诊断读取。`0xffffffff`一律拒绝，HWCG位单独置位不授权访问。
+- 同时记录DDR_AXI、MEMNOC、SNOC_DVM时钟阻塞位，但全部正常仍不代表SMMU
+  映射、缓存一致性或DMA所有权已经建立。仍不读取GX或SMMU，不写电源寄存器。
+
+这里发现的实际供电依赖尚未完成：
+
+1. live FDT的CX父电源是`VDD_CX_LEVEL`/`cx.lvl`，GX父电源是PM8150L S2。
+   现有触摸用RPMh VRM enable-only接口不能直接当作GPU ARC corner投票接口。
+2. CX Linux初始化配置EN_REST=2、EN_FEW=8、CLK_DIS_WAIT=8；快照`0x222001`
+   不能证明已执行这些配置。启用前要检查HW_CONTROL，不能夺取硬件控制权。
+3. CX状态timeout为500us；GMU启动先开CX，再将GMU clock设为200MHz，依次
+   开GMU/CXO/DDR_AXI/MEMNOC/AHB。200MHz来自GPLL0-div与RCG分频，不应为这一步
+   随意改写GPU PLL。关停还需尊重共享电源投票和设备树skip-disable语义。
+4. GPU SMMU为`qcom,skip-init`；GMU user/kernel SID为4/5、mask为0x400，
+   不能清空全局SMMU或破坏继承的安全上下文。
+
+参考源位于本机Android树：`drivers/clk/msm/gdsc.c`、
+`drivers/clk/qcom/gpucc-sm8150.c`、`drivers/gpu/msm/kgsl_gmu.c`、
+`arch/arm64/boot/dts/qcom/{sm8150-gdsc,sm8150-gpu,msm-arm-smmu-sm8150}.dtsi`。
+
+整理现有草稿为离线模块：GMU阶段式loader（每一步失败清理与不确定资源隔离）、
+HFI v2 ring和三层32-bit VA/40-bit PA页表。HFI补上payload发布完成后才更新
+write index的顺序；发布或doorbell不确定时将queue标为不可重试，防止重复命令。
+实际HFI头部含双方字段，仍需coherent映射或证明cache-line所有权安全的后端。
+这些模块目前没有真实供电/SMMU后端，不会启动固件或执行GPU命令。
