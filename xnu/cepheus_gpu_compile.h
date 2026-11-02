@@ -15,6 +15,7 @@
 #include "cepheus_gpu_va.h"
 #include "cepheus_gpu_pdc.h"
 #include "cepheus_gpu_thermal.h"
+#include "cepheus_cp_init.h"
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
@@ -33,4 +34,6 @@ int cepheus_gpu_vm_lookup(struct ceph_vm_pool *,uint64_t,uint64_t *,uint64_t *);
 int cepheus_gpu_va_build(const struct ceph_gpu_backing *,struct ceph_gpu_va_plan *);
 int cepheus_gpu_pdc_install(struct ceph_pdc_install *,struct ceph_pdc_ops *,const struct ceph_pdc_input *);
 int cepheus_gpu_thermal_guard(struct ceph_gpu_thermal *,const struct ceph_gpu_temperature *,uint64_t);
+int cepheus_gpu_cp_init_packet(uint32_t *,unsigned,uint64_t,size_t);
+int cepheus_gpu_cp_reglist(struct ceph_cp_snapshot_ops *,uint32_t *,unsigned);
 #endif

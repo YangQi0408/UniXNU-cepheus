@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前29个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前30个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -332,3 +332,13 @@ header片段、6712字节hash段、1968字节relocatable LOAD。三个.b00/.b01/
 入口在重定位区域offset0。PAS ID由FDT确定为13。这不代表签名通过，也不代表
 可复用普通GMU池作为secure memory。需要独立的可信SCM/PAS、缓存/保护域与
 认证后生命周期实现；不使用no_auth或直接写trust-control作替代。
+
+### CP初始化/恢复列表
+
+`cepheus_cp_init.h`生成A640的12-DWORD CP_ME_INIT包（mask0x16f、64-bit
+reglist地址），不混入secure/protected-mode关闭命令。恢复列表从当前已配置的
+GX寄存器读取：38个IFPC项+28个preemption项，带16字节cpu_gpu_lock头；
+要求保护控制bits0/1/3启用及所有64-bit address modes就绪，不用零值填假列表。
+每次读取前后需持有后端租约，不满足则保持输出未修改。
+`test-cp-source-layout.py`与本机KGSL列表宏解析、lock大小/字段偏移和ordinal mask
+独立对照通过；实际CP初始化/保护表配置及GX访问后端仍待平台验证。

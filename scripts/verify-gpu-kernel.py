@@ -19,6 +19,7 @@ HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
 HEADERS += ('cepheus_gpu_bin.h',)
 HEADERS += ('cepheus_gpu_thermal.h',)
+HEADERS += ('cepheus_cp_init.h',)
 HEADERS += ('cepheus_gmu_workspace.c','cepheus_gmu_workspace.h')
 
 
@@ -49,7 +50,7 @@ def main():
                 '_cepheus_gpu_upload_snapshot','_cepheus_gpu_sqe_snapshot_copy',
                 '_cepheus_gpu_vm_build','_cepheus_gpu_vm_lookup','_cepheus_gpu_va_build',
                 '_cepheus_gmu_workspace_prepare','_cepheus_gmu_workspace_release_cpu','_cepheus_gmu_workspace_selftest',
-                '_cepheus_gpu_pdc_install','_cepheus_gpu_thermal_guard'}
+                '_cepheus_gpu_pdc_install','_cepheus_gpu_thermal_guard','_cepheus_gpu_cp_init_packet','_cepheus_gpu_cp_reglist'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
     memory_api={'_cepheus_gpu_memory_alloc','_cepheus_gpu_memory_view_get','_cepheus_gpu_memory_view_put',
@@ -59,7 +60,7 @@ def main():
         raise ValueError(f'missing linked memory lifecycle APIs: {sorted(memory_api - symbols)}')
     if subprocess.check_output([nm, '-u', str(args.kernel)], text=True).strip():
         raise ValueError('kernel has unresolved symbols')
-    print('GPU staged sources, twenty-one core entrypoints and seven memory/firmware APIs: PASS (not hardware readiness)')
+    print('GPU staged sources, twenty-three core entrypoints and seven memory/firmware APIs: PASS (not hardware readiness)')
 
 
 if __name__ == '__main__':

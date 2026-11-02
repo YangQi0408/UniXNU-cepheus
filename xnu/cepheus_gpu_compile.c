@@ -50,3 +50,7 @@ int cepheus_gpu_pdc_install(struct ceph_pdc_install *s,struct ceph_pdc_ops *b,co
 { return ceph_pdc_install_a640v2(s,b,in); }
 int cepheus_gpu_thermal_guard(struct ceph_gpu_thermal *t,const struct ceph_gpu_temperature *s,uint64_t now)
 { return ceph_gpu_thermal_check(t,s,now); }
+int cepheus_gpu_cp_init_packet(uint32_t *out,unsigned capacity,uint64_t va,size_t bytes)
+{ return ceph_cp_me_init(out,capacity,va,bytes); }
+int cepheus_gpu_cp_reglist(struct ceph_cp_snapshot_ops *b,uint32_t *out,unsigned words)
+{ return ceph_cp_snapshot(b,out,words); }
