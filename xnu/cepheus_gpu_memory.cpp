@@ -29,6 +29,17 @@ static unsigned ceph_memory_once,ceph_memory_pages;
 static IOLock *ceph_pool_lock;
 static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;} ceph_pool[16];
 
+static void ceph_gpu_memory_barrier(void)
+{
+#if defined(__aarch64__) || defined(__arm64__)
+    __asm__ volatile("dsb sy" ::: "memory");
+#elif defined(CEPHEUS_GPU_MEMORY_HOST_TEST) && !defined(KERNEL)
+    __atomic_thread_fence(__ATOMIC_SEQ_CST); /* test process only, never XNU */
+#else
+#error "GPU memory barrier requires arm64 (or explicit non-kernel host test)"
+#endif
+}
+
 static IOLock *
 ceph_gpu_pool_lock(void)
 {
@@ -87,7 +98,7 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
     bzero(b->cpu,bytes);
-    __asm__ volatile("dsb sy" ::: "memory");
+    ceph_gpu_memory_barrier();
     return 0;
 }
 
@@ -129,7 +140,7 @@ cepheus_gpu_firmware_snapshot(unsigned kind,const uint8_t *data,size_t bytes,uin
     struct ceph_gpu_memory_view view={};
     if(cepheus_gpu_memory_view_get(id,&view)) { (void)cepheus_gpu_memory_release_cpu(id);return -1; }
     memcpy(view.cpu,data,bytes);
-    __asm__ volatile("dsb sy" ::: "memory");
+    ceph_gpu_memory_barrier();
     int e=ceph_firmware_verify((enum ceph_firmware_kind)kind,(const uint8_t *)view.cpu,bytes);
     (void)cepheus_gpu_memory_view_put(id);
     if(e) { (void)cepheus_gpu_memory_release_cpu(id);return -1; }
@@ -183,7 +194,7 @@ cepheus_gpu_memory_publish(uint64_t handle)
     IOLockLock(lock);int index=ceph_gpu_pool_index(handle),e=-1;
     if(index>=0 && !ceph_mem_publish(&ceph_pool[index].state)) {
         /* Finish NC writes before any device address is installed/doorbelled. */
-        __asm__ volatile("dsb sy" ::: "memory");
+        ceph_gpu_memory_barrier();
         ceph_pool[index].buffer.published=true;e=0;
     }
     IOLockUnlock(lock);return e;
@@ -221,12 +232,12 @@ cepheus_gpu_memory_selftest(void)
     volatile uint32_t *words=(volatile uint32_t *)b.cpu;
     unsigned count=(unsigned)(b.bytes/sizeof(uint32_t));
     for (unsigned i=0;i<count;++i) words[i]=0xa6400000u^i;
-    __asm__ volatile("dsb sy" ::: "memory");
+    ceph_gpu_memory_barrier();
     bool okay=true;
     for (unsigned i=0;i<count;++i) if (words[i]!=(0xa6400000u^i)) {okay=false;break;}
     printf("CEPHEUS GPU MEM: CPU-only NC contiguous bytes=%lu pa=%#llx pattern=%s; no DMA/SMMU\n",
-        (unsigned long)b.bytes,b.pa,okay?"PASS":"FAIL");
-    bzero(b.cpu,b.bytes);__asm__ volatile("dsb sy" ::: "memory");
+        (unsigned long)b.bytes,(unsigned long long)b.pa,okay?"PASS":"FAIL");
+    bzero(b.cpu,b.bytes);ceph_gpu_memory_barrier();
     (void)cepheus_gpu_memory_view_put(handle);
     int released=cepheus_gpu_memory_release_cpu(handle);
     printf("CEPHEUS GPU MEM: CPU-only release=%d stale_release=%d\n",released,

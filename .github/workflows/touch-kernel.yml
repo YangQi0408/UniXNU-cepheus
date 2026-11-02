@@ -54,6 +54,7 @@ jobs:
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-integration.py
           python3 cepheus/scripts/test-gpu-fdt.py
+          bash cepheus/scripts/test-gpu-memory-host.sh
           # The SWEET kernel is plain arm64, not arm64e.
           python3 -c 'from pathlib import Path; p=Path("dxb/build.sh"); s=p.read_text(); old="ARCHS=\"x86_64 arm64e\" VALID_ARCHS=\"x86_64 arm64e\""; assert s.count(old)==1; p.write_text(s.replace(old,"ARCHS=\"x86_64 arm64e arm64\" VALID_ARCHS=\"x86_64 arm64e arm64\""))'
       - name: Toolchain and event parser regression
