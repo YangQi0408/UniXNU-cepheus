@@ -184,3 +184,21 @@ CI41458264813完整通过18组C/UBSan、集成/patch测试与六入口链接检�
 内核SHA256 `757d6d5fa85650fddb94e9ddb0596ec6a9039639978934d518c481ecf63b5690`。
 这证明真实XNU API/编译链接可用，不证明设备内存属性、DMA、供电或提交已验收。
 RpmhDxe进一步证据与限制见[rpmh-firmware-evidence.md](rpmh-firmware-evidence.md)。
+
+## 实际FDT配置，不沿用通用v1参数
+
+`scripts/gpu-fdt-config.py`直接解析保存的DTB（不需要运行dtc），解析边界、节点、
+phandle、实际OPP引用、speed-bin表、BW路径、GMU/SMMU和ACD配置。记录输入SHA，
+默认不选择speed bin；有eFuse/内核证据后才能显式选，不会默认使用最快档。
+
+本机live FDT SHA `bdd364a16ceabe9960e128103162e5280b150303624a123dfd71e871f9a43274`
+解析结果：GPU引用`/soc/gpu_opp_table_v2`而不是`/soc/gpu-opp-table`；
+非零GPU OPP为257/345/427/499.2/585/675/770MHz，raw VLVL为64/128/192/224/
+256/320/320。speed-bin0/1各自throttle mask为0x80/0x40，当前实际bin未知。
+GMU仍为200MHz。PDC config/seq是`0x0b290000/0x0b490000`（各64KiB），
+而非通用sm8150.dtsi的v1地址。SMMU ACTLR条目`0,0x407,0x303`匹配SID4/5及
+mask0x400，因此GMU context的期望ACTLR为0x303，不应沿用测试中的0x10。
+源头分析依据`arm_smmu_fwspec_match_smr/qsmmuv500_init_cb`，并非真机寄存器读数。
+
+验证命令：`CEPHEUS_LIVE_FDT=/path/live.dtb python3 scripts/test-gpu-fdt.py`。
+这只导出配置；BCM的cmd-db unit/width/VCD和当前电源投票仍需要相应证据。
