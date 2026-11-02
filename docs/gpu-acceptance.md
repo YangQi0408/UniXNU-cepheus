@@ -121,7 +121,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前34个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前35个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -436,3 +436,8 @@ slumber/park/detach→释放；并分别注入四个阶段失败，断言五分�
 VM_WIMG_WCOMB才返回CPU view；若mapping选项与pmap有效属性不一致，清理分配
 并拒绝使用，不自动强改物理页属性。该分支不在host替身中模拟为成功，需真实
 XNU构建及后续CPU-only真机自检确认，避免只依赖getMapOptions的请求值。
+
+SMMU几何解码器根据实际ID0/1/2生成bank数量、GR1/CB偏移、PA/SID位宽，
+要求映射长度与硬件报告一致、支持4KiB stage1、拒绝EXIDS（当前installer只
+支持15-bit旧格式）和stage2-only bank。无ID样本时不采用假定的0x8000 CB基址；
+此处仍为纯解码，不自行读取未供电/未持有的SMMU。

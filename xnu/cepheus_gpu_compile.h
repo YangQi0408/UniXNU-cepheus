@@ -20,6 +20,7 @@
 #include "cepheus_gmu_park.h"
 #include "cepheus_gmu_slumber.h"
 #include "cepheus_qmp_acd.h"
+#include "cepheus_smmu_geometry.h"
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
@@ -44,4 +45,5 @@ int cepheus_gpu_smmu_detach(struct ceph_smmu_detach *,struct ceph_smmu_detach_op
 int cepheus_gpu_gmu_park(struct ceph_gmu_park *,struct ceph_gmu_park_ops *);
 int cepheus_gpu_gmu_slumber(struct ceph_gmu_slumber *,struct ceph_gmu_slumber_ops *,struct ceph_hfi_session *,unsigned,unsigned,unsigned,unsigned);
 int cepheus_gpu_acd_message(struct ceph_qmp_tx *,struct ceph_qmp_ops *,unsigned);
+int cepheus_gpu_smmu_geometry(uint32_t,uint32_t,uint32_t,uint32_t,struct ceph_smmu_geometry *);
 #endif

@@ -62,3 +62,5 @@ int cepheus_gpu_gmu_slumber(struct ceph_gmu_slumber *s,struct ceph_gmu_slumber_o
 { return ceph_gmu_slumber_request(s,b,h,bw,freq,nb,ng); }
 int cepheus_gpu_acd_message(struct ceph_qmp_tx *s,struct ceph_qmp_ops *b,unsigned enable)
 { return ceph_qmp_send_acd(s,b,enable); }
+int cepheus_gpu_smmu_geometry(uint32_t id0,uint32_t id1,uint32_t id2,uint32_t bytes,struct ceph_smmu_geometry *out)
+{ return ceph_smmu_geometry(id0,id1,id2,bytes,out); }
