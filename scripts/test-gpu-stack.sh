@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Host-only deterministic regressions; never opens a device or submits MMIO.
+set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+for name in fts_events i2c_bitbang soc cpu_policy a640_pm4 gmu_firmware \
+    gpu_power gpu_power_txn gmu_loader hfi gpu_vm smmu_plan gpu_submit arc; do
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \
+        "$root/xnu/test_${name}.c" -o "$tmp/$name"
+    "$tmp/$name"
+done
+echo '14 host test programs passed; no hardware backend or GPU execution validated'
