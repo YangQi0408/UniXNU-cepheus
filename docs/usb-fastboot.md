@@ -104,8 +104,15 @@ offline regressions and applied-source checks. The downloaded public kernel has
 SHA256 `ee583b6b6318b552323a98f9632e8a10e587267aa1a32d948cb1324e01e8cafa`.
 Its linked bootstrap disassembly retains socket operations, entropy checks and
 resource cleanup; its symbol table has no undefined symbols. It is unprovisioned
-and has not been hardware-tested. The separate two-branch check was added after
-that run and requires its own CI result.
+and has not been hardware-tested.
+
+Run41366914680 at commit706b004 also passed the complete build and all28 Python
+tests. Its actual XNU two-branch checks both passed, including linked-symbol
+resolution and unchanged public-file hashes. The downloaded unprovisioned kernel
+SHA256 is `9cba7a2f2d607548c767d5180ccaa3555b1ce8fbb695e96812fa0297e2f7d020`.
+This still does not establish a full private provisioned-kernel link or hardware
+operation. The independent GPT-5.5 review timed out without a final verdict;
+parent-run builds/tests are not a substitute for that independent review.
 
 ## Acceptance boundary and blockers
 
