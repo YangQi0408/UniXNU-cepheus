@@ -47,6 +47,14 @@ cepheus_gpu_arc_probe(void)
         printf("CEPHEUS ARC: 200MHz minimum candidate cx_hlvl=%u mx_hlvl=%u (NOT SENT)\n", cx, mx);
     else
         printf("CEPHEUS ARC: no exact MIN_SVS pair error=%d (NOT SENT)\n", error);
+    const uint32_t pdc_resources[]={0x30010,0x30000,0x30090};
+    for(unsigned i=0;i<3;++i) {
+        char resource[9];struct ceph_arc_resource rail;
+        int result=ceph_arc_lookup_address(&db,pdc_resources[i],resource,&rail);
+        if(result) {printf("CEPHEUS PDC RESOURCE: addr=%#x unresolved error=%d\n",pdc_resources[i],result);continue;}
+        printf("CEPHEUS PDC RESOURCE: addr=%#x name=%s levels=%u (no votes)\n",rail.address,resource,rail.count);
+        for(unsigned n=0;n<rail.count;++n)printf("CEPHEUS PDC RESOURCE: %s index=%u value=%u\n",resource,n,rail.levels[n]);
+    }
     /* Exact resources on the saved live FDT GPU->DDR and GPU->CNOC paths.
      * Address/unit/width/VCD must come from this boot's cmd-db, not defaults. */
     const char *bcms[]={"SH0","MC0","ACV","SH2","SN15","SN3"};

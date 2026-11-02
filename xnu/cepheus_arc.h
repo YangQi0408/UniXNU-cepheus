@@ -81,6 +81,43 @@ static inline int ceph_arc_lookup(const struct ceph_arc_db *db, const char *name
     *out=found;
     return CE_ARC_OK;
 }
+/* Reverse lookup for fixed PDC ePCB addresses. Name/aux are still validated by
+ * the normal parser, duplicates refused; no resource name inferred from address.
+ */
+static inline int ceph_arc_lookup_address(const struct ceph_arc_db *db,uint32_t address,char name[9],
+    struct ceph_arc_resource *out)
+{
+    if(!name || !out)return CE_ARC_INVALID;
+    for(unsigned i=0;i<9;++i)name[i]=0;
+    *out=(struct ceph_arc_resource){0};
+    if(!db || !db->read32 || db->bytes<144 || db->bytes>0x100000 || (db->bytes&3) ||
+        (address>>16)!=3 || (address&3))return CE_ARC_INVALID;
+    if(db->read32(db->ctx,0)!=1 || db->read32(db->ctx,4)!=0x0c0330db || (db->read32(db->ctx,140)&1))return CE_ARC_INVALID;
+    unsigned matches=0;char found[9]={0};
+    for(unsigned i=0;i<8;++i) {
+        uint32_t h=8+16*i;unsigned slave=ceph_arc_u16(db,h);if(!slave)break;
+        unsigned count=ceph_arc_u16(db,h+6);uint32_t entries=144+ceph_arc_u16(db,h+2);
+        if(slave<3 || slave>5 || count>256 || (entries&3) || !ceph_arc_range(db,entries,count*24))return CE_ARC_INVALID;
+        for(unsigned j=0;j<count;++j) {
+            uint32_t e=entries+24*j;if(db->read32(db->ctx,e+16)!=address)continue;
+            if(slave!=3 || ++matches!=1)return CE_ARC_INVALID;
+            uint32_t words[2]={db->read32(db->ctx,e),db->read32(db->ctx,e+4)};
+            int end=0;
+            for(unsigned c=0;c<8;++c) {
+                unsigned v=(words[c/4]>>(8*(c%4)))&255;
+                if(!v)end=1;
+                else if(end || v<0x21 || v>0x7e)return CE_ARC_INVALID;
+                found[c]=(char)v;
+            }
+            if(!found[0])return CE_ARC_INVALID;
+        }
+    }
+    if(!matches)return CE_ARC_MISSING;
+    int e=ceph_arc_lookup(db,found,out);if(e)return e;
+    if(out->address!=address)return CE_ARC_INVALID;
+    for(unsigned i=0;i<9;++i)name[i]=found[i];
+    return 0;
+}
 /* Raw abstract VLVL (MIN_SVS=48), not millivolts or Linux's +1 offset.
  * The ARC data word is the selected table INDEX. Upper bound is explicit.
  */

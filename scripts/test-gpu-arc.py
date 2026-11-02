@@ -57,6 +57,16 @@ class ArcIntegrationTests(unittest.TestCase):
         self.assertIn("__atomic_exchange_n(&rh_lock", probe)
         self.assertIn("__atomic_store_n(&rh_lock, 0", probe)
         self.assertIn("current ARC vote UNKNOWN", probe)
+        self.assertIn("ceph_arc_lookup_address", probe)
+
+    def test_speed_bin_probe_is_optin_read_only(self):
+        source = (ROOT / "xnu/cepheus_soc.c").read_text()
+        body = source.split('static void gpu_fuse_probe(void)', 1)[1].split('static void soc_thread', 1)[0]
+        self.assertIn('ml_io_map(0x00784000,0x1000)', body)
+        self.assertIn('first=sr(efuse,0x130),second=sr(efuse,0x130)', body)
+        self.assertNotIn('osm_request(', body)
+        self.assertNotRegex(body, r'\*\s*\(volatile[^\n]+\)\s*=')
+        self.assertIn('if(fuse==1) {gpu_fuse_probe();}', source)
 
     def test_generated_0084_does_not_depend_on_later_arc_include(self):
         with tempfile.TemporaryDirectory() as directory:

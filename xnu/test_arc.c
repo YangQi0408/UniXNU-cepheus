@@ -35,6 +35,9 @@ int main(void)
     assert(!lookup(&m,&cx) && cx.address==0x30000 && cx.count==4 && cx.levels[2]==48);
     assert(cx.priority[0]==4 && cx.aux_version==0x100);
     assert(!ceph_arc_lookup(&db,"mx.lvl",&mx));
+    char resource_name[9];struct ceph_arc_resource reverse;
+    assert(!ceph_arc_lookup_address(&db,0x30004,resource_name,&reverse) && !strcmp(resource_name,"mx.lvl") && reverse.address==0x30004);
+    assert(ceph_arc_lookup_address(&db,0x30090,resource_name,&reverse)==CE_ARC_MISSING);
     unsigned c=99,n=99; assert(!ceph_arc_pair(&cx,&mx,48,64,&c,&n) && c==2 && n==2);
     mx.count=2;c=n=99;assert(ceph_arc_pair(&cx,&mx,48,64,&c,&n)==CE_ARC_RANGE && c==99 && n==99);
     assert(ceph_arc_select(&cx,65,100,&c)==CE_ARC_RANGE);
@@ -59,5 +62,7 @@ int main(void)
     m=fixture();w16(&m,196,16);assert(lookup(&m,&cx)==CE_ARC_INVALID); /* duplicate */
     m=fixture();w16(&m,196,8);assert(lookup(&m,&cx)==CE_ARC_INVALID); /* descending */
     m=fixture();w16(&m,164,11);assert(lookup(&m,&cx)==CE_ARC_INVALID); /* odd aux size */
+    m=fixture();w32(&m,184,0x30000);
+    assert(ceph_arc_lookup_address(&db,0x30000,resource_name,&reverse)==CE_ARC_INVALID);
     puts("ARC command-db: bounds/duplicates/LE levels/padding/CX-MX dependency: PASS (no writes)");
 }

@@ -16,6 +16,7 @@
 #include "cepheus_cpu_policy.h"
 #include "cepheus_gpu_power.h"
 #include "cepheus_gpu_memory.h"
+#include "cepheus_gpu_bin.h"
 extern void cepheus_gmu_workspace_selftest(void);
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
@@ -232,12 +233,29 @@ static void gpu_probe(void)
 	// Do not access GX: GMU AHB fence must also be validated before GX reads.
 	printf("CEPHEUS GPU: probe only; no GPU submission, firmware upload or Metal support\n");
 }
+static void gpu_fuse_probe(void)
+{
+	/* Saved live FDT qfprom_memory=<0x780000 0x6fff>, speed-bin offset
+	 *0x4130/mask0xe0000000/shift29. Map only the required page. Read only. */
+	vm_offset_t efuse=ml_io_map(0x00784000,0x1000);
+	if(!efuse) {printf("CEPHEUS GPU BIN: QFPROM map failed\n");return;}
+	uint32_t first=sr(efuse,0x130),second=sr(efuse,0x130);
+	struct ceph_gpu_bin_policy policy;
+	if(first!=second || ceph_gpu_bin_policy(0x06040001,first,&policy)) {
+		printf("CEPHEUS GPU BIN: unreadable/unknown speed bin (no enable)\n");return;
+	}
+	printf("CEPHEUS GPU BIN: bin=%u gx_levels=%u lm=%u acd=%u throttle=%#x (read-only, no GPU enable)\n",
+	    policy.bin,policy.gx_levels,policy.lm,policy.acd,policy.throttle_mask);
+}
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
 	swait(45000); // keep boot/USB alive before the hardware probe
 	for (unsigned n = 0; n < 4; ++n) { osm_dump(&banks[n]); }
 	gpu_probe();
+	int fuse=0;
+	PE_parse_boot_argn("cephfuse",&fuse,sizeof(fuse));
+	if(fuse==1) {gpu_fuse_probe();}
 	int arc = 0;
 	PE_parse_boot_argn("cepharc", &arc, sizeof(arc));
 	if (arc == 1) { cepheus_gpu_arc_probe(); }
@@ -248,6 +266,13 @@ static void soc_thread(void *arg, wait_result_t wr)
 	osm_sample(0);
 	int temperature = 0, temperature_valid = cpu_temperature(&temperature);
 	printf("CEPHEUS TSENS: valid=%d CPU_max_mc=%d (no sensor configuration writes)\n", temperature_valid, temperature);
+	if(tsens && (sr(tsens,0xe4)&8u)) {
+		int t12=0,t13=0;
+		int v12=ceph_tsens_mc(sr(tsens,0xa0+12*4),&t12);
+		int v13=ceph_tsens_mc(sr(tsens,0xa0+13*4),&t13);
+		printf("CEPHEUS GPU TSENS: valid_mask=%u sensor12_mc=%d sensor13_mc=%d (sample only)\n",
+		    (unsigned)v12|((unsigned)v13<<1),t12,t13);
+	}
 	swait(60000); // let SpringBoard reach UI before an optional timed experiment
 	int mode = 0;
 	PE_parse_boot_argn("cephboost", &mode, sizeof(mode));
