@@ -5,6 +5,3 @@
 *.yml text eol=lf
 *.toml text eol=lf
 *.patch text eol=lf
-# Unified diff context prefixes legitimately precede tabs or empty lines.
-# Applied source whitespace is still checked by git apply.
-*.patch whitespace=-blank-at-eol,-space-before-tab
