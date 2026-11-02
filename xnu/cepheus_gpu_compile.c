@@ -19,3 +19,5 @@ int cepheus_gpu_ring_submit(struct ceph_gpu_ring *r,uint64_t scratch,uint64_t by
 { return ceph_gpu_ring_scratch(r,scratch,bytes,address,value,fence,sequence); }
 int cepheus_gpu_sqe_copy(const uint8_t *f,size_t bytes,uint8_t *d,size_t capacity,struct ceph_sqe_image *out)
 { return ceph_sqe_copy(f,bytes,d,capacity,out); }
+int cepheus_gpu_bandwidth_table(const struct ceph_bw_route *c,const struct ceph_bw_level *cl,const struct ceph_bw_route *d,const struct ceph_bw_level *dl,unsigned count,struct ceph_hfi_bw *out)
+{ return ceph_gpu_bw_table(c,cl,d,dl,count,out); }

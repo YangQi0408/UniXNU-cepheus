@@ -211,7 +211,10 @@ def report(blob,speed_bin=None):
                 if handle not in handles: raise ValueError('unresolved BCM reference')
                 target=handles[handle];name=strings(nodes[target]['qcom,bcm-name'])
                 if len(name)!=1: raise ValueError('invalid BCM resource name')
-                resources.append({'path':target,'name':name[0]})
+                rscs=cells(nodes[target]['qcom,rscs'])
+                if len(rscs)!=1 or rscs[0] not in handles: raise ValueError('ambiguous BCM RSC')
+                rscpath=handles[rscs[0]]
+                resources.append({'path':target,'name':name[0],'rsc_path':rscpath,'rsc_id':scalar(rscpath,'cell-id')})
             result.append({'node':node,'buswidth':scalar(node,'qcom,buswidth'),
                            'ports':scalar(node,'qcom,agg-ports'),'bcms':resources})
         return result

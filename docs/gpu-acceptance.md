@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前23个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前24个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -241,3 +241,13 @@ buffer可以配对complete/release；publish之后没有取消发布/直接释�
 API仅为内核内部用途，未建立IOUserClient或允许用户控制物理地址。
 单独生命周期测试覆盖lease/代次/发布/不确定完成路径，真实IOKit调用仍需完整
 XNU构建与后续cephmem自检；不把CPU pattern成功等同于DMA一致性验证。
+
+### 单GPU客户端带宽表生成
+
+`cepheus_gpu_bw.h`现可从明确路由节点宽度/ports、每个BCM的unit/VCD及单客户端
+AB/IB构建HFI BW输入；同一BCM覆盖多个节点时取最大归一化值，按VCD稳定排序，
+所有usecase的地址顺序/wait保持一致。FDT已确认路径BCM指向apps RSC(cell-id8000)，
+故ACV只使用该RSC定义的bit3（值8），不是普通IB数值，也不假装它是GMU自己的
+硬件DRV投票。该表来源对应KGSL查询apps interconnect route的路径。
+仍缺真实cmd-db unit/VCD采样以及平台端聚合/所有权接入；只对合成元数据执行，
+没有发电源/带宽请求。多客户端聚合、特殊ALC/其他RSC不在此API支持范围内。
