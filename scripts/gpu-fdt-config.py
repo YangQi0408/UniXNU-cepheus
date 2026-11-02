@@ -6,6 +6,7 @@ Speed bin is NEVER inferred from a filename/chipid or guessed from the fastest
 entry. --speed-bin may be supplied only after independent eFuse/kernel evidence.
 """
 import argparse
+from collections import deque
 import hashlib
 import json
 from pathlib import Path
@@ -178,6 +179,43 @@ def report(blob,speed_bin=None):
         if len({(r['src'],r['dst']) for r in rows})!=1: raise ValueError('changing bus path')
         return rows
     ddr=bus(gpu);cnoc=bus(gmu)
+    # The actual directed interconnect graph, not a hardcoded guessed path.
+    ids={}
+    for path,props in nodes.items():
+        if path.startswith('/soc/ad-hoc-bus/') and 'cell-id' in props:
+            ident=scalar(path,'cell-id')
+            if ident in ids: raise ValueError('duplicate interconnect cell-id')
+            ids[ident]=path
+    def route(rows):
+        src,dst=rows[0]['src'],rows[0]['dst']
+        if src not in ids or dst not in ids: raise ValueError('interconnect endpoint missing')
+        todo=deque([(ids[src],[ids[src]])]);found=[];steps=0
+        while todo:
+            steps+=1
+            if steps>16384: raise ValueError('interconnect traversal budget exceeded')
+            node,path=todo.popleft()
+            if node==ids[dst]:
+                found.append(path)
+                if len(found)>1: raise ValueError('ambiguous GPU bus path')
+                continue
+            if len(path)>=32: raise ValueError('interconnect depth exceeded')
+            for handle in cells(nodes[node]['qcom,connections']) if 'qcom,connections' in nodes[node] else []:
+                if handle not in handles: raise ValueError('unresolved interconnect edge')
+                child=handles[handle]
+                if child not in path: todo.append((child,path+[child]))
+        if len(found)!=1: raise ValueError('missing GPU bus path')
+        result=[]
+        for node in found[0]:
+            resources=[]
+            for handle in cells(nodes[node]['qcom,bcms']) if 'qcom,bcms' in nodes[node] else []:
+                if handle not in handles: raise ValueError('unresolved BCM reference')
+                target=handles[handle];name=strings(nodes[target]['qcom,bcm-name'])
+                if len(name)!=1: raise ValueError('invalid BCM resource name')
+                resources.append({'path':target,'name':name[0]})
+            result.append({'node':node,'buswidth':scalar(node,'qcom,buswidth'),
+                           'ports':scalar(node,'qcom,agg-ports'),'bcms':resources})
+        return result
+    routes={'ddr':route(ddr),'cnoc':route(cnoc)}
     for b in bins:
         for l in b['levels_descending']:
             if not 0<=l['bus_min']<=l['bus_index']<=l['bus_max']<len(ddr): raise ValueError('bus index out of range')
@@ -219,7 +257,7 @@ def report(blob,speed_bin=None):
         'gpu_registers':regs(gpu),'gmu_registers':regs(gmu),'gmu_hz':[n[1] for n in gmu_levels],
         'opp_levels':opps,'speed_bins':bins,
         'selected_bin':selected,'speed_bin_evidence':'caller-supplied; not checked by this tool' if selected else 'UNKNOWN; no eFuse read performed',
-        'ddr_vectors':ddr,'cnoc_vectors':cnoc,'streams':streams,'smmu_path':smmu,
+        'ddr_vectors':ddr,'cnoc_vectors':cnoc,'bus_routes':routes,'streams':streams,'smmu_path':smmu,
         'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,
         'limitations':['saved FDT only, no hardware execution','BCM cmd-db unit/width/VCD values still needed',
                         'not an ARC vote ownership proof','selected OPP phandle must replace generic sm8150 table']}

@@ -4,6 +4,7 @@
 #ifndef CEPHEUS_ARC_PROBE_H
 #define CEPHEUS_ARC_PROBE_H
 #include "cepheus_arc.h"
+#include "cepheus_bcm.h"
 void cepheus_gpu_arc_probe(void);
 
 static uint32_t
@@ -46,6 +47,16 @@ cepheus_gpu_arc_probe(void)
         printf("CEPHEUS ARC: 200MHz minimum candidate cx_hlvl=%u mx_hlvl=%u (NOT SENT)\n", cx, mx);
     else
         printf("CEPHEUS ARC: no exact MIN_SVS pair error=%d (NOT SENT)\n", error);
+    /* Exact resources on the saved live FDT GPU->DDR and GPU->CNOC paths.
+     * Address/unit/width/VCD must come from this boot's cmd-db, not defaults. */
+    const char *bcms[]={"SH0","MC0","ACV","SH2","SN15","SN3"};
+    for(unsigned i=0;i<sizeof(bcms)/sizeof(bcms[0]);++i) {
+        struct ceph_bcm_resource bcm;
+        int result=ceph_bcm_lookup(&db,bcms[i],&bcm);
+        if(result) {printf("CEPHEUS BCM: %s lookup error=%d; no votes\n",bcms[i],result);continue;}
+        printf("CEPHEUS BCM: %s address=%#x unit=%u width=%u vcd=%u (no votes)\n",
+            bcms[i],bcm.address,bcm.unit,(unsigned)bcm.width,(unsigned)bcm.vcd);
+    }
     for (unsigned t=0; t<RH_NORMAL_N; ++t) {
         uint32_t base=t*RH_TCS_STRIDE;
         uint32_t control=rh_read(rh_tcs,base+RH_CONTROL);

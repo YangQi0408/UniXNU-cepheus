@@ -37,6 +37,7 @@ jobs:
           cp cepheus/xnu/cepheus_cpu_policy.h dxb/patches/
           cp cepheus/xnu/cepheus_gpu_power.h dxb/patches/
           cp cepheus/xnu/cepheus_arc.h cepheus/xnu/cepheus_arc_probe.h dxb/patches/
+          cp cepheus/xnu/cepheus_bcm.h dxb/patches/
           for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
             cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
             cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h cepheus_smmu_install.h \
@@ -76,7 +77,7 @@ jobs:
           /tmp/pm4-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test
           /tmp/gmu-test
-          for name in gpu_power gpu_power_txn gmu_loader gmu_upload gmu_start hfi hfi_messages hfi_session gpu_vm smmu_plan smmu_install gpu_submit arc; do
+          for name in gpu_power gpu_power_txn gmu_loader gmu_upload gmu_start hfi hfi_messages hfi_session gpu_vm smmu_plan smmu_install gpu_submit arc bcm; do
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"
           done

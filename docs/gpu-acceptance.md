@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前18个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前20个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -202,3 +202,19 @@ mask0x400，因此GMU context的期望ACTLR为0x303，不应沿用测试中的0x
 
 验证命令：`CEPHEUS_LIVE_FDT=/path/live.dtb python3 scripts/test-gpu-fdt.py`。
 这只导出配置；BCM的cmd-db unit/width/VCD和当前电源投票仍需要相应证据。
+
+### CM3启动与BCM续作
+
+1d81a7b实现具名GMU寄存器启动序列：仅chipid0x06040001、无重叠HFI/log区间，
+在已持有power/reset/SMMU/PDC/image前提下清旧init、配置启动地址/chipid/fence/
+IFPC、解除CM3 reset，等待新BABEFACE及HFI status，再校验HFI v2。每次操作
+前校验租约与fault、双时间/次数上限，失败隔离不重启。CI41461702642完整通过，
+仅证明七入口编译/链接及19组host测试，不代表已在真机解除reset。
+
+FDT脚本进一步解析真实有向互连路径：DDR为GPU→LLCC→MC→EBI，BCM依次SH0/
+MC0/ACV；CNOC为GPU→GEMNOC-SNOC→GEMNOC→CNOC，BCM为SH2/SN15/SN3。
+`cepheus_bcm.h`依据KGSL实现unit/width/VCD元数据、AB/IB归一化、稳定VCD排序、
+每组末项commit和对应command-index wait位（不照抄上游按usecase索引位的疑点）。
+值饱和到14bit，零流量仍可携带commit但valid=0。真实cmd-db元数据只读探测新增
+上述六资源，不写票；ACV是RSC相关bitmask资源，不能套普通BW归一化。还没有
+声称这些输入足以生成最终HFI BW表：需完成ACV身份/聚合策略及实际cmd-db采样。
