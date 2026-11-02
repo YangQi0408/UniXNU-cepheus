@@ -60,3 +60,5 @@ int cepheus_gpu_gmu_park(struct ceph_gmu_park *s,struct ceph_gmu_park_ops *b)
 { return ceph_gmu_park_slumbered(s,b); }
 int cepheus_gpu_gmu_slumber(struct ceph_gmu_slumber *s,struct ceph_gmu_slumber_ops *b,struct ceph_hfi_session *h,unsigned bw,unsigned freq,unsigned nb,unsigned ng)
 { return ceph_gmu_slumber_request(s,b,h,bw,freq,nb,ng); }
+int cepheus_gpu_acd_message(struct ceph_qmp_tx *s,struct ceph_qmp_ops *b,unsigned enable)
+{ return ceph_qmp_send_acd(s,b,enable); }

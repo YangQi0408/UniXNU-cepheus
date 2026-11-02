@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前33个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前34个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -388,3 +388,9 @@ CP恢复列表核对加强：除保护控制位外，还逐项验证32个有序�
 选择的A640表完全一致（重叠span保留原顺序，最后span保护到寄存器空间末端）。
 `test-cp-source-layout.py`独立计算源span编码对照通过。仅编码/验证保护，不
 通过关闭CP保护来让初始化或命令测试“成功”。
+
+bin1 ACD还需要AOP通知。`cepheus_qmp_acd.h`只允许固定32字节GPU ACD文本，
+在已经连接且独占的mailbox上按payload→length→readback/屏障→通知顺序发送，
+等待length清零消费确认；busy/租约改变/1秒或次数超限均拒绝并保留不确定状态。
+没有任意消息接口，也不抢占或重连其他客户端通道。尚缺真实QMP连接/所有权
+后端；消费确认也不等于应用层ACD已成功，须结合HFI feature状态验收。
