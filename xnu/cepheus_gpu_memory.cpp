@@ -80,7 +80,9 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     bytes=(bytes+host_page-1)&~(host_page-1);
     unsigned pages=(unsigned)(bytes/4096),used=__atomic_load_n(&ceph_memory_pages,__ATOMIC_ACQUIRE);
     do {
-        if (used>128 || pages>128-used) return -1;
+        /* ICACHE+DCACHE alone need480KiB; include HFI/log/page tables and
+         * immutable firmware snapshots while retaining a hard1MiB cap. */
+        if (used>256 || pages>256-used) return -1;
     } while (!__atomic_compare_exchange_n(&ceph_memory_pages,&used,used+pages,false,
         __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
     b->bytes=bytes;

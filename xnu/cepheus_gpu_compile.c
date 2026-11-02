@@ -44,3 +44,5 @@ int cepheus_gpu_vm_build(struct ceph_vm_pool *pool,const struct ceph_vm_region *
 { return ceph_vm_build(pool,regions,count); }
 int cepheus_gpu_vm_lookup(struct ceph_vm_pool *pool,uint64_t va,uint64_t *pa,uint64_t *flags)
 { return ceph_vm_lookup(pool,va,pa,flags); }
+int cepheus_gpu_va_build(const struct ceph_gpu_backing *backing,struct ceph_gpu_va_plan *plan)
+{ return ceph_gpu_va_plan(backing,plan); }

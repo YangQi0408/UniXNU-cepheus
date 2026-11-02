@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前26个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前27个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -233,7 +233,7 @@ MC0/ACV；CNOC为GPU→GEMNOC-SNOC→GEMNOC→CNOC，BCM为SH2/SN15/SN3。
 
 ### XNU内部内存池
 
-内存模块扩展为16槽/512KiB总预算的真实IOKit池：64-bit句柄含generation和
+内存模块扩展为16槽/1MiB总预算的真实IOKit池：64-bit句柄含generation和
 slot，旧句柄不能释放重用后的分配；借出的CPU view阻止publish/free；CPU-only
 buffer可以配对complete/release；publish之后没有取消发布/直接释放接口。
 分配与complete操作在mutex外执行，槽位保持保留；完成失败保留原descriptor
@@ -277,6 +277,13 @@ sealed状态不再允许获取可写view，也不允许直接publish为GPU DMA�
 非arm主机屏障仅在显式HOST_TEST且非KERNEL时可编译，不能进入XNU构建。
 
 内存池按实际`page_size`计费：SWEET为16KiB，GPU表仍为4KiB。20KiB HFI请求
-实际分配32KiB；4KiB请求实际占16KiB，均计入512KiB预算。CPU view返回实际
+实际分配32KiB；4KiB请求实际占16KiB，均计入1MiB预算。CPU view返回实际
 分配容量，GPU只映射明确需要的4KiB区段。host测试刻意模拟16KiB主机页，
 并验证槽位用尽、页取整和固件valid-length不随allocation-size混淆。
+
+GMU VA计划连接allocator与页表：ICACHE@0x4000、DCACHE@0x44000各240KiB；
+HFI@0x60000000映射20KiB，log@0x60100000映射4KiB。host按16KiB取整的多余
+页面不进入GPU VA；目标PA必须来自明确owned backing、不能重叠。全部Normal-NC，
+ICACHE privileged RO/execute、DCACHE/log privileged RW/NX、HFI unprivileged RW/NX。
+初版512KiB预算不足以同时容纳480KiB缓存、表/HFI/log/固件快照，已提升到有界1MiB，
+保留单次256KiB限制及完整预算测试；不是无限增长的分配器。

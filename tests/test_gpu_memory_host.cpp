@@ -35,9 +35,9 @@ int main(int argc,char **argv)
     });
     for(auto &t:threads)t.join();
     assert(!mock_io::live && !mock_io::prepared);
-    uint64_t a,b,c;assert(!cepheus_gpu_memory_alloc(256*1024,&a));assert(!cepheus_gpu_memory_alloc(256*1024,&b));
+    uint64_t large[4],c;for(auto &x:large)assert(!cepheus_gpu_memory_alloc(256*1024,&x));
     assert(cepheus_gpu_memory_alloc(4096,&c)<0 && !c);
-    assert(!cepheus_gpu_memory_release_cpu(a));assert(!cepheus_gpu_memory_release_cpu(b));
+    for(auto x:large)assert(!cepheus_gpu_memory_release_cpu(x));
     std::vector<uint8_t> zeros(37680);assert(cepheus_gpu_firmware_snapshot(0,zeros.data(),zeros.size(),&h)<0 && !h && !mock_io::live);
     if(argc==3)for(unsigned kind=0;kind<2;++kind){
         std::ifstream f(argv[kind+1],std::ios::binary);assert(f);std::vector<uint8_t> fw((std::istreambuf_iterator<char>(f)),{});
