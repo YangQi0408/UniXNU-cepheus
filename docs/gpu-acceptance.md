@@ -452,3 +452,24 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 要求fresh ACK且GX power/clock均on才报告HELD，清ACK不释放请求。有未完成任务
 不能释放OOB；发release也不当作GX已off。失败保留请求和资源供后端恢复，不写
 保留的boot-slumber/DCVS OOB id6/7。此模块仍以假寄存器测试，不构成实际GX上电。
+
+### 复审后的失败策略与属性查询
+
+复审08c03ba7确认共享发布、显式NC映射、悬空table及ALLOCATING注释已处理，
+但指出一次不确定退休将保留560KiB，原1MiB预算不能创建第二个workspace。
+此诊断阶段明确采用**失败即终止本次GPU会话**，而不是假设超时可重试：HFI超时
+会话已poisoned，重复命令/状态不明确时重放可能不安全。增加pool-terminal闩锁、
+显式错误日志和group_status查询，失败不再反复分配尝试。RETAINED明确是终止态。
+这解决了含糊状态和静默资源丢失，但**不提供生产级故障恢复/可用性保证**。
+不能用更多内存掩盖未停稳硬件继续DMA的可能性。
+
+复审称success=0会清group与源码不符：该分支原本提前return且保留身份；真正
+缺口在已detach但某complete失败后的无条件清group。现仅全部释放成功时清身份，
+otherwise保留DETACHED_RETAINED状态、root/ASID/handles及剩余bytes。两类失败
+有各自测试，不向外暴露强制解除隔离。对complete失败能否重试仍需确认其原子性，
+不能因为GPU已停就假定重复complete无害。
+
+CI41494467129发现IOKit导出头没有pmap_cache_attributes声明（MACH_KERNEL_PRIVATE
+隔离）。改用XNU已有C ABI桥`IODefaultCacheBits(pa)`，其真实实现正是
+`pmap_cache_attributes(pa >> PAGE_SHIFT)`；不设置MACH私有宏污染整个IOKit编译。
+仍逐页检查实际WCOMB属性，未把检查删掉。该修复需要下一次完整构建确认。

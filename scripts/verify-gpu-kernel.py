@@ -70,7 +70,7 @@ def main():
                 '_cepheus_gpu_memory_publish','_cepheus_gpu_memory_release_cpu',
                 '_cepheus_gpu_firmware_snapshot','_cepheus_gpu_firmware_get'}
     memory_api |= {'_cepheus_gpu_memory_share_workspace','_cepheus_gpu_memory_retire_workspace',
-                   '_cepheus_gmu_workspace_share','_cepheus_gmu_workspace_retire'}
+                   '_cepheus_gmu_workspace_share','_cepheus_gmu_workspace_retire','_cepheus_gpu_memory_group_status'}
     if memory_api - symbols:
         raise ValueError(f'missing linked memory lifecycle APIs: {sorted(memory_api - symbols)}')
     if subprocess.check_output([nm, '-u', str(args.kernel)], text=True).strip():

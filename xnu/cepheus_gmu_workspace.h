@@ -8,6 +8,7 @@
 #include "cepheus_gpu_va.h"
 #include "cepheus_gpu_retire.h"
 enum ceph_workspace_state {CE_WS_NEW,CE_WS_BUILDING,CE_WS_READY_CPU,CE_WS_RELEASED,CE_WS_FAILED,CE_WS_RETAINED,CE_WS_SHARED};
+/* RETAINED is terminal for this workspace, not a retry indication. */
 struct ceph_gmu_workspace {
     uint64_t handles[5];struct ceph_gpu_memory_view views[5];unsigned leased;
     struct ceph_gpu_va_plan layout;struct ceph_vm_pool table;

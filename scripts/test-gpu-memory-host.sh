@@ -30,4 +30,4 @@ if [[ $# -ge 1 ]]; then "$tmp/upload" "$1"; else "$tmp/upload"; fi
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gpu_retire_main.cpp" \
     "$tmp/workspace.o" "$tmp/retire.o" "$tmp/retire_test.o" -o "$tmp/retire_test" "${libs[@]}"
-for mode in 0 1 2 3 4; do "$tmp/retire_test" "$mode"; done
+for mode in 0 1 2 3 4 5; do "$tmp/retire_test" "$mode"; done

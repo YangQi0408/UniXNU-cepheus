@@ -14,8 +14,10 @@
 #include <mach/vm_param.h>
 #if defined(KERNEL)
 extern "C" {
-#include <vm/pmap.h>
 #include <vm/memory_types.h>
+/* IOKitServer.h hides this bridge behind MACH_KERNEL_PRIVATE. Same ABI as
+ * osfmk/device/iokit_rpc.c, which calls pmap_cache_attributes(pa>>PAGE_SHIFT). */
+unsigned int IODefaultCacheBits(addr64_t pa);
 }
 #endif
 #include <sys/systm.h>
@@ -39,6 +41,8 @@ static IOLock *ceph_pool_lock;
 static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;uint64_t group;} ceph_pool[16];
 static struct ceph_gpu_publication ceph_groups[16];
 static uint64_t ceph_group_generation;
+static unsigned ceph_pool_terminal;
+static unsigned ceph_group_status[16];
 
 static void ceph_gpu_memory_barrier(void)
 {
@@ -130,8 +134,7 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
      * effective host-page cache attributes before exposing any shared view.
      * Never repair this by forcing attributes on an unowned physical page. */
     for(size_t offset=0;offset<bytes;offset+=host_page) {
-        ppnum_t page=(ppnum_t)((b->pa+offset)/host_page);
-        unsigned attrs=pmap_cache_attributes(page)&VM_WIMG_MASK;
+        unsigned attrs=IODefaultCacheBits(b->pa+offset)&VM_WIMG_MASK;
         if(attrs!=VM_WIMG_WCOMB) {
             printf("CEPHEUS GPU MEM: pmap cache mismatch attrs=%#x expected=%#x; allocation refused\n",attrs,VM_WIMG_WCOMB);
             ceph_gpu_buffer_dispose_cpu(b);return -1;
@@ -158,6 +161,7 @@ cepheus_gpu_memory_alloc(size_t bytes,uint64_t *handle)
     if(!handle || !bytes || bytes>256*1024 || (bytes&4095u))return -1;
     *handle=0;IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int index=-1;
+    if(ceph_pool_terminal) {IOLockUnlock(lock);return -1;}
     for(unsigned i=0;i<16;++i)if(!ceph_mem_reserve(&ceph_pool[i].state)){index=(int)i;break;}
     IOLockUnlock(lock);if(index<0)return -1;
     auto *slot=&ceph_pool[index];
@@ -335,7 +339,7 @@ extern "C" int ceph_memory_share_group(const uint64_t handles[5],const struct ce
             auto *slot=&ceph_pool[indices[i]];
             slot->state.state=CE_MEM_SHARED;slot->buffer.published=true;slot->group=p.group;
         }
-        ceph_groups[group]=p;*out=p;e=0;
+        ceph_groups[group]=p;ceph_group_status[group]=CE_GPU_GROUP_SHARED;*out=p;e=0;
     }
 done:IOLockUnlock(lock);return e;
 }
@@ -347,6 +351,7 @@ extern "C" int ceph_memory_retire_begin(const struct ceph_gpu_publication *p)
     if(ceph_memory_group_indices(p,indices)<0)goto done;
     for(unsigned i=0;i<5;++i)if(!ceph_mem_can_retire(&ceph_pool[indices[i]].state))goto done;
     for(unsigned i=0;i<5;++i)ceph_pool[indices[i]].state.state=CE_MEM_RETIRING;
+    ceph_group_status[(unsigned)(p->group&255u)-1]=CE_GPU_GROUP_RETIRING;
     e=0;
 done:IOLockUnlock(lock);return e;
 }
@@ -358,8 +363,10 @@ extern "C" int ceph_memory_retire_finish(const struct ceph_gpu_publication *p,in
     if(group<0){IOLockUnlock(lock);return -1;}
     for(unsigned i=0;i<5;++i)if(ceph_pool[indices[i]].state.state!=CE_MEM_RETIRING){IOLockUnlock(lock);return -1;}
     if(!success) {
+        ceph_pool_terminal=1;
+        ceph_group_status[group]=CE_GPU_GROUP_UNCERTAIN;
         for(unsigned i=0;i<5;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
-        printf("CEPHEUS GPU MEM: retired group=%#llx failed; all five allocations retained\n",(unsigned long long)p->group);
+        printf("CEPHEUS GPU MEM: terminal GPU session group=%#llx; all five allocations retained; new allocations blocked\n",(unsigned long long)p->group);
         IOLockUnlock(lock);return -1;
     }
     /* Stop/unmap/TLB proof is complete, callers have surrendered CPU views.
@@ -381,6 +388,22 @@ extern "C" int ceph_memory_retire_finish(const struct ceph_gpu_publication *p,in
             (unsigned)indices[i-1],(unsigned long)slot->buffer.bytes);
         IOLockUnlock(lock);
     }
-    IOLockLock(lock);ceph_groups[group]={};IOLockUnlock(lock);return e;
+    IOLockLock(lock);
+    if(!e) {ceph_groups[group]={};ceph_group_status[group]=0;}
+    else {ceph_group_status[group]=CE_GPU_GROUP_DETACHED_RETAINED;ceph_pool_terminal=1;}
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int cepheus_gpu_memory_group_status(uint64_t group,struct ceph_gpu_group_status *out)
+{
+    if(!out)return -1;
+    *out={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);unsigned slot=(unsigned)(group&255u);
+    if(!group || !slot || slot>16 || ceph_groups[slot-1].group!=group) {IOLockUnlock(lock);return -1;}
+    out->identity=ceph_groups[slot-1];out->state=ceph_group_status[slot-1];out->pool_terminal=ceph_pool_terminal;
+    for(unsigned i=0;i<16;++i)if(ceph_pool[i].group==group && ceph_pool[i].buffer.memory) {
+        ++out->retained_buffers;out->retained_bytes+=ceph_pool[i].buffer.bytes;
+    }
+    IOLockUnlock(lock);return 0;
 }
 #endif

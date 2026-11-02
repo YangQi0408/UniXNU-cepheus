@@ -27,6 +27,12 @@ struct ceph_gpu_retire_ops {
     const struct ceph_smmu_plan *plan;
     unsigned bw,freq,bw_levels,gx_levels;
 };
+enum {CE_GPU_GROUP_SHARED=1,CE_GPU_GROUP_RETIRING,CE_GPU_GROUP_UNCERTAIN,CE_GPU_GROUP_DETACHED_RETAINED};
+struct ceph_gpu_group_status {
+    struct ceph_gpu_publication identity;
+    uint64_t retained_bytes;
+    unsigned state,retained_buffers,pool_terminal;
+};
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,6 +41,10 @@ extern "C" {
  * Geometry/materialized plan must be validated by higher-level workspace. */
 int cepheus_gpu_memory_share_workspace(const uint64_t handles[5],const struct ceph_smmu_plan *,struct ceph_gpu_publication *);
 int cepheus_gpu_memory_retire_workspace(const struct ceph_gpu_publication *,struct ceph_gpu_retire_ops *);
+/* Diagnosis only: no clear/reset/retry controls. Failed hardware retirement
+ * ends this diagnostic GPU session for the boot, deliberately not recoverable
+ * through a blind timeout retry. Group/context evidence survives partial free. */
+int cepheus_gpu_memory_group_status(uint64_t,struct ceph_gpu_group_status *);
 #ifdef __cplusplus
 }
 #endif
