@@ -46,3 +46,5 @@ int cepheus_gpu_vm_lookup(struct ceph_vm_pool *pool,uint64_t va,uint64_t *pa,uin
 { return ceph_vm_lookup(pool,va,pa,flags); }
 int cepheus_gpu_va_build(const struct ceph_gpu_backing *backing,struct ceph_gpu_va_plan *plan)
 { return ceph_gpu_va_plan(backing,plan); }
+int cepheus_gpu_pdc_install(struct ceph_pdc_install *s,struct ceph_pdc_ops *b,const struct ceph_pdc_input *in)
+{ return ceph_pdc_install_a640v2(s,b,in); }

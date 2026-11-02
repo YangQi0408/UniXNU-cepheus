@@ -13,6 +13,7 @@
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_vm.h"
 #include "cepheus_gpu_va.h"
+#include "cepheus_gpu_pdc.h"
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
@@ -29,4 +30,5 @@ int cepheus_gpu_sqe_snapshot_copy(uint64_t,uint8_t *,size_t,struct ceph_sqe_imag
 int cepheus_gpu_vm_build(struct ceph_vm_pool *,const struct ceph_vm_region *,unsigned);
 int cepheus_gpu_vm_lookup(struct ceph_vm_pool *,uint64_t,uint64_t *,uint64_t *);
 int cepheus_gpu_va_build(const struct ceph_gpu_backing *,struct ceph_gpu_va_plan *);
+int cepheus_gpu_pdc_install(struct ceph_pdc_install *,struct ceph_pdc_ops *,const struct ceph_pdc_input *);
 #endif

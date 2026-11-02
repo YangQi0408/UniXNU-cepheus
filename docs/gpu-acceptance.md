@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前27个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前28个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -294,3 +294,13 @@ ICACHE privileged RO/execute、DCACHE/log privileged RW/NX、HFI unprivileged RW
 恢复信息。`cephmem=2`是默认关闭的CPU-only整体工作区自检，不写SMMU、不发
 电源请求、不发布GPU DMA。host测试实际调用该C文件和真实内存池C++实现，
 覆盖准备成功、每个槽位不足位置、物理段不完整、部分清理失败及重入拒绝。
+
+### PDC/RSC冷启动脚本
+
+`cepheus_gpu_pdc.h`固定A640-v2的48项配置/微序列写入，word-offset转换为每个
+窗口的byte offset，要求实际PDC地址为0xb290000/0xb490000。三个ePCB资源地址
+0x30010/0x30000/0x30090按KGSL及Linux v6.12同源序列保留，但不虚构其名称；
+begin后端必须将其与本次cmd-db、所需索引含义、GPU域归属和停止状态核对。
+冷启动拒绝已启用的PDC/TCS1/TCS3；先写完整payload，最后才enable banks/PDC。
+测试遍历48写入和全部回调失败，失败后不关共享电源、不释放潜在设备资源。
+该模块没有apps-DRV投票操作，也不能解决apps投票继承；当前只在假寄存器执行。
