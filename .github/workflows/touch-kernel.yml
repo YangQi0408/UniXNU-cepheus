@@ -115,6 +115,9 @@ jobs:
           cmp cepheus/xnu/cepheus_fastboot.h dxb/xnu/bsd/dev/cepheus_fastboot.h
           cmp cepheus/xnu/cepheus_soc.c dxb/xnu/bsd/dev/cepheus_soc.c
           python3 -c 'from pathlib import Path;d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes();assert all(s in d for s in (b"SWEET BLANK:",b"one-shot Home complete",b"SWEET GPI: SMMU",b"SFB1",b"SWEET FASTBOOT: read-only endpoint",b"sweetfastboot"))'
+          # Compile both key branches using the real emitted XNU command. Only
+          # temporary fixture objects are made; no fixture kernel is published.
+          python3 cepheus/scripts/verify-fastboot-build.py dxb "$K"
           cp "$K" out/kernel.macho
           (cd out && shasum -a 256 kernel.macho > SHA256SUMS)
           git -C cepheus rev-parse HEAD > out/device-commit.txt

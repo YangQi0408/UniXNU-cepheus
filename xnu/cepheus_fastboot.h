@@ -33,4 +33,12 @@ struct cepheus_fastboot_budget {
 void cepheus_fastboot_budget_init(struct cepheus_fastboot_budget *, uint64_t);
 /* -1: lifetime expired/clock invalid; 0: yield; 1: one receive attempt allowed. */
 int cepheus_fastboot_budget_take(struct cepheus_fastboot_budget *, uint64_t);
+
+#if defined(KERNEL) || defined(CEPHEUS_FASTBOOT_XNU)
+struct ifnet;
+void cepheus_fastboot_start(struct ifnet *);
+/* Asynchronous stop; acknowledgement covers this endpoint's resources only. */
+void cepheus_fastboot_request_stop(void);
+int cepheus_fastboot_is_stopped(void);
+#endif
 #endif
