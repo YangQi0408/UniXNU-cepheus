@@ -31,7 +31,9 @@ class Integration(unittest.TestCase):
                     'bsd/dev/sweet_rpmh.c\t\t\tstandard\nbsd/dev/sweet_spmi.c\t\t\tstandard\n',
                 'iokit/conf/files.arm64': 'iokit/Kernel/arm/SweetWatchdog.cpp                               optional iokitcpp\n'
                     'iokit/Kernel/arm/SweetSurface.cpp                                optional iokitcpp\n'
-                    'iokit/Kernel/arm/SweetFramebuffer.cpp                            optional iokitcpp\n',
+                    'iokit/Kernel/arm/SweetFramebuffer.cpp                            optional iokitcpp\n'
+                    'iokit/Kernel/arm/SweetBattery.cpp                                optional iokitcpp\n'
+                    'iokit/Kernel/arm/hid/SweetHID.cpp                                optional iokitcpp\n',
             }.items():
                 path = tree / name
                 path.parent.mkdir(parents=True, exist_ok=True)

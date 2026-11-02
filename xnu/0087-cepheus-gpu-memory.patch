@@ -10,8 +10,9 @@
  bsd/dev/sweet_spmi.c			standard
 --- a/iokit/conf/files.arm64
 +++ b/iokit/conf/files.arm64
-@@ -15,3 +15,4 @@
+@@ -15,4 +15,5 @@
  iokit/Kernel/arm/SweetWatchdog.cpp                               optional iokitcpp
  iokit/Kernel/arm/SweetSurface.cpp                                optional iokitcpp
  iokit/Kernel/arm/SweetFramebuffer.cpp                            optional iokitcpp
 +iokit/Kernel/arm/cepheus_gpu_memory.cpp                          optional iokitcpp
+ iokit/Kernel/arm/SweetBattery.cpp                                optional iokitcpp
