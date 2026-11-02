@@ -58,3 +58,5 @@ int cepheus_gpu_smmu_detach(struct ceph_smmu_detach *s,struct ceph_smmu_detach_o
 { return ceph_smmu_detach_context(s,b,p); }
 int cepheus_gpu_gmu_park(struct ceph_gmu_park *s,struct ceph_gmu_park_ops *b)
 { return ceph_gmu_park_slumbered(s,b); }
+int cepheus_gpu_gmu_slumber(struct ceph_gmu_slumber *s,struct ceph_gmu_slumber_ops *b,struct ceph_hfi_session *h,unsigned bw,unsigned freq,unsigned nb,unsigned ng)
+{ return ceph_gmu_slumber_request(s,b,h,bw,freq,nb,ng); }

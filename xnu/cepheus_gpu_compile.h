@@ -18,6 +18,7 @@
 #include "cepheus_cp_init.h"
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_park.h"
+#include "cepheus_gmu_slumber.h"
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
@@ -40,4 +41,5 @@ int cepheus_gpu_cp_init_packet(uint32_t *,unsigned,uint64_t,size_t);
 int cepheus_gpu_cp_reglist(struct ceph_cp_snapshot_ops *,uint32_t *,unsigned);
 int cepheus_gpu_smmu_detach(struct ceph_smmu_detach *,struct ceph_smmu_detach_ops *,const struct ceph_smmu_plan *);
 int cepheus_gpu_gmu_park(struct ceph_gmu_park *,struct ceph_gmu_park_ops *);
+int cepheus_gpu_gmu_slumber(struct ceph_gmu_slumber *,struct ceph_gmu_slumber_ops *,struct ceph_hfi_session *,unsigned,unsigned,unsigned,unsigned);
 #endif

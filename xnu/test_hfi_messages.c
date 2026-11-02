@@ -37,5 +37,8 @@ int main(void)
     assert(ceph_hfi_feature(out,4,7,1,0x3)==4 && out[0]==0x40b && out[3]==3);
     assert(ceph_hfi_feature(out,4,31,0,0)==CE_HFI_INVALID);
     assert(ceph_hfi_core_start(out,2)==2 && out[0]==0x20e && !out[1]);
+    assert(ceph_hfi_slumber(out,3,3,1,12,8)==3 && out[0]==0x321 && out[1]==3 && out[2]==1);
+    assert(ceph_hfi_slumber(out,3,12,1,12,8)==CE_HFI_INVALID);
+    assert(ceph_hfi_slumber(out,3,3,8,12,8)==CE_HFI_INVALID);
     puts("HFI messages: A640 fixed layouts, ARC index packing, real-table bounds and zero tails PASS");
 }

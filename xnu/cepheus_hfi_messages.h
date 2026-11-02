@@ -112,4 +112,12 @@ static inline int ceph_hfi_core_start(uint32_t *out,unsigned capacity)
     if(!out || capacity<2)return CE_HFI_INVALID;
     out[0]=ceph_hfi_header(14,2,0,0);out[1]=0;return 2;
 }
+/* HFI ACK is only acceptance, not proof that GX has entered slumber. */
+static inline int ceph_hfi_slumber(uint32_t *out,unsigned capacity,unsigned bw,unsigned freq,
+    unsigned bw_levels,unsigned gx_levels)
+{
+    if(!out || capacity<3 || bw_levels<2 || bw_levels>16 || gx_levels<2 || gx_levels>16 ||
+        bw>=bw_levels || freq>=gx_levels)return CE_HFI_INVALID;
+    out[0]=ceph_hfi_header(33,3,0,0);out[1]=bw;out[2]=freq;return 3;
+}
 #endif
