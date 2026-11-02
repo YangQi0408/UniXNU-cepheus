@@ -117,7 +117,7 @@ IOBufferMemoryDescriptor，但不承诺物理连续。`SweetFramebuffer.cpp:pres
 5. 离屏图像逐像素对照，再进入可回退的Framebuffer blit。
 6. Metal是独立后续里程碑；必须应用真实调用+渲染/同步测试才能宣称支持。
 
-离线回归命令：`bash scripts/test-gpu-stack.sh`（目前24个程序、UBSan）。
+离线回归命令：`bash scripts/test-gpu-stack.sh`（目前26个程序、UBSan）。
 补丁顺序：`python3 scripts/test-gpu-arc.py /path/to/pinned/ios-sweet/xnu/patches`。
 mock日志标注“mock/no backend/not installed”，任何失败不得标完成。
 
@@ -251,3 +251,15 @@ AB/IB构建HFI BW输入；同一BCM覆盖多个节点时取最大归一化值，
 硬件DRV投票。该表来源对应KGSL查询apps interconnect route的路径。
 仍缺真实cmd-db unit/VCD采样以及平台端聚合/所有权接入；只对合成元数据执行，
 没有发电源/带宽请求。多客户端聚合、特殊ALC/其他RSC不在此API支持范围内。
+
+### 固件身份与故障快照
+
+XNU GMU upload和SQE copy入口现在先用corecrypto SHA256验证固定本地artifact
+大小/摘要（host用OpenSSL/CommonCrypto）。两个真实文件通过，单bit破坏拒绝。
+这是文件身份校验，不是Qualcomm PAS签名认证；输入仍须在hash至使用期间保持
+不可变，不能把可被用户修改的共享buffer直接传入。
+
+故障快照接口依据后端当前可安全访问的域分别读CP/GMU/SMMU；没有GX访问租约
+就不读GX，未读域不能记成clean。保留CP fault/protect、SMMU FSR/FSYNR/FAR及
+时间戳，FSR前后改变或MULTI时不声称FAR原子一致。不做IRQ W1C/clear/reset，
+避免破坏第一现场或误清其他客户端错误。该接口仍是具名寄存器后端，不对应用开放。
