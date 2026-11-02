@@ -6,12 +6,14 @@
 #define CEPHEUS_HFI_BOOT_H
 #include "cepheus_hfi_messages.h"
 #include "cepheus_hfi_session.h"
+#include "cepheus_gpu_bin.h"
 struct ceph_hfi_boot_config {
     uint32_t hfi_version,min_fw_minor,throttle_mask;
     const struct ceph_hfi_opp *gx,*cx;unsigned ng,nc;
     const struct ceph_arc_resource *gfx,*cxl,*mx;
     const struct ceph_hfi_bw *bw;
     const struct ceph_hfi_acd *acd; /* NULL only when platform ACD is not selected */
+    const struct ceph_gpu_bin_policy *policy;
 };
 static inline int ceph_hfi_boot_a640(struct ceph_hfi_session *s,
     const struct ceph_hfi_boot_config *c,uint32_t *fw_version)
@@ -19,7 +21,9 @@ static inline int ceph_hfi_boot_a640(struct ceph_hfi_session *s,
     if(!fw_version)return CE_HFI_INVALID;
     *fw_version=0;
     if(!s || !s->tx || !s->rx || !c || s->sequence || s->poisoned || s->busy ||
-        (c->hfi_version>>28)!=2 || c->min_fw_minor>4095 || !c->throttle_mask)
+        (c->hfi_version>>28)!=2 || c->min_fw_minor>4095 || !ceph_gpu_bin_policy_valid(c->policy) ||
+        c->ng!=c->policy->gx_levels || c->throttle_mask!=c->policy->throttle_mask ||
+        (!!c->acd)!=c->policy->acd)
         return CE_HFI_INVALID;
     uint32_t perf[59],bw[160],acd[17],small[4],reply[16];unsigned n;
     if(ceph_hfi_perf(perf,59,c->gx,c->ng,c->cx,c->nc,c->gfx,c->cxl,c->mx)!=59 ||
@@ -44,9 +48,12 @@ static inline int ceph_hfi_boot_a640(struct ceph_hfi_session *s,
         ceph_hfi_feature(small,4,12,1,0);
         e=ceph_hfi_exchange(s,small,4,reply,16,&n);if(e)return e;
     }
-    /* Do not silently disable LM/thermal policy in a bringup convenience path. */
-    ceph_hfi_feature(small,4,7,1,c->throttle_mask);
-    e=ceph_hfi_exchange(s,small,4,reply,16,&n);if(e)return e;
+    /* Source-mandated bin0 disables LM and ACD; do not invent a uniform LM
+     * enable policy. Platform still needs independent TSENS/lifetime safeguards. */
+    if(c->policy->lm) {
+        ceph_hfi_feature(small,4,7,1,c->throttle_mask);
+        e=ceph_hfi_exchange(s,small,4,reply,16,&n);if(e)return e;
+    }
     ceph_hfi_core_start(small,4);
     e=ceph_hfi_exchange(s,small,2,reply,16,&n);if(e)return e;
     *fw_version=version;return 0;

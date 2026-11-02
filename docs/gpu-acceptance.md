@@ -147,8 +147,8 @@ CI41396451358（b51f525）通过14组C/UBSan、patch顺序测试及完整XNU构�
   错误/不匹配/未知异步请求标记session与queue不可重试。ACK外层ID不强求等于
   命令ID（KGSL匹配依据是回显req_hdr），避免虚构ABI要求。
 - `cepheus_hfi_boot.h`按A640顺序进行FW_VER→PERF→BW→ECP disable→可选ACD
-  配置→LM enable→CORE_START；要求调用者给出有效thermal throttle mask，不
-  悄悄跳过温控。模拟固件从真实ring取命令再回ACK，覆盖每条命令失败、队列
+  配置→按已验证bin选择LM→CORE_START；要求调用者给出有效bin策略和对应
+  throttle mask。模拟固件从真实ring取命令再回ACK，覆盖每条命令失败、队列
   wrap/full、陈旧ACK、版本错误、异步错误、时钟倒退/冻结与超时。
 - `cepheus_gmu_upload.h`具体执行ITCM/DTCM的LE32 stores和ICACHE/DCACHE映射
   拷贝，而非write_block成功桩。先验证全部目标、别名、计划/固件重叠和映射
@@ -304,3 +304,14 @@ begin后端必须将其与本次cmd-db、所需索引含义、GPU域归属和停
 冷启动拒绝已启用的PDC/TCS1/TCS3；先写完整payload，最后才enable banks/PDC。
 测试遍历48写入和全部回调失败，失败后不关共享电源、不释放潜在设备资源。
 该模块没有apps-DRV投票操作，也不能解决apps投票继承；当前只在假寄存器执行。
+
+### A640v2 bin策略修正
+
+`adreno_a6xx.c:a6xx_efuse_power_features`对speed_bin0清除LM控制位，
+`kgsl_gmu.c:gmu_aop_mailbox_init`对A640v2/bin0直接返回，不启用ACD。
+因此HFI boot不再统一发送LM enable：bin0为8档（含off）、throttle0x80、
+无ACD/LM；bin1为7档、throttle0x40，需要ACD且启用LM。策略解码仅接受
+chipid0x06040001和明确QFPROM读数(mask0xe0000000>>29)得到的0/1，其他拒绝。
+FDT仅提供可选bin，不能凭表存在推断本机是0或1；当前尚未读本机speed-bin。
+两种握手命令序列均有测试。独立TSENS/运行时限等热安全仍是平台要求，不能
+把原驱动关闭某硬件特性的bin策略误解为无需温控。

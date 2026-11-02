@@ -168,7 +168,8 @@ def report(blob,speed_bin=None):
         throttle=scalar(gpu,'qcom,throttle-pwrlevel')
         if initial>=len(levels)-1 or throttle>=len(levels): raise ValueError('bad initial/throttle index')
         mask=((1<<(throttle+1))-1)<<(len(levels)-1-throttle)
-        bins.append({'bin':index,'initial_index':initial,'throttle_mask':mask,'levels_descending':levels})
+        bins.append({'bin':index,'initial_index':initial,'throttle_mask':mask,'levels_descending':levels,
+                     'lm_enabled_by_source':index!=0,'acd_mailbox_by_source':index!=0})
     if not bins or len({b['bin'] for b in bins})!=len(bins): raise ValueError('invalid speed bins')
     bins.sort(key=lambda b:b['bin'])
     def bus(path):

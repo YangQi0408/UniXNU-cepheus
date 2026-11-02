@@ -62,10 +62,12 @@ int main(void)
     init(&f);f.cr=0;f.cw=1020; /* full ring: cannot send */
     assert(ceph_hfi_exchange(&f.session,cmd,2,reply,16,&n)==CE_HFI_TIMEOUT && !f.received);
     struct ceph_arc_resource rail={.levels={0,16,48,64},.count=4};
-    struct ceph_hfi_opp gx[]={{0,0},{215000000,64}},cx[]={{0,0},{200000000,48}};
+    struct ceph_hfi_opp gx[]={{0,0},{257000000,64},{345000000,64},{427000000,64},
+        {499200000,64},{585000000,64},{675000000,64},{770000000,64}},cx[]={{0,0},{200000000,48}};
     struct ceph_hfi_bw bw={.levels=2,.cnoc_count=1,.ddr_count=1,.cnoc_addr={0x50000},.ddr_addr={0x50004}};
     struct ceph_hfi_acd acd={.enable_mask=2,.stride=1,.levels=1,.data={123}};
-    struct ceph_hfi_boot_config c={0x20000000,0,3,gx,cx,2,2,&rail,&rail,&rail,&bw,&acd};
+    struct ceph_gpu_bin_policy policy;assert(!ceph_gpu_bin_policy(0x06040001,0x20000000,&policy));
+    struct ceph_hfi_boot_config c={0x20000000,0,0x40,gx,cx,7,2,&rail,&rail,&rail,&bw,&acd,&policy};
     uint32_t version=0;init(&f);
     assert(!ceph_hfi_boot_a640(&f.session,&c,&version) && version==0x20000042);
     const unsigned expected[]={1,4,3,11,7,11,11,14};
@@ -76,7 +78,13 @@ int main(void)
     }
     init(&f);f.mode=WRONG_VERSION;assert(ceph_hfi_boot_a640(&f.session,&c,&version)==CE_HFI_PROTOCOL && f.received==1);
     init(&f);c.throttle_mask=0;assert(ceph_hfi_boot_a640(&f.session,&c,&version)==CE_HFI_INVALID && !f.received);
-    c.throttle_mask=3;c.hfi_version=0x10000000;assert(ceph_hfi_boot_a640(&f.session,&c,&version)==CE_HFI_INVALID && !f.received);
+    c.throttle_mask=0x40;c.hfi_version=0x10000000;assert(ceph_hfi_boot_a640(&f.session,&c,&version)==CE_HFI_INVALID && !f.received);
     c.hfi_version=0x20000000;f.rw=0;assert(ceph_hfi_boot_a640(&f.session,&c,&version)==CE_HFI_INVALID && !f.received);
+    init(&f);assert(!ceph_gpu_bin_policy(0x06040001,0,&policy));c.ng=8;c.acd=NULL;c.throttle_mask=0x80;
+    assert(!ceph_hfi_boot_a640(&f.session,&c,&version));
+    const unsigned bin0[]={1,4,3,11,14};assert(f.received==5 && !memcmp(f.ids,bin0,sizeof(bin0)));
+    init(&f);c.acd=&acd;assert(ceph_hfi_boot_a640(&f.session,&c,&version)==CE_HFI_INVALID && !f.received);
+    assert(ceph_gpu_bin_policy(0x06040001,UINT32_MAX,&policy)<0);
+    assert(ceph_gpu_bin_policy(0x06040001,0x40000000,&policy)<0);
     puts("HFI A640 boot: real shared-ring exchange, ACK/version/sequence/error/timeout tests PASS (synthetic firmware)");
 }

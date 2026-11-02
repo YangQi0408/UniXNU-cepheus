@@ -31,7 +31,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
     cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h cepheus_smmu_install.h \
     cepheus_gpu_power_txn.h cepheus_gpu_submit.h cepheus_gmu_start.h \
-    cepheus_gpu_ring.h cepheus_a640_pm4.h cepheus_sqe.h cepheus_gpu_bw.h cepheus_gpu_firmware.h cepheus_gpu_fault.h cepheus_gpu_vm.h cepheus_gpu_va.h cepheus_gpu_pdc.h; do
+    cepheus_gpu_ring.h cepheus_a640_pm4.h cepheus_sqe.h cepheus_gpu_bw.h cepheus_gpu_firmware.h cepheus_gpu_fault.h cepheus_gpu_vm.h cepheus_gpu_va.h cepheus_gpu_pdc.h cepheus_gpu_bin.h; do
     install -m 644 "$ROOT/xnu/$file" "$DEST/xnu/patches/"
 done
 echo "installed 0082-cepheus-touch.patch into $DEST/xnu/patches"

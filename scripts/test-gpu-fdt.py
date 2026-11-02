@@ -53,6 +53,8 @@ class FdtTests(unittest.TestCase):
         self.assertEqual(r['opp_levels'][0],{'hz':257000000,'raw_vlvl':64})
         self.assertEqual(r['streams']['gmu_kernel'],{'sid':5,'mask':0x400,'actlr':0x303})
         self.assertEqual([b['throttle_mask'] for b in r['speed_bins']],[0x80,0x40])
+        self.assertEqual([b['lm_enabled_by_source'] for b in r['speed_bins']],[False,True])
+        self.assertEqual([b['acd_mailbox_by_source'] for b in r['speed_bins']],[False,True])
         self.assertEqual([b['name'] for n in r['bus_routes']['ddr'] for b in n['bcms']],['SH0','MC0','ACV'])
         self.assertEqual([b['name'] for n in r['bus_routes']['cnoc'] for b in n['bcms']],['SH2','SN15','SN3'])
         self.assertIsNone(r['selected_bin'])

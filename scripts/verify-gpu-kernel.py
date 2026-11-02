@@ -17,6 +17,7 @@ HEADERS += ('cepheus_gpu_bw.h','cepheus_gpu_firmware.h','cepheus_gpu_fault.h')
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
+HEADERS += ('cepheus_gpu_bin.h',)
 HEADERS += ('cepheus_gmu_workspace.c','cepheus_gmu_workspace.h')
 
 
