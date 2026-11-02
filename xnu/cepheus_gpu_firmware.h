@@ -11,6 +11,7 @@
 #if defined(KERNEL)
 #include <corecrypto/ccdigest.h>
 #include <corecrypto/ccsha2.h>
+#include <corecrypto/cc.h>
 #elif defined(__APPLE__)
 #include <CommonCrypto/CommonDigest.h>
 #else
@@ -21,7 +22,13 @@ static inline int ceph_firmware_sha256(const uint8_t *data,size_t size,uint8_t d
 {
     if(!data || !size || size>1048576 || !digest)return -1;
 #if defined(KERNEL)
-    ccdigest(&ccsha256_ltc_di,size,data,digest);
+    /* SWEET links incremental digest primitives but not the one-shot ccdigest
+     * wrapper. SHA256 fixed state/block sizes also avoid a kernel stack VLA. */
+    ccdigest_ctx_decl(32,64,ctx);
+    ccdigest_init(&ccsha256_ltc_di,ctx);
+    ccdigest_update(&ccsha256_ltc_di,ctx,size,data);
+    ccdigest_final(&ccsha256_ltc_di,ctx,digest);
+    ccdigest_ctx_clear(32,64,ctx);
 #elif defined(__APPLE__)
     if(!CC_SHA256(data,(CC_LONG)size,digest))return -1;
 #else
