@@ -9,9 +9,15 @@
 #include <stddef.h>
 #include <stdint.h>
 #if defined(KERNEL)
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <corecrypto/ccdigest.h>
 #include <corecrypto/ccsha2.h>
 #include <corecrypto/cc.h>
+#ifdef __cplusplus
+}
+#endif
 #elif defined(__APPLE__)
 #include <CommonCrypto/CommonDigest.h>
 #else

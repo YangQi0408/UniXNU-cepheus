@@ -13,7 +13,7 @@
 enum { CE_VM_READ=1, CE_VM_WRITE=2, CE_VM_EXEC=4, CE_VM_UNPRIV=8, CE_VM_NOCACHE=16 };
 struct ceph_vm_region { uint64_t va, pa, bytes; unsigned permissions; };
 struct ceph_vm_pool { uint64_t *words; uint64_t pa; unsigned pages, used; };
-static int ceph_vm_valid(const struct ceph_vm_region *r)
+static inline int ceph_vm_valid(const struct ceph_vm_region *r)
 {
 	if (!r->bytes || ((r->va | r->pa | r->bytes) & 4095u) ||
 	    r->va >= (1ULL<<32) || r->bytes > (1ULL<<32)-r->va ||
@@ -22,7 +22,7 @@ static int ceph_vm_valid(const struct ceph_vm_region *r)
 	    ((r->permissions & (CE_VM_WRITE|CE_VM_EXEC)) == (CE_VM_WRITE|CE_VM_EXEC))) { return 0; }
 	return 1;
 }
-static uint64_t ceph_vm_leaf(uint64_t pa, unsigned permissions)
+static inline uint64_t ceph_vm_leaf(uint64_t pa, unsigned permissions)
 {
 	/* MAIR[0]=WBWA (0xff), MAIR[1]=normal NC (0x44). nG is mandatory
 	 * for ASID-scoped invalidation. HFI is unprivileged RW in kgsl_gmu.c. */
@@ -33,7 +33,7 @@ static uint64_t ceph_vm_leaf(uint64_t pa, unsigned permissions)
 	if (!(permissions & CE_VM_EXEC)) { pte|=3ULL<<53; }
 	return pte;
 }
-static uint64_t *ceph_vm_table(struct ceph_vm_pool *p, uint64_t descriptor)
+static inline uint64_t *ceph_vm_table(struct ceph_vm_pool *p, uint64_t descriptor)
 {
 	uint64_t pa=descriptor & CE_VM_PA_MASK;
 	if ((descriptor & 3)!=3 || pa<p->pa || (pa-p->pa)/CE_VM_PAGE>=p->used) { return NULL; }
@@ -43,7 +43,7 @@ static uint64_t *ceph_vm_table(struct ceph_vm_pool *p, uint64_t descriptor)
  * touching pool memory. Max16 disjoint regions keeps bounded preflight cheap.
  * A new immutable pool only; changing live mappings requires a separate API.
  */
-static int ceph_vm_build(struct ceph_vm_pool *p,const struct ceph_vm_region *regions,unsigned count)
+static inline int ceph_vm_build(struct ceph_vm_pool *p,const struct ceph_vm_region *regions,unsigned count)
 {
 	if (!p || !p->words || !regions || !count || count>16 || p->used ||
 	    ((uintptr_t)p->words & 7u) || (p->pa & 4095u) || !p->pages || p->pages>64 ||
@@ -88,7 +88,7 @@ static int ceph_vm_build(struct ceph_vm_pool *p,const struct ceph_vm_region *reg
 	}
 	return 0;
 }
-static int ceph_vm_lookup(struct ceph_vm_pool *p,uint64_t va,uint64_t *pa,uint64_t *flags)
+static inline int ceph_vm_lookup(struct ceph_vm_pool *p,uint64_t va,uint64_t *pa,uint64_t *flags)
 {
 	if (!p || !p->words || !p->used || p->used>p->pages || p->pages>64 ||
 	    ((uintptr_t)p->words & 7u) || (p->pa & 4095u) || va>=(1ULL<<32) || !pa || !flags) { return -1; }

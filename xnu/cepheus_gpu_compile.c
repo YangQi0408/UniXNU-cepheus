@@ -40,3 +40,7 @@ int cepheus_gpu_sqe_snapshot_copy(uint64_t handle,uint8_t *destination,size_t ca
     if(cepheus_gpu_memory_view_put(handle))return -1;
     return result;
 }
+int cepheus_gpu_vm_build(struct ceph_vm_pool *pool,const struct ceph_vm_region *regions,unsigned count)
+{ return ceph_vm_build(pool,regions,count); }
+int cepheus_gpu_vm_lookup(struct ceph_vm_pool *pool,uint64_t va,uint64_t *pa,uint64_t *flags)
+{ return ceph_vm_lookup(pool,va,pa,flags); }
