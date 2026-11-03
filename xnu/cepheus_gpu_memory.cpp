@@ -335,6 +335,13 @@ extern "C" int ceph_memory_share_group(const uint64_t handles[CE_GPU_WORKSPACE_B
         for(unsigned j=0;j<i;++j)if(indices[j]==indices[i])goto done;
     }
     if((identity->ttbr0&0xffffffffffULL)!=ceph_pool[indices[CE_GPU_WORKSPACE_ROOT]].buffer.pa)goto done;
+    {
+        struct ceph_gpu_memory_view views[CE_GPU_WORKSPACE_BUFFERS];
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i) {
+            const auto *b=&ceph_pool[indices[i]].buffer;views[i]={b->cpu,b->pa,b->bytes};
+        }
+        if(ceph_memory_validate_workspace(views,identity))goto done;
+    }
     for(unsigned i=0;i<16;++i)if(!ceph_groups[i].group){group=(int)i;break;}
     if(group<0 || ceph_group_generation==0x00ffffffffffffffULL)goto done;
     {

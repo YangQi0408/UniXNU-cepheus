@@ -104,4 +104,48 @@ static inline int ceph_vm_lookup(struct ceph_vm_pool *p,uint64_t va,uint64_t *pa
 	uint64_t v=t[(va>>12)&511u];if((v&3)!=3)return -1;
 	*pa=(v&CE_VM_PA_MASK)|(va&4095u);*flags=v&~CE_VM_PA_MASK;return 0;
 }
+/* Verify the entire materialized table, not just first/last translated bytes.
+ * Reject extra mappings, block descriptors, hidden permission bits, aliasing
+ * table pointers and unreachable nonzero pages. No allocation or scratch page
+ * array; at most64 table pages/32768 descriptors are inspected. */
+static inline int ceph_vm_matches(struct ceph_vm_pool *p,const struct ceph_vm_region *regions,unsigned count)
+{
+    if(!p || !p->words || ((uintptr_t)p->words&7u) || (p->pa&4095u) ||
+        !p->used || p->used>p->pages || p->pages>64 || p->pa>=(1ULL<<40) ||
+        (uint64_t)p->pages*4096>(1ULL<<40)-p->pa || !regions || !count || count>16)return -1;
+    uint64_t wanted=0,leaves=0,seen=1;
+    for(unsigned i=0;i<count;++i) {
+        if(!ceph_vm_valid(&regions[i]))return -1;
+        wanted+=regions[i].bytes/4096;
+    }
+    for(unsigned l1=0;l1<512;++l1) {
+        uint64_t d=p->words[l1];if(!d)continue;
+        if(l1>=4 || d!=((d&CE_VM_PA_MASK)|3u))return -1;
+        uint64_t *l2=ceph_vm_table(p,d);if(!l2)return -1;
+        unsigned page=(unsigned)(((d&CE_VM_PA_MASK)-p->pa)/4096);
+        if(seen&(1ULL<<page))return -1;
+        seen|=1ULL<<page;
+        for(unsigned j=0;j<512;++j) {
+            d=l2[j];if(!d)continue;
+            if(d!=((d&CE_VM_PA_MASK)|3u))return -1;
+            uint64_t *l3=ceph_vm_table(p,d);if(!l3)return -1;
+            page=(unsigned)(((d&CE_VM_PA_MASK)-p->pa)/4096);
+            if(seen&(1ULL<<page))return -1;
+            seen|=1ULL<<page;
+            for(unsigned k=0;k<512;++k) {
+                uint64_t actual=l3[k];if(!actual)continue;
+                uint64_t va=((uint64_t)l1<<30)|((uint64_t)j<<21)|((uint64_t)k<<12),expected=0;
+                unsigned matches=0;
+                for(unsigned i=0;i<count;++i)if(va>=regions[i].va && va-regions[i].va<regions[i].bytes) {
+                    expected=ceph_vm_leaf(regions[i].pa+va-regions[i].va,regions[i].permissions);++matches;
+                }
+                if(matches!=1 || actual!=expected)return -1;
+                ++leaves;
+            }
+        }
+    }
+    if(leaves!=wanted || seen!=(p->used==64?UINT64_MAX:(1ULL<<p->used)-1))return -1;
+    for(unsigned i=p->used*512;i<p->pages*512;++i)if(p->words[i])return -1;
+    return 0;
+}
 #endif

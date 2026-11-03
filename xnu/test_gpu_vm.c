@@ -11,6 +11,8 @@ int main(void)
 	    {0x44000,0x120040000ULL,0x3c000,CE_VM_READ|CE_VM_WRITE},
 	    {0x60000000,0x130000000ULL,0x5000,CE_VM_READ|CE_VM_WRITE|CE_VM_UNPRIV|CE_VM_NOCACHE}};
 	assert(!ceph_vm_build(&pool,regions,3) && pool.used==5);
+	assert(!ceph_vm_matches(&pool,regions,3));
+	tables[63*512]=3;assert(ceph_vm_matches(&pool,regions,3)<0);tables[63*512]=0;
 	uint64_t pa,flags;
 	assert(!ceph_vm_lookup(&pool,0x4123,&pa,&flags) && pa==0x120000123ULL);
 	assert((flags&(3ULL<<53))==0 && (flags&(3u<<6))==(2u<<6));

@@ -39,7 +39,8 @@ extern "C" {
 #endif
 /* Atomic six-buffer transition CPU+one view -> SHARED+same view. No MMIO.
  * Buffer index5 is root pool. Publish BEFORE exposing addresses to hardware.
- * Geometry/materialized plan must be validated by higher-level workspace. */
+ * Pool validates capacities, role/PA bindings, all materialized PTEs and fresh
+ * HFI header under its mutex before changing any slot to shared. */
 int cepheus_gpu_memory_share_workspace(const uint64_t handles[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_smmu_plan *,struct ceph_gpu_publication *);
 int cepheus_gpu_memory_retire_workspace(const struct ceph_gpu_publication *,struct ceph_gpu_retire_ops *);
 /* Diagnosis only: no clear/reset/retry controls. Failed hardware retirement

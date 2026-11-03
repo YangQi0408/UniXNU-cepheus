@@ -45,7 +45,8 @@ int cepheus_gmu_workspace_prepare(struct ceph_gmu_workspace *w)
     for(unsigned i=0;i<CE_BUF_COUNT;++i)backing[i]=(struct ceph_gpu_backing){w->views[i].pa,w->views[i].bytes};
     if(ceph_gpu_va_plan(backing,&w->layout))goto failed;
     w->table=(struct ceph_vm_pool){w->views[CE_GPU_WORKSPACE_ROOT].cpu,w->views[CE_GPU_WORKSPACE_ROOT].pa,8,0};
-    if(ceph_vm_build(&w->table,w->layout.regions,CE_BUF_COUNT))goto failed;
+    if(ceph_vm_build(&w->table,w->layout.regions,CE_BUF_COUNT) ||
+        ceph_vm_matches(&w->table,w->layout.regions,CE_BUF_COUNT))goto failed;
     if(ceph_hfi_table(w->views[2].cpu,(unsigned)(w->views[2].bytes/4),w->layout.start.hfi_va,w->layout.start.hfi_bytes))goto failed;
     for(unsigned i=0;i<CE_BUF_COUNT;++i) {
         const struct ceph_vm_region *r=&w->layout.regions[i];uint64_t pa,flags;

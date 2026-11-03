@@ -2,6 +2,28 @@
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_slumber.h"
 #include "cepheus_gmu_park.h"
+#include "cepheus_gpu_va.h"
+
+int ceph_memory_validate_workspace(const struct ceph_gpu_memory_view views[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_gpu_publication *p)
+{
+    if(!views || !p || (p->smr&0x7fffu)!=5)return -1;
+    const size_t minimum[]={0x3c000,0x3c000,0x5000,0x1000,0x1000,0x8000};
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)
+        if(!views[i].cpu || ((uintptr_t)views[i].cpu&4095u) || views[i].bytes<minimum[i] ||
+            views[i].bytes>((minimum[i]+16383)&~(size_t)16383))return -1;
+    struct ceph_gpu_backing backing[CE_BUF_COUNT];
+    for(unsigned i=0;i<CE_BUF_COUNT;++i)backing[i]=(struct ceph_gpu_backing){views[i].pa,views[i].bytes};
+    struct ceph_gpu_va_plan layout;if(ceph_gpu_va_plan(backing,&layout))return -1;
+    if(views[5].pa!=(p->ttbr0&0xffffffffffULL))return -1;
+    for(unsigned i=0;i<CE_BUF_COUNT;++i)
+        if(views[5].pa<views[i].pa+views[i].bytes && views[i].pa<views[5].pa+views[5].bytes)return -1;
+    struct ceph_vm_pool table={views[5].cpu,views[5].pa,8,6};
+    if(ceph_vm_matches(&table,layout.regions,CE_BUF_COUNT))return -1;
+    uint32_t expected[54];if(ceph_hfi_table(expected,54,layout.start.hfi_va,layout.start.hfi_bytes))return -1;
+    const volatile uint32_t *actual=views[2].cpu;
+    for(unsigned i=0;i<54;++i)if(actual[i]!=expected[i])return -1;
+    return 0;
+}
 
 int cepheus_gpu_memory_share_workspace(const uint64_t handles[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_smmu_plan *p,struct ceph_gpu_publication *out)
 {

@@ -200,6 +200,13 @@ cache字节，逐段比较sealed固件。原厂snapshot代码确认TCM窗口可�
 第15个整链场景在publish后破坏ITCM：必须失败于UPLOAD、不得写CM3启动配置、
 不得开始HFI；已发布workspace隔离。ASan/UBSan与45组回归通过。
 
+workspace原子发布现在从池内真实view重新核对各角色容量/PA、不重叠、SID5、
+全部materialized PTE与HFI初始header，不再只凭六句柄+root地址。页表验证遍历
+全部有效描述符，拒绝额外映射、内部页权限改变、block/table非法位、表页循环/
+别名、隐藏非零页；最大64页，无临时页表分配。CPU selftest也调用此验证。
+新增交换ICACHE/DCACHE句柄、篡改中间PTE、洞中额外映射等负例；发布拒绝原子
+且不改原工作区，完整ASan/UBSan闭环通过。此防错不替代内核单一所有者约定。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
