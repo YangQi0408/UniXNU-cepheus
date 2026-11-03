@@ -130,6 +130,12 @@ fixture制造pool满+complete失败核对该句柄。MAIR源码测试也已区�
 表示映射到SID4。通用SMMU planner仍可规划SID4，但不能误用来发布此workspace；
 新增独立拒绝测试。用户context必须另行实现，不能混用内核root。
 
+`cepheus_gpu_fault_mmio.h`增加只读具名故障适配：RBBM/CP错误、GMU AO/HFI、
+所选SMMU CB的FSR/FSYNR0/64bit FAR。每次读检查外部域租约，GX还要求实际
+状态on；未授权域不读、缺失不能当clean、所有寄存器均无清除接口。
+43组host回归通过，包含每次域lease失败、GX off拒绝、缺域、不清故障和FAR
+落点检查。真实租约/映射仍需平台提供，此模块不在启动钩子自动调用。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

@@ -43,7 +43,7 @@ jobs:
             cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
             cepheus_gpu_retire.c cepheus_gpu_retire.h cepheus_gpu_memory_private.h \
             cepheus_gmu_hfi_link.c cepheus_gmu_hfi_link.h \
-            cepheus_gmu_mmio.h cepheus_gpu_config.h cepheus_qmp_mmio.h cepheus_gmu_retire_mmio.h cepheus_pdc_mmio.h \
+            cepheus_gmu_mmio.h cepheus_gpu_config.h cepheus_qmp_mmio.h cepheus_gmu_retire_mmio.h cepheus_pdc_mmio.h cepheus_gpu_fault_mmio.h \
             cepheus_gmu_bringup.c cepheus_gmu_bringup.h \
             cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
             cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h cepheus_smmu_install.h \
@@ -95,6 +95,8 @@ jobs:
           /tmp/ceph-retire-mmio
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_pdc_mmio.c -o /tmp/ceph-pdc-mmio
           /tmp/ceph-pdc-mmio
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_fault_mmio.c -o /tmp/ceph-fault-mmio
+          /tmp/ceph-fault-mmio
           for name in gpu_power gpu_power_txn gpu_memory_state gpu_firmware gpu_fault gpu_pdc gpu_thermal gmu_loader gmu_upload gmu_start gmu_park gmu_slumber gmu_oob gmu_mmio hfi hfi_messages hfi_session gpu_vm gpu_va smmu_plan smmu_geometry smmu_mmio smmu_install smmu_detach gpu_submit gpu_ring cp_init qmp_acd sqe arc bcm gpu_bw; do
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"

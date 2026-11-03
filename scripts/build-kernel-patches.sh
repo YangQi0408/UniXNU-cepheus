@@ -30,7 +30,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
     cepheus_gpu_retire.c cepheus_gpu_retire.h cepheus_gpu_memory_private.h \
     cepheus_gmu_hfi_link.c cepheus_gmu_hfi_link.h \
-    cepheus_gmu_mmio.h cepheus_gpu_config.h cepheus_qmp_mmio.h cepheus_gmu_retire_mmio.h cepheus_pdc_mmio.h \
+    cepheus_gmu_mmio.h cepheus_gpu_config.h cepheus_qmp_mmio.h cepheus_gmu_retire_mmio.h cepheus_pdc_mmio.h cepheus_gpu_fault_mmio.h \
     cepheus_gmu_bringup.c cepheus_gmu_bringup.h \
     cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
     cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h cepheus_smmu_install.h \

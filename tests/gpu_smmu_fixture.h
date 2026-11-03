@@ -3,7 +3,7 @@
 #ifndef CEPHEUS_GPU_SMMU_FIXTURE_H
 #define CEPHEUS_GPU_SMMU_FIXTURE_H
 #include <assert.h>
-#include "cepheus_smmu_mmio.h"
+#include "../xnu/cepheus_smmu_mmio.h"
 static void smmu_fixture_set(struct ceph_smmu_mmio *m,enum ceph_smmu_reg r,uint64_t value)
 {
     uint32_t off;unsigned width;assert(!ceph_smmu_mmio_offset(m,r,&off,&width));
