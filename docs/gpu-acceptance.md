@@ -833,6 +833,24 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### 复审后的失败策略与属性查询
 
+### GX perfcounter/GPU-busy 子块（a6xx_start 的另一半）
+
+`cepheus_gx_core.h` 的23项写入覆盖UCHE/GMEM/ROQ/UBWC，但`a6xx_start`在同一
+halted 窗口里还配置性能计数器与 GPU busy mask。这些寄存器**跨两个 aperture**：
+`RBBM_PERFCTR_GPU_BUSY_MASKED`(0x50b)、`RBBM_PERFCTR_CNTL`(0x500)是 GPU 相对
+字偏移，而 `GMU_AO_GPU_CX_BUSY_MASK`(0x23b0e)、`GMU_CX_GMU_POWER_COUNTER_ENABLE`
+(0x1f840)、`_SELECT_0`(0x1f841)在 GMU aperture。混淆两者会把值写到错误的块。
+
+`cepheus_gx_perfcounter.h` 按源码分域编码5项写入，并保留源码的语义差别：
+`POWER_COUNTER_SELECT_0` 在 `adreno_a6xx.c` 是 `kgsl_regrmw(...,0xff,0x20)`，
+所以本模块做掩码 RMW 并读回校验，绝不盲写覆盖相邻的 counter-select 字段；
+其余4项为普通写入加读回。每次写入前后都要求 CP halted 窗口仍然成立，
+退出时保留 halt、不 reset、不上电、不碰时钟/投票/HWCG/VBIF。
+
+本地测试覆盖：5项精确落点与跨 aperture 正确性、SELECT_0 高位保留、
+错误 chipid/错误 aperture/CP 解除 halt/CP fault/GMU fault 全部在写入前拒绝，
+以及每一次 lease 调用失败路径。仍为 RAM aperture 模拟，未接真机。
+
 复审08c03ba7确认共享发布、显式NC映射、悬空table及ALLOCATING注释已处理，
 但指出一次不确定退休将保留560KiB，原1MiB预算不能创建第二个workspace。
 此诊断阶段明确采用**失败即终止本次GPU会话**，而不是假设超时可重试：HFI超时
