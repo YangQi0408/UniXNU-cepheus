@@ -21,6 +21,11 @@ if [[ $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gmu_workspace.cpp" "$tmp/workspace.o" "$tmp/retire.o" \
     -o "$tmp/workspace" "${libs[@]}"
 "$tmp/workspace"
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize=undefined -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gpu_terminal_race.cpp" "$tmp/workspace.o" "$tmp/retire.o" \
+    -o "$tmp/terminal" "${libs[@]}"
+"$tmp/terminal"
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -Wno-missing-field-initializers -fsanitize=undefined -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gmu_workspace_upload.cpp" "$tmp/workspace.o" "$tmp/retire.o" \

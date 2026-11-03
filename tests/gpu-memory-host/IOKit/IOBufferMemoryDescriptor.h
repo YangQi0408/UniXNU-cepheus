@@ -13,6 +13,7 @@ inline std::atomic<unsigned> maps{0},raw_views{0};
 inline std::atomic<uint64_t> next_pa{0x120000000ULL};
 inline std::atomic<int> fail_alloc{0},fail_prepare{0},fail_complete{0},bad_segment{0};
 inline std::atomic<int> fail_map{0},bad_cache{0};
+inline void (*after_allocate)()=nullptr; /* deterministic outside-pool-lock fault injection */
 }
 class IOMemoryMap {
     void *mapped;size_t length;unsigned options;
@@ -35,7 +36,9 @@ public:
         auto *p=new IOBufferMemoryDescriptor;
         assert(!(bytes&(page_size-1)));
         if(posix_memalign(&p->memory,page_size,bytes)){delete p;return nullptr;}
-        p->length=bytes;p->pa=mock_io::next_pa.fetch_add(bytes);++mock_io::live;return p;
+        p->length=bytes;p->pa=mock_io::next_pa.fetch_add(bytes);++mock_io::live;
+        if(mock_io::after_allocate)mock_io::after_allocate();
+        return p;
     }
     int prepare(int){if(mock_io::fail_prepare)return -1;assert(!wired);wired=true;++mock_io::prepared;return 0;}
     int complete(int){assert(wired);if(mock_io::fail_complete)return -1;wired=false;--mock_io::prepared;return 0;}

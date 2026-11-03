@@ -170,6 +170,12 @@ cepheus_gpu_memory_alloc(size_t bytes,uint64_t *handle)
     slot->firmware_bytes=0;slot->firmware_kind=0;slot->group=0;
     int e=ceph_gpu_buffer_alloc_cpu(&slot->buffer,bytes);
     IOLockLock(lock);
+    /* Allocation may sleep outside this mutex while another thread abandons
+     * the GPU session. Recheck before handing out a new usable handle. This
+     * allocation was never published, so CPU-only disposal remains safe. */
+    if(!e && ceph_pool_terminal) {
+        IOLockUnlock(lock);ceph_gpu_buffer_dispose_cpu(&slot->buffer);IOLockLock(lock);e=-1;
+    }
     (void)ceph_mem_finish_allocation(&slot->state,!e,slot->buffer.published);
     if(!e)*handle=ceph_mem_handle((unsigned)index,slot->state.generation);
     if(e && slot->buffer.published)printf("CEPHEUS GPU MEM: retained slot=%u bytes=%lu generation=%u\n",
@@ -241,7 +247,7 @@ cepheus_gpu_memory_publish(uint64_t handle)
 {
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int index=ceph_gpu_pool_index(handle),e=-1;
-    if(index>=0 && !ceph_mem_publish(&ceph_pool[index].state)) {
+    if(!ceph_pool_terminal && index>=0 && !ceph_mem_publish(&ceph_pool[index].state)) {
         /* Finish NC writes before any device address is installed/doorbelled. */
         ceph_gpu_memory_barrier();
         ceph_pool[index].buffer.published=true;e=0;
@@ -321,6 +327,7 @@ extern "C" int ceph_memory_share_group(const uint64_t handles[CE_GPU_WORKSPACE_B
     if(!handles || !identity || !out)return -1;
     *out={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS],group=-1,e=-1;
+    if(ceph_pool_terminal)goto done;
     for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i) {
         indices[i]=ceph_gpu_pool_index(handles[i]);
         if(indices[i]<0 || !ceph_mem_can_share(&ceph_pool[indices[i]].state) ||
@@ -401,7 +408,11 @@ extern "C" int cepheus_gpu_memory_group_status(uint64_t group,struct ceph_gpu_gr
     IOLockLock(lock);unsigned slot=(unsigned)(group&255u);
     if(!group || !slot || slot>16 || ceph_groups[slot-1].group!=group) {IOLockUnlock(lock);return -1;}
     out->identity=ceph_groups[slot-1];out->state=ceph_group_status[slot-1];out->pool_terminal=ceph_pool_terminal;
-    for(unsigned i=0;i<16;++i)if(ceph_pool[i].group==group && ceph_pool[i].buffer.memory) {
+    /* ALLOCATING buffers are being completed outside the lock. Their pointer
+     * and byte fields may change; don't race them for diagnostic counts. A
+     * RETIRING group can therefore report only its currently stable slots. */
+    for(unsigned i=0;i<16;++i)if(ceph_pool[i].group==group &&
+        ceph_pool[i].state.state!=CE_MEM_ALLOCATING && ceph_pool[i].buffer.memory) {
         ++out->retained_buffers;out->retained_bytes+=ceph_pool[i].buffer.bytes;
     }
     IOLockUnlock(lock);return 0;

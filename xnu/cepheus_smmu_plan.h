@@ -23,7 +23,11 @@ static inline int ceph_smmu_gmu_plan(const struct ceph_smmu_stream *streams,unsi
     uint64_t root_pa,uint32_t current_sctlr,struct ceph_smmu_plan *out)
 {
     if(!out) return -1;
+#ifdef __cplusplus
+    *out={};
+#else
     *out=(struct ceph_smmu_plan){0};
+#endif
     if(!streams || !slots || slots>128 || chosen>=slots || !numcb || numcb>128 ||
         cb>=numcb || (sid!=4 && sid!=5) || !asid || asid>255 ||
         !root_pa || root_pa>=(1ULL<<40) || (root_pa&4095u) ||

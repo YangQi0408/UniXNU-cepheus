@@ -141,6 +141,13 @@ fixture制造pool满+complete失败核对该句柄。MAIR源码测试也已区�
 故障，发布执行`dsb sy`，只接受已有NC工作区；整链测试不再另造两个TCM数组。
 44组host回归和本地固件11场景通过，尚无真实总线写入或GMU执行。
 
+修复pool terminal并发边界：IOKit分配在锁外运行，回锁后必须再次检查terminal，
+否则另一条路径在分配期间abandon可导致仍交出新句柄。未发布的新分配安全
+CPU清理，旧CPU buffer与整组发布也拒绝terminal。确定性mock hook在真正的
+锁外分配中触发abandon，核对新句柄被拒绝、六缓冲保留且旧句柄不能发布。
+group_status不再读取正于锁外complete的ALLOCATING buffer字段，避免诊断竞态；
+RETIRING期间计数仅表示当前稳定槽，最终状态仍保留完整组身份。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
