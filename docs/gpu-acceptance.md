@@ -843,6 +843,21 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### 安全上下文存在时的 GX VA 分区（新发现的硬约束）
 
+### A640 GBIF 块（`a6xx_start` 的第一步）
+
+`a6xx_start()` 第一件事是 `adreno_vbif_start(adreno_dev, a6xx_vbif_platforms, ...)`。
+平台表按 `adreno_is_a640` 选 **`a640_gbif`**，不是 `a630_vbif`：
+`GBIF_QSB_SIDE0..3`(0x3c03..0x3c06) 各写 `0x00071620`，
+`RBBM_GBIF_CLIENT_QOS_CNTL`(0x11) 写 `0x3`；而 a630 表里的
+`RBBM_VBIF_CLIENT_QOS_CNTL` **A640 不写**。混用会多写一个 A640 不该碰的寄存器。
+
+`cepheus_gx_gbif.h` 独立编码这 5 次写入（不改动已验证的 23 项 GX core 计划），
+每次写入前后都要求 CP halted 窗口成立，退出保留 halt，不 halt/deassert GBIF、
+不 reset、不碰时钟/投票。测试验证 5 个精确落点、`0x12` 未被误写、
+GBIF halt 寄存器(0x3c45/0x3c46)未被触碰，以及错误 chipid/aperture/
+CP 解除 halt/CP fault/GMU fault 全部在写入前拒绝、每次 lease 失败路径。
+仍为 RAM aperture 模拟。
+
 保存的 FDT 里 `/soc/qcom,kgsl-iommu@0x02CA0000/gfx3d_secure` 存在
 （`iommus = <0x1b8 0x02 0x400>`，即 SID2/mask0x400）。按 `kgsl_iommu.c`，
 这会让 `device->mmu.secured = true`，于是 `adreno.c:_set_secvid()` **会真的执行**，

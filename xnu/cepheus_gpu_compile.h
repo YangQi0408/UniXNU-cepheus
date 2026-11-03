@@ -18,6 +18,8 @@
 #include "cepheus_gpu_thermal.h"
 #include "cepheus_cp_init.h"
 #include "cepheus_gx_perfcounter.h"
+#include "cepheus_gx_gbif.h"
+#include "cepheus_gx_va_layout.h"
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_park.h"
 #include "cepheus_gmu_slumber.h"

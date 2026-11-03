@@ -11,6 +11,10 @@ int cepheus_gpu_gx_core_configure(struct ceph_gx_core *s)
 { return ceph_gx_core_configure(s); }
 int cepheus_gpu_gx_perfcounter_configure(struct ceph_gx_perfcounter *s)
 { return ceph_gx_perf_configure(s); }
+int cepheus_gpu_gx_gbif_configure(struct ceph_gx_gbif *s)
+{ return ceph_gx_gbif_configure(s); }
+int cepheus_gpu_gx_va_partition(unsigned secured,uint64_t size,struct ceph_gx_va_partition *out)
+{ return ceph_gx_va_partition(secured,size,out); }
 int cepheus_gpu_vm39_build(struct ceph_vm_pool *p,const struct ceph_vm_region *r,unsigned n)
 { return ceph_vm39_build(p,r,n); }
 int cepheus_gpu_cp_snapshot_mmio(struct ceph_cp_snapshot_mmio *s,uint32_t *out,unsigned words)
