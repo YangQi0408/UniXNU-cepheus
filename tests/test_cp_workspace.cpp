@@ -10,6 +10,7 @@ extern "C" {
 #include "cepheus_cp_workspace.h"
 #include "cepheus_gmu_workspace.h"
 void ceph_test_cp_workspace_restore(struct ceph_cp_workspace *,const struct ceph_gmu_start_config *);
+int ceph_test_cp_preinit(struct ceph_cp_workspace *);
 }
 int main(int argc,char **argv)
 {
@@ -56,6 +57,7 @@ int main(int argc,char **argv)
     }
     assert(cepheus_cp_workspace_table(&w,va)<0);
     assert(cepheus_cp_workspace_prepare(&w,fw.data(),fw.size())<0);
+    assert(!ceph_test_cp_preinit(&w));
     ceph_test_cp_workspace_restore(&w,&gmu.layout.start);
     assert(!cepheus_cp_workspace_release(&w) && w.state==CE_CP_WS_RELEASED && mock_io::live==6);
     assert(!cepheus_gmu_workspace_release_cpu(&gmu) && !mock_io::live && !mock_io::maps && !mock_io::prepared);

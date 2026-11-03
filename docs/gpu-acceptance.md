@@ -835,6 +835,28 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### GX perfcounter/GPU-busy 子块（a6xx_start 的另一半）
 
+### CP 侧 halted 预配置顺序编排
+
+此前 GX core(23写)、GX perfcounter(5写)、保护表(45写)、halted ring/SQE(7写)、
+恢复快照+ME_INIT 各自独立可用，但**没有顺序约束**。源码里 `a6xx_start()` 先
+HWCG/UCHE/ROQ，再 `a6xx_enable_64bit`/`a6xx_protect_init`，之后 ring buffer
+才写 SQE/RPTR 地址，最后取 powerup reglist 快照。顺序颠倒会读到未配置的
+保护表或把地址写进尚未 64 位化的上下文。
+
+`cepheus_cp_preinit.h` 把这五步串成一次 one-shot 编排：
+GX core → GX perfcounter → 保护表 → halted ring/SQE → 恢复快照。
+每步都要求 CP halted 窗口成立；任一步失败即停在该 stage，不进入 READY。
+编排前额外要求工作区已 `CE_CP_WS_TABLED` 且 `restore_ready` 仍为 false
+（快照必须在这里取，预置值意味着重复/外来捕获），并核对五个引擎共享同一
+GMU aperture、同一 GPU aperture、同一 owner/lease，ring/SQE/RPTR 三个 VA
+必须逐字等于页表里的 region，不接受调用方重新填数。
+
+共 80 次写。**不含**：ZAP/PAS 认证、安全 CP aperture、GX SMMU 上下文安装、
+OOB keepalive、CP 解除 halt、WPTR doorbell、任何 GPU 命令提交。
+测试验证 80 次写的精确分布（23/5/45/7 + 快照）、失败即停、
+ring VA 不匹配/错误 chipid/owner 不一致/非 TABLED/已 restore 全部在写入前拒绝、
+以及全程 halt 保持、WPTR/SQE 高半/CP fault 未被触碰。仍为 RAM aperture 模拟。
+
 `cepheus_gx_core.h` 的23项写入覆盖UCHE/GMEM/ROQ/UBWC，但`a6xx_start`在同一
 halted 窗口里还配置性能计数器与 GPU busy mask。这些寄存器**跨两个 aperture**：
 `RBBM_PERFCTR_GPU_BUSY_MASKED`(0x50b)、`RBBM_PERFCTR_CNTL`(0x500)是 GPU 相对

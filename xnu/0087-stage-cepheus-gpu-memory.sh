@@ -24,6 +24,7 @@ install -m 0644 "$here/cepheus_cp_workspace.c" "$here/cepheus_cp_workspace.h" bs
 install -m 0644 "$here/cepheus_gpu_vm39.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_core.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_perfcounter.h" bsd/dev/
+install -m 0644 "$here/cepheus_cp_preinit.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_smmu_plan.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_bringup.c" "$here/cepheus_gmu_bringup.h" bsd/dev/
 for header in cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
