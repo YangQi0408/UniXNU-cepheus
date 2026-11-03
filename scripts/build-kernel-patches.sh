@@ -29,6 +29,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_gpu_memory_state.h \
     cepheus_gmu_upload_mmio.h \
     cepheus_qmp_connect.h \
+    cepheus_gpu_tsens.h \
     cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
     cepheus_gpu_retire.c cepheus_gpu_retire.h cepheus_gpu_memory_private.h \
     cepheus_gmu_hfi_link.c cepheus_gmu_hfi_link.h \

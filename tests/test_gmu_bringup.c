@@ -15,6 +15,7 @@
 #include "cepheus_gmu_upload_mmio.h"
 #include "cepheus_gpu_fault_mmio.h"
 #include "cepheus_qmp_connect.h"
+#include "cepheus_gpu_tsens.h"
 #include "gpu_config_fixture.h"
 #include "gpu_smmu_fixture.h"
 int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
@@ -27,15 +28,16 @@ struct hw {
     struct ceph_gmu_upload_mmio upload_mmio;
     struct ceph_gpu_fault_mmio fault_mmio;
     unsigned fault_held;
+    uint32_t tsens_ram[1024];struct ceph_gpu_tsens tsens;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static int temperature(void *p,struct ceph_gpu_temperature *sample){struct hw *h=p;
-    *sample=(struct ceph_gpu_temperature){40000,42000,h->time,3};
-    if(h->mode==15 || (h->mode==16 && h->s->stage==CE_BR_SMMU))sample->sensor13_mc=60000;
-    if(h->mode==17)sample->valid_mask=1;
-    return 0;}
+    h->tsens_ram[0xe4/4]=8;h->tsens_ram[0xd0/4]=(1u<<21)|400;h->tsens_ram[0xd4/4]=(1u<<21)|420;
+    if(h->mode==15 || (h->mode==16 && h->s->stage==CE_BR_SMMU))h->tsens_ram[0xd4/4]=(1u<<21)|600;
+    if(h->mode==17)h->tsens_ram[0xd4/4]=420;
+    return ceph_gpu_tsens_sample(&h->tsens,sample);}
 static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
 static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;
     if(h->gpu[0x3c45]&2 && h->mode!=11)h->gpu[0x3c46]|=2;
@@ -156,6 +158,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     assert(!cepheus_gmu_bringup_prepare(&s,data,(size_t)size));free(data);
     struct ceph_gmu_bringup_backends *b=&s.backend;
     b->owner=&h;b->bind=bind;b->failed=failed;
+    h.tsens=(struct ceph_gpu_tsens){h.tsens_ram,sizeof(h.tsens_ram),0xc263000,&h,guard,now};
     b->temperature=temperature;b->now_ns=now;b->trial_ns=30000000000ULL;
     b->power=(struct ceph_power_ops){&h,power_prepare,guard,power_read,power_write,vote,delayus,end};
     b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,pdc_validate,pdc_read,pdc_write,pdc_barrier,pdc_end};

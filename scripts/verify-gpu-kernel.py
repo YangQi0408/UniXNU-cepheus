@@ -21,6 +21,7 @@ HEADERS += ('cepheus_pdc_mmio.h',)
 HEADERS += ('cepheus_gpu_fault_mmio.h',)
 HEADERS += ('cepheus_gmu_upload_mmio.h',)
 HEADERS += ('cepheus_qmp_connect.h',)
+HEADERS += ('cepheus_gpu_tsens.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -85,6 +86,7 @@ def main():
     required |= {'_cepheus_gmu_bringup_retire'}
     required |= {'_cepheus_gmu_bringup_thermal_check'}
     required |= {'_cepheus_gpu_qmp_connect'}
+    required |= {'_cepheus_gpu_temperature_sample'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
     required |= {'_cepheus_gpu_park_read','_cepheus_gpu_park_write','_cepheus_gpu_slumber_read','_cepheus_gpu_slumber_write'}
