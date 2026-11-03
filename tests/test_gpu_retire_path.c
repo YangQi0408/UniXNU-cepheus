@@ -53,6 +53,9 @@ int ceph_test_retire_path(unsigned mode)
     uint64_t bad[CE_GPU_WORKSPACE_BUFFERS];for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)bad[i]=w.handles[i];bad[1]=bad[0];
     struct ceph_gpu_publication publication;
     assert(cepheus_gpu_memory_share_workspace(bad,&plan,&publication)<0);
+    struct ceph_smmu_plan user_plan=plan;user_plan.smr=0x84000004;
+    assert(ceph_smmu_plan_canonical(&user_plan));
+    assert(cepheus_gmu_workspace_share(&w,&user_plan)<0 && w.state==CE_WS_READY_CPU);
     struct ceph_gpu_memory_view extra;assert(!cepheus_gpu_memory_view_get(w.handles[0],&extra));
     assert(cepheus_gmu_workspace_share(&w,&plan)<0);assert(!cepheus_gpu_memory_view_put(w.handles[0]));
     assert(!cepheus_gmu_workspace_share(&w,&plan) && w.state==CE_WS_SHARED && w.leased==CE_GPU_WORKSPACE_VIEWS);

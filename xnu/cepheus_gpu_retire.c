@@ -5,7 +5,10 @@
 
 int cepheus_gpu_memory_share_workspace(const uint64_t handles[CE_GPU_WORKSPACE_BUFFERS],const struct ceph_smmu_plan *p,struct ceph_gpu_publication *out)
 {
-    if(!ceph_smmu_plan_canonical(p) || !out)return -1;
+    /* All buffers here come from KGSL's GMU_CONTEXT_KERNEL, including HFI
+     * (unprivileged AP != user SID). SID4 needs its own separate user context;
+     * generic SMMU support for it does not permit publishing this workspace. */
+    if(!ceph_smmu_plan_canonical(p) || (p->smr&0x7fffu)!=5 || !out)return -1;
     struct ceph_gpu_publication identity={0};
     identity.ttbr0=p->ttbr0;identity.ttbr1=p->ttbr1;identity.smr=p->smr;
     identity.cb=p->cb;identity.slot=p->slot;identity.asid=p->asid;

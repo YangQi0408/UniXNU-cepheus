@@ -34,7 +34,7 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     s->stage=CE_BR_BOUND;e=b->bind(b->owner,s);if(e)goto failed;
     /* Bind cannot swap/forge the prepared root; exact resource identities are
      * checked again by the publication pool and by each concrete engine. */
-    if(!ceph_smmu_plan_canonical(&b->smmu_plan) ||
+    if(!ceph_smmu_plan_canonical(&b->smmu_plan) || (b->smmu_plan.smr&0x7fffu)!=5 ||
         b->smmu_plan.ttbr0!=(s->workspace.table.pa|((uint64_t)b->smmu_plan.asid<<48)) ||
         b->pdc_input.chipid!=0x06040001 || !b->upload.itcm || !b->upload.dtcm ||
         !ceph_gpu_bin_policy_valid(b->hfi.policy)) {e=-1;goto failed;}

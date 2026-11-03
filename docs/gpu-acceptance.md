@@ -125,6 +125,11 @@ quarantined，保留写入计数但不保留可重试入口。CPU-only workspace
 fixture制造pool满+complete失败核对该句柄。MAIR源码测试也已区分slot编号与
 实际属性：KGSL NC slot0、本实现NC slot1，比较解码后的0x44而非宣称PTE数值相同。
 
+六缓冲workspace发布仅接受SID5（gmu_kernel）。KGSL的allocate_gmu_kmem对
+包括HFI在内的这些缓冲均调用GMU_CONTEXT_KERNEL；HFI的unprivileged AP并不
+表示映射到SID4。通用SMMU planner仍可规划SID4，但不能误用来发布此workspace；
+新增独立拒绝测试。用户context必须另行实现，不能混用内核root。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
