@@ -318,6 +318,12 @@ halted ring配置；只有OOB_HELD租约才准许GX配置，未drain不能释放
 租约立即拒绝。52组host与ASan通过。不声称OOB release使GX断电；后续仍必须
 slumber/park，也没有在该链路中执行CP或认证ZAP。
 
+独立`cepheus_gx_smmu_plan.h`只生成单一GX上下文的纯计划：SID0/mask0x401、
+T0SZ25的39bit VA、40bit PA、NC walk、ACTLR0x303；严格排除foreign CB/stream，
+保留GMU与secure流，GMU安装器明确拒绝该计划。53组host通过。没有GX installer/
+DMA publication；单上下文只是最小受控试验候选，不代表可忽略secure CB分配或
+CP SMMU aperture的SCM初始化要求。多进程页表切换、fault handler仍未实现。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

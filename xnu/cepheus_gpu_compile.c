@@ -4,6 +4,9 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_gx_smmu_plan(const struct ceph_smmu_stream *s,unsigned n,const struct ceph_smmu_geometry *g,
+    unsigned slot,unsigned cb,unsigned asid,uint64_t root,uint32_t sctlr,struct ceph_gx_smmu_plan *out)
+{ return ceph_gx_smmu_plan(s,n,g,slot,cb,asid,root,sctlr,out); }
 int cepheus_gpu_gx_core_configure(struct ceph_gx_core *s)
 { return ceph_gx_core_configure(s); }
 int cepheus_gpu_vm39_build(struct ceph_vm_pool *p,const struct ceph_vm_region *r,unsigned n)

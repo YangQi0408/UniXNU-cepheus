@@ -49,6 +49,7 @@ jobs:
             cepheus_cp_workspace.c cepheus_cp_workspace.h \
             cepheus_gpu_vm39.h \
             cepheus_gx_core.h \
+            cepheus_gx_smmu_plan.h \
             cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
             cepheus_gpu_retire.c cepheus_gpu_retire.h cepheus_gpu_memory_private.h \
             cepheus_gmu_hfi_link.c cepheus_gmu_hfi_link.h \
@@ -124,6 +125,8 @@ jobs:
           /tmp/ceph-gx-core
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_keepalive.c -o /tmp/ceph-keepalive
           /tmp/ceph-keepalive
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gx_smmu_plan.c -o /tmp/ceph-gx-plan
+          /tmp/ceph-gx-plan
           for name in gpu_power gpu_power_txn gpu_memory_state gpu_firmware gpu_fault gpu_pdc gpu_thermal gmu_loader gmu_upload gmu_start gmu_park gmu_slumber gmu_oob gmu_mmio hfi hfi_messages hfi_session gpu_vm gpu_va smmu_plan smmu_geometry smmu_mmio smmu_install smmu_detach gpu_submit gpu_ring cp_init qmp_acd sqe arc bcm gpu_bw; do
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"

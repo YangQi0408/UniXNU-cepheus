@@ -28,6 +28,7 @@ HEADERS += ('cepheus_cp_snapshot_mmio.h',)
 HEADERS += ('cepheus_cp_workspace.c','cepheus_cp_workspace.h')
 HEADERS += ('cepheus_gpu_vm39.h',)
 HEADERS += ('cepheus_gx_core.h',)
+HEADERS += ('cepheus_gx_smmu_plan.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -99,6 +100,7 @@ def main():
     required |= {'_cepheus_cp_workspace_prepare','_cepheus_cp_workspace_release'}
     required |= {'_cepheus_gpu_vm39_build'}
     required |= {'_cepheus_gpu_gx_core_configure'}
+    required |= {'_cepheus_gpu_gx_smmu_plan'}
     required |= {'_cepheus_cp_workspace_table'}
     required |= {'_cepheus_cp_workspace_validate'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
