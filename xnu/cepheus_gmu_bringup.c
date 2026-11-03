@@ -41,6 +41,7 @@ static int policy_unchanged(const struct ceph_gmu_bringup_backends *b,const uint
 {
     const struct ceph_hfi_boot_config *h=&b->hfi;
     if(!ceph_gpu_bin_policy_valid(h->policy) || h->policy->bin!=policy->bin ||
+        b->initial_freq!=1 || b->initial_bw!=3 || !h->gx || h->ng<2 || h->gx[1].hz!=257000000 ||
         h->ng!=policy->gx_levels || h->throttle_mask!=policy->throttle_mask ||
         (!!h->acd)!=policy->acd || h->min_fw_minor!=min_minor)return -1;
     uint32_t words[160];
@@ -82,13 +83,15 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     int e;
     /* Reject incomplete immutable policy before any power side effects. bind
      * supplies mappings, not an opportunity to invent OPP/BW/thermal policy. */
-    uint32_t perf[59],bw[160],acd[17];struct ceph_pdc_plan pdc_plan;
+    uint32_t perf[59],bw[160],acd[17],dcvs[4];struct ceph_pdc_plan pdc_plan;
     if(!ceph_gpu_bin_policy_valid(b->hfi.policy) || b->hfi.ng!=b->hfi.policy->gx_levels ||
         b->hfi.throttle_mask!=b->hfi.policy->throttle_mask || (!!b->hfi.acd)!=b->hfi.policy->acd ||
         ceph_hfi_perf(perf,59,b->hfi.gx,b->hfi.ng,b->hfi.cx,b->hfi.nc,b->hfi.gfx,b->hfi.cxl,b->hfi.mx)!=59 ||
         ceph_hfi_bandwidth(bw,160,b->hfi.bw)!=160 ||
         (b->hfi.acd && ceph_hfi_acd_table(acd,17,b->hfi.acd)!=17) ||
         ceph_pdc_plan_a640v2(&b->pdc_input,&pdc_plan))return -1;
+    if(b->initial_freq!=1 || b->initial_bw!=3 || b->hfi.gx[1].hz!=257000000 ||
+        ceph_hfi_dcvs(dcvs,4,b->initial_freq,b->initial_bw,b->hfi.ng,b->hfi.bw->levels)!=4)return -1;
     if(b->hfi.policy->acd && (!b->acd.begin || !b->acd.validate || !b->acd.read32 ||
         !b->acd.write32 || !b->acd.barrier || !b->acd.notify || !b->acd.now_ns || !b->acd.pause || !b->acd.end))return -1;
     const struct ceph_gpu_bin_policy policy=*b->hfi.policy;unsigned min_minor=b->hfi.min_fw_minor;
@@ -138,11 +141,18 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     b->hfi.hfi_version=s->cm3.hfi_version;
     s->stage=CE_BR_HFI;e=ceph_hfi_boot_a640(&s->link.session,&b->hfi,&s->fw_version);if(e)goto failed;
     e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
+    /* KGSL requests the default DCVS pair after HFI boot. The bootstrap DDR
+     * bandwidth lease MUST still be held: BW_TBL alone never held bandwidth.
+     * This ACK does not prove physical frequency, nor release apps votes. */
+    s->stage=CE_BR_DCVS;uint32_t reply[16];unsigned reply_words;
+    e=ceph_hfi_exchange(&s->link.session,dcvs,4,reply,16,&reply_words);if(e)goto failed;
+    s->dcvs_acked=1;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     /* Image is host-only sealed copy, never DMA-mapped; release after upload.
      * Workspace remains shared and pinned until protocol retirement. */
     e=cepheus_gpu_memory_release_cpu(s->firmware);
     if(e)goto failed;
-    s->firmware=0;s->error=0;return 0;
+    s->firmware=0;s->error=0;s->stage=CE_BR_HFI;return 0;
 failed:
     s->failed_stage=s->stage;s->stage=CE_BR_FAILED;s->error=e;
     if(s->link.bound)cepheus_gmu_hfi_invalidate(&s->link);
@@ -166,7 +176,7 @@ failed:
 
 int cepheus_gmu_bringup_retire(struct ceph_gmu_bringup *s,struct ceph_gpu_retire_ops *b)
 {
-    if(!s || s->stage!=CE_BR_HFI || s->firmware || s->workspace.state!=CE_WS_SHARED ||
+    if(!s || s->stage!=CE_BR_HFI || !s->dcvs_acked || s->firmware || s->workspace.state!=CE_WS_SHARED ||
         !s->link.bound || !b || b->hfi!=&s->link.session || b->plan!=&s->backend.smmu_plan ||
         !s->backend.hfi.bw || b->bw_levels!=s->backend.hfi.bw->levels || b->gx_levels!=s->backend.hfi.ng)return -1;
     s->stage=CE_BR_RETIRING;

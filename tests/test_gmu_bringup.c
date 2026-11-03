@@ -99,17 +99,19 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
         for(unsigned i=0;i<4;++i)h->gmu[tcs[i]-0x1a800]=1;
         return ceph_hfi_write(&h->fw_tx,ack,3);
     }
-    const unsigned ids0[]={1,4,3,11,14},ids1[]={1,4,3,11,7,11,11,14};
-    const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?8:5;
+    const unsigned ids0[]={1,4,3,11,14,30},ids1[]={1,4,3,11,7,11,11,14,30};
+    const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?9:6;
     assert(h->commands<total && (cmd[0]&255)==ids[h->commands]);h->commands++;
     uint32_t expected[160];int words=0;const struct ceph_hfi_boot_config *cfg=&h->s->backend.hfi;
     switch(cmd[0]&255) {
     case 4: words=ceph_hfi_perf(expected,160,cfg->gx,cfg->ng,cfg->cx,cfg->nc,cfg->gfx,cfg->cxl,cfg->mx);break;
     case 3: words=ceph_hfi_bandwidth(expected,160,cfg->bw);assert(cmd[1]==12 && cmd[2]==3 && cmd[3]==3);break;
     case 7: words=ceph_hfi_acd_table(expected,160,cfg->acd);assert(cmd[5]==2687328253u && cmd[16]==21521);break;
+    case 30: assert(count==4 && cmd[1]==1 && cmd[2]==1 && cmd[3]==3 && h->s->stage==CE_BR_DCVS);break;
     }
     if(words){assert(words==(int)count);assert(!memcmp(cmd+1,expected+1,(count-1)*4));}
     unsigned n=(cmd[0]&255)==1?4:3;uint32_t ack[]={ceph_hfi_header(cmd[0]&255,n,1,0),cmd[0],h->mode==7?1u:0u,0x20000042};
+    if(h->mode==19 && (cmd[0]&255)==30)ack[2]=1;
     if(h->mode==9) {
         struct ceph_hfi_queue debug=h->s->link.debug;debug.io=h->fw_tx.io;
         uint32_t error[18]={0};error[0]=ceph_hfi_header(100,18,0,0);error[1]=0xc001;
@@ -173,6 +175,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     struct ceph_gpu_config config;
     assert(!ceph_gpu_config_build(&db,0x06040001,mode==8?0x20000000:0,&config));
     assert(!ceph_gpu_config_hfi(&config,0x20000001,&b->hfi));
+    b->initial_freq=config.initial_freq;b->initial_bw=config.initial_bw;
     struct ceph_qmp_mmio qmp={.ram=h.qmp,.irq=&h.qirq,.ram_pa=0xc300000,.irq_pa=0x17c0000c,
         .bytes=4096,.owner=&h,.lease=guard,.now_ns=qnow,.pause=qpause,.release=end};
     if(mode==8) {
@@ -196,7 +199,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.fault_mmio=(struct ceph_gpu_fault_mmio){&h.gmu_mmio,&h.smmu_mmio,NULL,0,&h,fault_acquire,fault_lease,now,fault_release,0,0};
     int e=cepheus_gmu_bringup_start(&s);
     if(!mode || mode==8 || mode==11 || mode==18) {
-        assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
+        assert(!e && !h.failed && s.stage==CE_BR_HFI && s.dcvs_acked && s.fw_version==0x20000042 && h.commands==(mode==8?9u:6u) && !s.firmware && h.qmp_notified==(mode==8));
         /* Full closed loop: no reset of SMMU/RAM/session between boot and
          * retirement. Actual installed context and same HFI sequence retire. */
         h.park_mmio=(struct ceph_gmu_park_mmio){&h.gmu_mmio,h.gpu,sizeof(h.gpu),&h,guard};
@@ -237,7 +240,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
         assert(b->upload.quarantined && !b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
         for(unsigned i=0;i<3;++i)assert(!s.upload_maps[i].cpu);
         if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
-        if((mode>=3 && mode<=9) || mode==13 || mode==14 || mode==16) {
+        if((mode>=3 && mode<=9) || mode==13 || mode==14 || mode==16 || mode==19) {
             struct ceph_gpu_group_status status;
             assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
             assert(!cepheus_gpu_memory_group_status(s.workspace.publication.group,&status));
@@ -251,6 +254,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
         if(mode==14)assert(s.failed_stage==CE_BR_UPLOAD && !s.cm3.effects && !h.commands);
         if(mode==15 || mode==17)assert(s.failed_stage==CE_BR_THERMAL && !s.power.effects && !s.workspace.publication.group && s.thermal.failure);
         if(mode==16)assert(s.failed_stage==CE_BR_SMMU && !b->upload.writes && !s.cm3.effects && s.thermal.failure);
+        if(mode==19)assert(s.failed_stage==CE_BR_DCVS && !s.dcvs_acked && h.commands==6);
     }
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;

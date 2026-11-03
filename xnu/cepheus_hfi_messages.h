@@ -112,6 +112,16 @@ static inline int ceph_hfi_core_start(uint32_t *out,unsigned capacity)
     if(!out || capacity<2)return CE_HFI_INVALID;
     out[0]=ceph_hfi_header(14,2,0,0);out[1]=0;return 2;
 }
+/* Select a non-off HFI performance/BW pair AFTER CORE_START. Table upload is
+ * not a vote. No sentinel/partial updates in this initial diagnostic path. */
+static inline int ceph_hfi_dcvs(uint32_t *out,unsigned capacity,unsigned freq,unsigned bw,
+    unsigned gx_levels,unsigned bw_levels)
+{
+    if(!out || capacity<4 || gx_levels<2 || gx_levels>16 || bw_levels<2 || bw_levels>16 ||
+        !freq || freq>=gx_levels || !bw || bw>=bw_levels)return CE_HFI_INVALID;
+    out[0]=ceph_hfi_header(30,4,0,0);out[1]=1; /* DCVS_ACK_BLOCK */
+    out[2]=freq;out[3]=bw;return 4;
+}
 /* HFI ACK is only acceptance, not proof that GX has entered slumber. */
 static inline int ceph_hfi_slumber(uint32_t *out,unsigned capacity,unsigned bw,unsigned freq,
     unsigned bw_levels,unsigned gx_levels)

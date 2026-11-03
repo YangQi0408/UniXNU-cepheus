@@ -364,6 +364,13 @@ FAILED及摘要；完整只读材料也固定GPU_ACCELERATION=UNVERIFIED、ARC�
 真机日志正确返回INCOMPLETE（触摸/主屏幕的既有用户验收不被否定）。日志工具
 无法认证来源，检测到RAM/host fixture则拒绝；不能替代用户交互/长期稳定性测试。
 
+原厂gmu_start在HFI完成后经kgsl_pwrctrl_set_default_gpu_pwrlevel请求默认DCVS，
+不是只发PERF/BW表。现整合路径补4word id30消息（ACK_BLOCK=1,freq1,bw3），
+固定本机最低257MHz初始档，不接受off/越界/任意升频。失败于DCVS隔离，成功
+只记录ACK，不宣称频率实测。20个本地固件场景、ABI对照、静态分析通过。
+同时发现冷启动前原厂持有默认档DDR bootstrap vote；目前此真实带宽租约
+仍未实现，BW_TBL不替代它。它与ARC所有权一样是禁止真机启用的明确前置。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

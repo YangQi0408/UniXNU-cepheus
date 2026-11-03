@@ -15,7 +15,7 @@
 #include "cepheus_gpu_thermal.h"
 enum ceph_bringup_stage {CE_BR_NEW,CE_BR_MEMORY,CE_BR_POWER,CE_BR_BOUND,CE_BR_SHARED,
     CE_BR_PDC,CE_BR_SMMU,CE_BR_UPLOAD,CE_BR_CM3,CE_BR_HFI,CE_BR_FAILED,CE_BR_RETIRED,
-    CE_BR_THERMAL,CE_BR_RETIRING};
+    CE_BR_THERMAL,CE_BR_RETIRING,CE_BR_DCVS};
 struct ceph_gmu_bringup;
 struct ceph_gmu_bringup_backends {
     void *owner;
@@ -35,6 +35,7 @@ struct ceph_gmu_bringup_backends {
     struct ceph_qmp_ops acd; /* bin1 must notify AOP before GMU startup */
     struct ceph_gmu_hfi_transport transport;
     struct ceph_hfi_boot_config hfi;
+    unsigned initial_freq,initial_bw; /* fixed lowest Cepheus startup pair1/3 */
     struct ceph_pdc_input pdc_input;
     struct ceph_smmu_plan smmu_plan;
     struct ceph_gmu_upload upload;
@@ -57,6 +58,7 @@ struct ceph_gmu_bringup {
     struct ceph_gmu_block blocks[32];
     struct ceph_gmu_bringup_backends backend;
     uint32_t fw_version;
+    unsigned dcvs_acked;
 };
 #ifdef __cplusplus
 extern "C" {
