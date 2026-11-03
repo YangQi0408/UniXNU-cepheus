@@ -131,6 +131,8 @@ jobs:
             cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined "cepheus/xnu/test_${name}.c" -o "/tmp/ceph-${name}"
             "/tmp/ceph-${name}"
           done
+      - name: GPU production host static analysis
+        run: python3 cepheus/scripts/analyze-gpu-host.py
       - name: Build XNU
         working-directory: dxb
         run: |
