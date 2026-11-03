@@ -11,6 +11,8 @@ int main(void)
         {0x5fffff000ULL,0x120020000ULL,8192,CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE},
         {(1ULL<<39)-4096,0x120030000ULL,4096,CE_VM_READ|CE_VM_NOCACHE}};
     assert(!ceph_vm39_build(&p,r,4));
+    assert(!ceph_vm39_matches(&p,r,4) && ceph_vm_matches(&p,r,4)<0);
+    tables[63*512]=3;assert(ceph_vm39_matches(&p,r,4)<0);tables[63*512]=0;
     for(unsigned i=0;i<4;++i)for(uint64_t off=0;off<r[i].bytes;off+=4096) {
         uint64_t pa,flags;assert(!ceph_vm39_lookup(&p,r[i].va+off+123,&pa,&flags) && pa==r[i].pa+off+123);
         assert(flags==(ceph_vm_leaf(r[i].pa,r[i].permissions)&~CE_VM_PA_MASK));

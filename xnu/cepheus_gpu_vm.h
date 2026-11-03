@@ -108,19 +108,22 @@ static inline int ceph_vm_lookup(struct ceph_vm_pool *p,uint64_t va,uint64_t *pa
  * Reject extra mappings, block descriptors, hidden permission bits, aliasing
  * table pointers and unreachable nonzero pages. No allocation or scratch page
  * array; at most64 table pages/32768 descriptors are inspected. */
-static inline int ceph_vm_matches(struct ceph_vm_pool *p,const struct ceph_vm_region *regions,unsigned count)
+static inline int ceph_vm_matches_limit(struct ceph_vm_pool *p,const struct ceph_vm_region *regions,unsigned count,unsigned va_bits)
 {
     if(!p || !p->words || ((uintptr_t)p->words&7u) || (p->pa&4095u) ||
         !p->used || p->used>p->pages || p->pages>64 || p->pa>=(1ULL<<40) ||
-        (uint64_t)p->pages*4096>(1ULL<<40)-p->pa || !regions || !count || count>16)return -1;
+        (uint64_t)p->pages*4096>(1ULL<<40)-p->pa || !regions || !count || count>16 || (va_bits!=32 && va_bits!=39))return -1;
     uint64_t wanted=0,leaves=0,seen=1;
     for(unsigned i=0;i<count;++i) {
-        if(!ceph_vm_valid(&regions[i]))return -1;
+        struct ceph_vm_region r=regions[i];
+        if(r.va>=(1ULL<<va_bits) || r.bytes>(1ULL<<va_bits)-r.va || (r.va&4095u))return -1;
+        /* Reuse PA/alignment/permission validation without widening GMU32. */
+        r.va=0;if(!ceph_vm_valid(&r) || (va_bits==39 && r.bytes>256*1024))return -1;
         wanted+=regions[i].bytes/4096;
     }
     for(unsigned l1=0;l1<512;++l1) {
         uint64_t d=p->words[l1];if(!d)continue;
-        if(l1>=4 || d!=((d&CE_VM_PA_MASK)|3u))return -1;
+        if(l1>=(1u<<(va_bits-30)) || d!=((d&CE_VM_PA_MASK)|3u))return -1;
         uint64_t *l2=ceph_vm_table(p,d);if(!l2)return -1;
         unsigned page=(unsigned)(((d&CE_VM_PA_MASK)-p->pa)/4096);
         if(seen&(1ULL<<page))return -1;
@@ -148,4 +151,6 @@ static inline int ceph_vm_matches(struct ceph_vm_pool *p,const struct ceph_vm_re
     for(unsigned i=p->used*512;i<p->pages*512;++i)if(p->words[i])return -1;
     return 0;
 }
+static inline int ceph_vm_matches(struct ceph_vm_pool *p,const struct ceph_vm_region *regions,unsigned count)
+{return ceph_vm_matches_limit(p,regions,count,32);}
 #endif

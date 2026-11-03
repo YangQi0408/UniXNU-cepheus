@@ -281,6 +281,13 @@ channels缺省，已由独立解析测试记录。尚未用这些字段冒充已
 保持原样；没有为GX构造CB/TCR/ASID/SMR、安装SMMU或发布CP缓冲。50组host
 回归通过，下一步仍需独立GX上下文所有权与完整映射生命周期。
 
+CP CPU workspace增加独立32页root池与`cepheus_cp_workspace_table`：调用者显式
+提供已保留的五个GPU VA，构建39bit表，ring RO/NX/unpriv、SQE RO/execute/unpriv、
+RPTR/restore/scratch privileged RW/NX（NC）。权限来自kgsl_iommu_get_protflags与
+原始分配标志，不沿用GMU固件RW/execute策略。完整校验器分别按32/39bit边界
+检查，GMU接口仍固定32bit。全部仅CPU表数据；没有SMMU context配置/DMA发布。
+包含CP root后的双工作区可在1MiB池共存，release清空表指针，ASan/UBSan通过。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

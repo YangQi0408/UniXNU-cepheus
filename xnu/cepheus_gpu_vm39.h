@@ -63,4 +63,6 @@ static inline int ceph_vm39_lookup(struct ceph_vm_pool *p,uint64_t va,uint64_t *
     uint64_t leaf=t[(va>>12)&511];if((leaf&3)!=3)return -1;
     *pa=(leaf&CE_VM_PA_MASK)|(va&4095);*flags=leaf&~CE_VM_PA_MASK;return 0;
 }
+static inline int ceph_vm39_matches(struct ceph_vm_pool *p,const struct ceph_vm_region *r,unsigned n)
+{return ceph_vm_matches_limit(p,r,n,39);}
 #endif
