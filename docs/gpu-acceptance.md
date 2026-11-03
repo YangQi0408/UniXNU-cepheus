@@ -100,6 +100,11 @@ FDT的GMU `mboxes` phandle解析到AOP，MSG RAM=`0xc300000+0x1000`、通知寄�
 volatile适配器，仅硬件响应仍由测试替身模拟；不再用独立枚举值掩盖地址错误。
 42组host回归及实际固件模拟上传/启动通过。该PDC增量仍需新的完整CI。
 
+启动与退休整链中的SMMU也已改走`cepheus_smmu_mmio.h`具体具名地址/32或64bit
+load/store；页表publish回调实际遍历当前workspace核对映射并执行barrier，
+测试不模拟成“只调用成功即完成”。RAM硬件状态/ID仍是显式测试fixture，不是
+真机能力探测或cache/TLB可见性证明。原所有成功和失败场景通过。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

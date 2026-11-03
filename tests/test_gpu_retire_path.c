@@ -9,13 +9,14 @@
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_hfi_link.h"
 #include "cepheus_gmu_retire_mmio.h"
+#include "gpu_smmu_fixture.h"
 struct fake {
     struct ceph_hfi_queue tx,rx,fw_rx,fw_tx;
     uint32_t tr,tw,rr,rw;
     uint32_t gmu_ram[0x30000/4],gpu_ram[0x40000/4];
     struct ceph_gmu_mmio gmu;
     struct ceph_gmu_park_mmio park;
-    uint64_t smmu[CE_SM_REG_COUNT],time;
+    uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     unsigned phase,mode,notifies,detached;
 };
 static int okay(void *p){(void)p;return 0;}
@@ -37,8 +38,9 @@ static int pkread(void *p,enum ceph_gmu_park_reg r,uint32_t *v){return ceph_gmu_
 static int pkwrite(void *p,enum ceph_gmu_park_reg r,uint32_t v){return ceph_gmu_mmio_park_write(&((struct fake *)p)->park,r,v);}
 static void pkend(void *p,int done){struct fake *f=p;if(done)f->phase=3;}
 static int dtbegin(void *p,const struct ceph_smmu_plan *plan){struct fake *f=p;assert(f->phase==3 && f->gmu_ram[0x1f800-0x1a800]==1 && f->gpu_ram[0x3c45]==2 && plan->cb==3);return 0;}
-static int dtread(void *p,enum ceph_smmu_reg r,uint64_t *v){struct fake *f=p;*v=f->smmu[r];return 0;}
-static int dtwrite(void *p,enum ceph_smmu_reg r,uint64_t v){struct fake *f=p;f->smmu[r]=v;return f->mode==4?-1:0;}
+static int dtread(void *p,enum ceph_smmu_reg r,uint64_t *v){return ceph_smmu_mmio_read(&((struct fake *)p)->smmu_mmio,r,v);}
+static int dtwrite(void *p,enum ceph_smmu_reg r,uint64_t v){struct fake *f=p;
+    int e=ceph_smmu_mmio_write(&f->smmu_mmio,r,v);return e?e:f->mode==4?-1:0;}
 static int delayus(void *p,unsigned u){(void)p;assert(u==1);return 0;}
 static void dtend(void *p,int done){struct fake *f=p;f->detached=(unsigned)done;if(done)f->phase=4;}
 
@@ -71,9 +73,12 @@ int ceph_test_retire_path(unsigned mode)
     struct ceph_gmu_slumber_ops sl={&f,slbegin,okay,slread,slwrite,okay,now,okay,slend};
     struct ceph_gmu_park_ops pk={&f,pkbegin,okay,pkread,pkwrite,okay,now,okay,pkend};
     struct ceph_smmu_detach_ops dt={&f,dtbegin,okay,dtread,dtwrite,okay,delayus,dtend};
-    f.smmu[CE_SM_SMR]=plan.smr;f.smmu[CE_SM_S2CR]=plan.s2cr_translate;f.smmu[CE_SM_SCTLR]=plan.sctlr;
-    f.smmu[CE_SM_TTBR0]=plan.ttbr0;f.smmu[CE_SM_TTBR1]=plan.ttbr1;f.smmu[CE_SM_TCR]=plan.tcr;f.smmu[CE_SM_TCR2]=plan.tcr2;
-    f.smmu[CE_SM_MAIR0]=plan.mair0;f.smmu[CE_SM_MAIR1]=plan.mair1;f.smmu[CE_SM_CBAR]=plan.cbar;f.smmu[CE_SM_CBA2R]=plan.cba2r;
+    smmu_fixture_init(&f.smmu_mmio,f.smmu,&plan,&f,okay);
+    const enum ceph_smmu_reg regs[]={CE_SM_SMR,CE_SM_S2CR,CE_SM_SCTLR,CE_SM_TTBR0,CE_SM_TTBR1,
+        CE_SM_TCR,CE_SM_TCR2,CE_SM_MAIR0,CE_SM_MAIR1,CE_SM_CBAR,CE_SM_CBA2R};
+    const uint64_t values[]={plan.smr,plan.s2cr_translate,plan.sctlr,plan.ttbr0,plan.ttbr1,
+        plan.tcr,plan.tcr2,plan.mair0,plan.mair1,plan.cbar,plan.cba2r};
+    for(unsigned i=0;i<sizeof(regs)/sizeof(regs[0]);++i)smmu_fixture_set(&f.smmu_mmio,regs[i],values[i]);
     struct ceph_gpu_retire_ops ops={&sl,&pk,&dt,&link.session,&plan,3,1,12,8};
     struct ceph_gpu_publication forged=w.publication;forged.group^=0x100;
     assert(cepheus_gpu_memory_retire_workspace(&forged,&ops)<0 && !f.phase);

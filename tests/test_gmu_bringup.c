@@ -11,11 +11,12 @@
 #include "cepheus_qmp_mmio.h"
 #include "cepheus_pdc_mmio.h"
 #include "gpu_config_fixture.h"
+#include "gpu_smmu_fixture.h"
 struct hw {
     struct ceph_gmu_bringup *s;unsigned mode,phase,votes,commands,failed;
     uint32_t power[CE_PWR_REG_COUNT],gmu[0x30000/4],pdc_cfg[0x10000/4],pdc_seq[0x10000/4];
     struct ceph_gmu_mmio gmu_mmio;struct ceph_pdc_mmio pdc_mmio;
-    uint64_t smmu[CE_SM_REG_COUNT],time;
+    uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t itcm[4096],dtcm[4096],qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
@@ -41,8 +42,17 @@ static int pdc_validate(void *p){return ceph_pdc_mmio_validate(&((struct hw *)p)
 static int pdc_barrier(void *p){return ceph_pdc_mmio_barrier(&((struct hw *)p)->pdc_mmio);}
 static void pdc_end(void *p,int keep){ceph_pdc_mmio_end(&((struct hw *)p)->pdc_mmio,keep);}
 static int smmu_begin(void *p,const struct ceph_smmu_plan *plan,uint32_t actlr){struct hw *h=p;assert(h->s->pdc.attempted==48 && actlr==0x303 && plan->cb==3);return h->mode==4?-14:0;}
-static int smmu_read(void *p,enum ceph_smmu_reg r,uint64_t *v){*v=((struct hw *)p)->smmu[r];return 0;}
-static int smmu_write(void *p,enum ceph_smmu_reg r,uint64_t v){struct hw *h=p;h->smmu[r]=v;if(r==CE_SM_TLBSYNC)h->smmu[CE_SM_TLBSTATUS]=0;return 0;}
+static int smmu_read(void *p,enum ceph_smmu_reg r,uint64_t *v){return ceph_smmu_mmio_read(&((struct hw *)p)->smmu_mmio,r,v);}
+static int smmu_write(void *p,enum ceph_smmu_reg r,uint64_t v){struct hw *h=p;
+    int e=ceph_smmu_mmio_write(&h->smmu_mmio,r,v);if(e)return e;
+    if(r==CE_SM_TLBSYNC)smmu_fixture_set(&h->smmu_mmio,CE_SM_TLBSTATUS,0);
+    return 0;}
+static int publish_tables(void *p){struct hw *h=p;assert(h->s->workspace.state==CE_WS_SHARED);
+    for(unsigned i=0;i<CE_BUF_COUNT;++i) {
+        uint64_t pa,flags;const struct ceph_vm_region *r=&h->s->workspace.layout.regions[i];
+        assert(!ceph_vm_lookup(&h->s->workspace.table,r->va,&pa,&flags) && pa==r->pa);
+    }
+    ceph_smmu_mmio_order();return 0;}
 static int upload_begin(void *p){struct hw *h=p;assert(h->s->smmu.state==CE_SM_ENABLED);return h->mode==5?-15:0;}
 static int reset_held(void *p){struct hw *h=p;return *gmu_reg(h,CE_GMU_SYSRESET)==1?0:-1;}
 static int cm3_begin(void *p,const struct ceph_gmu_start_config *c){struct hw *h=p;
@@ -77,6 +87,7 @@ static int qnow(void *p,uint64_t *n){struct hw *h=p;
 static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==s && s->power.state==CE_PWR_READY);if(h->mode==2)return -12;
     struct ceph_smmu_stream streams[16]={0};for(unsigned i=0;i<16;++i)streams[i].s2cr=2u<<16;
     assert(!ceph_smmu_gmu_plan(streams,16,2,3,8,5,4,s->workspace.table.pa,0,&s->backend.smmu_plan));
+    smmu_fixture_init(&h->smmu_mmio,h->smmu,&s->backend.smmu_plan,h,guard);
     s->backend.upload=(struct ceph_gmu_upload){h->itcm,h->dtcm,4096,4096,NULL,0,h,upload_begin,reset_held,guard,end,0,0};return 0;}
 int ceph_test_bringup(const char *path,unsigned mode)
 {
@@ -88,7 +99,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     b->owner=&h;b->bind=bind;b->failed=failed;
     b->power=(struct ceph_power_ops){&h,power_prepare,guard,power_read,power_write,vote,delayus,end};
     b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,pdc_validate,pdc_read,pdc_write,pdc_barrier,pdc_end};
-    b->smmu=(struct ceph_smmu_ops){&h,smmu_begin,guard,smmu_read,smmu_write,guard,guard,delayus,end};
+    b->smmu=(struct ceph_smmu_ops){&h,smmu_begin,guard,smmu_read,smmu_write,publish_tables,guard,delayus,end};
     b->cm3=(struct ceph_gmu_start_ops){&h,cm3_begin,guard,cm3_read,cm3_write,guard,now,guard,end};
     b->transport=(struct ceph_gmu_hfi_transport){&h,guard,notify,now,guard,guard};
     config_fixture();struct ceph_arc_db db={config_db,sizeof(config_db),config_read};
@@ -107,7 +118,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.power[CE_PWR_CX]=h.power[CE_PWR_GX]=0x222001;h.power[CE_PWR_CX_STATUS]=0x5ff4;h.power[CE_PWR_CFG_AHB]=1;
     h.power[CE_PWR_RCG]=0x80000000;h.power[CE_PWR_GMU]=0x80004220;h.power[CE_PWR_CM3_RESET]=1;
     for(unsigned i=CE_PWR_CXO;i<=CE_PWR_DVM;++i)h.power[i]=0x80000001;
-    h.smmu[CE_SM_S2CR]=2u<<16;*gmu_reg(&h,CE_GMU_SYSRESET)=1;*gmu_reg(&h,CE_GMU_HFI_VERSION)=0x20000001;
+    *gmu_reg(&h,CE_GMU_SYSRESET)=1;*gmu_reg(&h,CE_GMU_HFI_VERSION)=0x20000001;
     h.gmu[0x1f8d0-0x1a800]=0xc0;
     h.gmu_mmio=(struct ceph_gmu_mmio){(volatile uint8_t *)h.gmu,sizeof(h.gmu),s.workspace.layout.start,0x20000001,&h,guard};
     h.pdc_mmio=(struct ceph_pdc_mmio){.gmu=&h.gmu_mmio,.cfg=h.pdc_cfg,.seq=h.pdc_seq,
