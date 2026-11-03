@@ -12,6 +12,7 @@
 #include "cepheus_pdc_mmio.h"
 #include "cepheus_gmu_retire_mmio.h"
 #include "cepheus_smmu_detach.h"
+#include "cepheus_gmu_upload_mmio.h"
 #include "gpu_config_fixture.h"
 #include "gpu_smmu_fixture.h"
 struct hw {
@@ -20,8 +21,9 @@ struct hw {
     uint32_t gpu[0x40000/4];unsigned retiring,slumbered,parked,detached;
     struct ceph_gmu_mmio gmu_mmio;struct ceph_pdc_mmio pdc_mmio;
     struct ceph_gmu_park_mmio park_mmio;
+    struct ceph_gmu_upload_mmio upload_mmio;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
-    uint32_t itcm[4096],dtcm[4096],qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
+    uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
@@ -59,8 +61,8 @@ static int publish_tables(void *p){struct hw *h=p;assert(h->s->workspace.state==
         assert(!ceph_vm_lookup(&h->s->workspace.table,r->va,&pa,&flags) && pa==r->pa);
     }
     ceph_smmu_mmio_order();return 0;}
-static int upload_begin(void *p){struct hw *h=p;assert(h->s->smmu.state==CE_SM_ENABLED);return h->mode==5?-15:0;}
-static int reset_held(void *p){struct hw *h=p;return *gmu_reg(h,CE_GMU_SYSRESET)==1?0:-1;}
+static int upload_begin(void *p){struct ceph_gmu_upload_mmio *m=p;struct hw *h=m->owner;
+    assert(h->s->smmu.state==CE_SM_ENABLED);return h->mode==5?-15:ceph_gmu_upload_mmio_begin(m);}
 static int cm3_begin(void *p,const struct ceph_gmu_start_config *c){struct hw *h=p;
     assert(h->s->backend.upload.writes && c->hfi_va==0x60100000 && c->log_va==0x60200000);return h->mode==6?-16:0;}
 static int cm3_read(void *p,enum ceph_gmu_reg r,uint32_t *v){return ceph_gmu_mmio_start_read(&((struct hw *)p)->gmu_mmio,r,v);}
@@ -107,7 +109,9 @@ static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==
     struct ceph_smmu_stream streams[16]={0};for(unsigned i=0;i<16;++i)streams[i].s2cr=2u<<16;
     assert(!ceph_smmu_gmu_plan(streams,16,2,3,8,5,4,s->workspace.table.pa,0,&s->backend.smmu_plan));
     smmu_fixture_init(&h->smmu_mmio,h->smmu,&s->backend.smmu_plan,h,guard);
-    s->backend.upload=(struct ceph_gmu_upload){h->itcm,h->dtcm,4096,4096,NULL,0,h,upload_begin,reset_held,guard,end,0,0};return 0;}
+    h->upload_mmio=(struct ceph_gmu_upload_mmio){&h->gmu_mmio,h,end,0,0};
+    assert(!ceph_gmu_upload_mmio_bind(&h->upload_mmio,&s->backend.upload));
+    s->backend.upload.begin=upload_begin;return 0;}
 static int slbegin(void *p){struct hw *h=p;assert(h->s->stage==CE_BR_HFI && !h->retiring);h->retiring=1;return 0;}
 static int slread(void *p,enum ceph_slumber_reg r,uint32_t *v){return ceph_gmu_mmio_slumber_read(&((struct hw *)p)->gmu_mmio,r,v);}
 static int slwrite(void *p,enum ceph_slumber_reg r,uint32_t v){return ceph_gmu_mmio_slumber_write(&((struct hw *)p)->gmu_mmio,r,v);}

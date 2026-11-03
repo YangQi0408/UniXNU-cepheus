@@ -136,6 +136,11 @@ fixture制造pool满+complete失败核对该句柄。MAIR源码测试也已区�
 43组host回归通过，包含每次域lease失败、GX off拒绝、缺域、不清故障和FAR
 落点检查。真实租约/映射仍需平台提供，此模块不在启动钩子自动调用。
 
+`cepheus_gmu_upload_mmio.h`把ITCM/DTCM固定为同一GMU aperture的byte0x3000/
+0x7000各16KiB（KGSL GPU word0x1b400/0x1c400）。上传前后检查CM3 reset与
+故障，发布执行`dsb sy`，只接受已有NC工作区；整链测试不再另造两个TCM数组。
+44组host回归和本地固件11场景通过，尚无真实总线写入或GMU执行。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
