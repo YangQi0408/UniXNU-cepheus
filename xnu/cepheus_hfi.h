@@ -27,6 +27,20 @@ struct ceph_hfi_queue {
 	struct ceph_hfi_ops io;
 	int poisoned; /* uncertain publication: no retries until reset/recreation */
 };
+/* Ordering around the index itself is distinct from a cache-maintenance
+ * callback made BEFORE loading it. After observing peer publication, payload
+ * loads must wait; before returning a slot, payload reads must be complete.
+ * Full barrier also handles Normal-NC shared memory on arm64. */
+static inline void ceph_hfi_memory_order(void)
+{
+#if defined(__aarch64__) || defined(__arm64__)
+	__asm__ volatile("dsb sy" ::: "memory");
+#elif !defined(KERNEL)
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
+#else
+#error "HFI shared memory requires arm64"
+#endif
+}
 static inline uint32_t ceph_hfi_header(unsigned id, unsigned words, unsigned type, unsigned seq)
 {
 	if (id > 255 || !words || words > 255 || type > 15 || seq > 4095) { return 0; }
@@ -38,13 +52,15 @@ static inline unsigned ceph_hfi_padded(unsigned count, unsigned major)
 }
 static inline int ceph_hfi_indices(struct ceph_hfi_queue *q, unsigned *r, unsigned *w)
 {
-	if (!q || !q->words || !q->read_index || !q->write_index ||
+	if (!q || !q->words || !q->read_index || !q->write_index || !r || !w ||
+	    (((uintptr_t)q->words|(uintptr_t)q->read_index|(uintptr_t)q->write_index)&3u) ||
 	    !q->io.acquire || !q->io.publish_data || !q->io.publish_index || !q->io.notify ||
 	    q->capacity < 8 || q->capacity > 1024 || (q->capacity & 3u) ||
 	    (q->major != 1 && q->major != 2)) { return CE_HFI_INVALID; }
 	if (q->poisoned) { return CE_HFI_POISONED; }
 	if (q->io.acquire(q->io.ctx)) { return CE_HFI_IO; }
 	*r = *q->read_index; *w = *q->write_index;
+	ceph_hfi_memory_order();
 	if (*r >= q->capacity || *w >= q->capacity ||
 	    (q->major == 2 && ((*r | *w) & 3u))) { return CE_HFI_INVALID; }
 	return 0;
@@ -65,6 +81,7 @@ static inline int ceph_hfi_write(struct ceph_hfi_queue *q, const uint32_t *msg, 
 		q->words[(w + i) % q->capacity] = i < count ? msg[i] : 0xfafafafau;
 	}
 	if (q->io.publish_data(q->io.ctx)) { q->poisoned=1; return CE_HFI_IO; }
+	ceph_hfi_memory_order();
 	*q->write_index = (w + padded) % q->capacity;
 	if (q->io.publish_index(q->io.ctx) || q->io.notify(q->io.ctx)) {
 		q->poisoned=1; return CE_HFI_IO;
@@ -88,6 +105,7 @@ static inline int ceph_hfi_read(struct ceph_hfi_queue *q, uint32_t *out, unsigne
 	if (q->capacity*sizeof(uint32_t)>UINTPTR_MAX-begin || length*sizeof(uint32_t)>UINTPTR_MAX-output ||
 	    (output<begin+q->capacity*sizeof(uint32_t) && begin<output+length*sizeof(uint32_t))) { return CE_HFI_INVALID; }
 	for (unsigned i = 0; i < length; ++i) { out[i] = q->words[(r + i) % q->capacity]; }
+	ceph_hfi_memory_order(); /* copy finishes before firmware may reuse slots */
 	*q->read_index = (r + padded) % q->capacity;
 	if (q->io.publish_index(q->io.ctx)) { q->poisoned=1; return CE_HFI_IO; }
 	*count = length;

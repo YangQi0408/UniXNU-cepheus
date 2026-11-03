@@ -13,6 +13,9 @@ int main(void)
 	uint32_t data[16] = {0}, r = 12, w = 12, out[8]; unsigned n;
 	struct mock m = {0};
 	struct ceph_hfi_queue q = {data,&r,&w,16,2,{&m,acquire,publish_data,publish,notify},0};
+	unsigned ir,iw;assert(ceph_hfi_indices(&q,NULL,&iw)==CE_HFI_INVALID && ceph_hfi_indices(&q,&ir,NULL)==CE_HFI_INVALID);
+	struct ceph_hfi_queue misaligned=q;misaligned.write_index=(uint32_t *)((uint8_t *)&w+1);
+	assert(ceph_hfi_indices(&misaligned,&ir,&iw)==CE_HFI_INVALID);
 	uint32_t msg[] = {ceph_hfi_header(1, 3, 0, 4095), 0x1111, 0x2222};
 	assert(ceph_hfi_write(&q,msg,3)==0 && w==0 && data[15]==0xfafafafa);
 	assert(m.publishes==1 && m.notifies==1 && m.data_publishes==1);

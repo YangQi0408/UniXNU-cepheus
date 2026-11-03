@@ -346,6 +346,11 @@ GX寄存器访问预检新增实际SPTP power-off/clock-off位(bit2/4)以及GX b
 均复用它；任何阻塞均拒绝，不强制打开fence或唤醒GX。已有外部OOB/所有权仍
 不可省略；此预检不是新的资源租约。
 
+HFI补齐索引边界的显式arm64屏障：读取peer index后再读取payload，复制完
+payload后才发布read_index归还槽位；发送payload发布后、write_index之前也执行
+完整barrier。原cache callback在读index之前的屏障不能替代这些顺序。新增空
+输出/未对齐索引拒绝。host测试不能证明ARM总线行为，实际NC共享仍待真机验收。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
