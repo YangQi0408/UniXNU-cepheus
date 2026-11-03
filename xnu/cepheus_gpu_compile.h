@@ -21,11 +21,13 @@
 #include "cepheus_gmu_park.h"
 #include "cepheus_gmu_slumber.h"
 #include "cepheus_qmp_acd.h"
+#include "cepheus_qmp_mmio.h"
 #include "cepheus_smmu_geometry.h"
 #include "cepheus_smmu_mmio.h"
 #include "cepheus_gmu_oob.h"
 #include "cepheus_gmu_mmio.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
+int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);

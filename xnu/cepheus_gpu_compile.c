@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *m,unsigned enable,struct ceph_qmp_ops *out)
+{ if(!out || ceph_qmp_mmio_bind(m,enable))return -1;return ceph_qmp_mmio_ops(m,out); }
 int cepheus_gpu_config_build(const struct ceph_arc_db *db,uint32_t chipid,uint32_t fuse,struct ceph_gpu_config *out)
 { return ceph_gpu_config_build(db,chipid,fuse,out); }
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *s,const struct ceph_hfi_boot_config *c,uint32_t *v)

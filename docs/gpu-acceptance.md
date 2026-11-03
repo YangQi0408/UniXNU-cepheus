@@ -63,6 +63,21 @@ SCTLR无WXN/UWXN覆盖。逐页测试包含实际C workspace构建的全部PTE�
 独立复核子代理b4fca0ed在1800000ms超时，未给出正式结论，不能作为审查通过；
 上述更改依据父代理的源码核对与自动对照测试。失败日志保留，未换CLI重试。
 
+### AOP QMP具体传输（尚无平台连接/租约）
+
+FDT的GMU `mboxes` phandle解析到AOP，MSG RAM=`0xc300000+0x1000`、通知寄存器
+`0x17c0000c+4`、mask1、descriptor offset0。`cepheus_qmp_mmio.h`读取实际64字节
+描述符，检查magic/version/features、两端link/channel和全部ACK、TX/RX边界及
+不重叠；双次读取不同则拒绝，已有TX/RX内容不清除。仅绑定已连接的外部独占
+租约，不自动协商、不写描述符、不抢占其他QMP客户端。
+
+发送适配只准许ACD固定文本的8次顺序payload写、最后length32和一次通知。
+每步检查租约及完整descriptor身份；状态改变、消费超时或租约失效会停止，
+不重试、不清邮箱。来源ABI测试与FDT资源解析通过，40组host回归通过，bin1
+整链测试使用真实volatile适配器+RAM mailbox而非万能成功回调。连接协商、
+实际共享客户端仲裁和映射生命周期仍需真实XNU平台实现；descriptor稳定不能
+证明跨重启ABA或独占所有权，消费ACK也不等于AOP应用层ACD生效。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

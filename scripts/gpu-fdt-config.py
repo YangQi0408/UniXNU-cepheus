@@ -256,13 +256,21 @@ def report(blob,speed_bin=None):
         if 'qcom,gmu-freq' in nodes[child]: gmu_levels.append((scalar(child,'reg'),scalar(child,'qcom,gmu-freq')))
     gmu_levels.sort()
     if gmu_levels!=[(0,0),(1,200000000)]: raise ValueError('unexpected GMU frequencies')
+    mailbox=cells(nodes[gmu]['mboxes'])
+    if len(mailbox)!=2 or mailbox[0] not in handles or mailbox[1]!=0:
+        raise ValueError('unexpected GMU mailbox specifier')
+    qp=handles[mailbox[0]]
+    if strings(nodes[gmu]['mbox-names'])!=['aop'] or 'qcom,qmp-mbox' not in strings(nodes[qp]['compatible']):
+        raise ValueError('unexpected GMU mailbox controller')
+    qmp={'path':qp,'registers':regs(qp),'descriptor_offset':scalar(qp,'mbox-desc-offset'),
+         'irq_mask':scalar(qp,'qcom,irq-mask'),'channel':mailbox[1]}
     return {'fdt_sha256':hashlib.sha256(blob).hexdigest(),'fdt_bytes':len(blob),
         'chipid':scalar(gpu,'qcom,chipid'),'gpu_path':gpu,'gmu_path':gmu,'opp_path':opppath,
         'gpu_registers':regs(gpu),'gmu_registers':regs(gmu),'gmu_hz':[n[1] for n in gmu_levels],
         'opp_levels':opps,'speed_bins':bins,
         'selected_bin':selected,'speed_bin_evidence':'caller-supplied; not checked by this tool' if selected else 'UNKNOWN; no eFuse read performed',
         'ddr_vectors':ddr,'cnoc_vectors':cnoc,'bus_routes':routes,'streams':streams,'smmu_path':smmu,
-        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,
+        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,
         'limitations':['saved FDT only, no hardware execution','BCM cmd-db unit/width/VCD values still needed',
                         'not an ARC vote ownership proof','selected OPP phandle must replace generic sm8150 table']}
 

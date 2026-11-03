@@ -53,6 +53,11 @@ class FdtTests(unittest.TestCase):
         self.assertEqual(r['gmu_registers']['kgsl_gmu_pdc_cfg']['address'],0xb290000)
         self.assertEqual(r['gmu_registers']['kgsl_gmu_pdc_seq']['address'],0xb490000)
         self.assertEqual(r['gmu_hz'],[0,200000000])
+        self.assertEqual(r['qmp']['registers'],{'msgram':{'address':0xc300000,'bytes':4096},
+                                              'irq-reg-base':{'address':0x17c0000c,'bytes':4}})
+        self.assertEqual(r['qmp']['descriptor_offset'],0)
+        self.assertEqual(r['qmp']['irq_mask'],1)
+        self.assertEqual(r['qmp']['channel'],0)
         self.assertEqual(r['opp_levels'][0],{'hz':257000000,'raw_vlvl':64})
         self.assertEqual(r['streams']['gmu_kernel'],{'sid':5,'mask':0x400,'actlr':0x303})
         self.assertEqual([b['throttle_mask'] for b in r['speed_bins']],[0x80,0x40])
