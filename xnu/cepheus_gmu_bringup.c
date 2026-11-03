@@ -6,7 +6,10 @@ int cepheus_gmu_bringup_prepare(struct ceph_gmu_bringup *s,const uint8_t *firmwa
     if(!s || s->stage!=CE_BR_NEW || s->firmware || s->workspace.state!=CE_WS_NEW)return -1;
     if(cepheus_gpu_firmware_snapshot(0,firmware,bytes,&s->firmware))return -1;
     if(cepheus_gmu_workspace_prepare(&s->workspace)) {
-        (void)cepheus_gpu_memory_release_cpu(s->firmware);s->firmware=0;s->stage=CE_BR_FAILED;s->error=-1;return -1;
+        /* complete() can fail even before publication. Keep the only handle
+         * for diagnostics if backing was retained; never report it released. */
+        if(!cepheus_gpu_memory_release_cpu(s->firmware))s->firmware=0;
+        s->stage=CE_BR_FAILED;s->error=-1;return -1;
     }
     s->stage=CE_BR_MEMORY;return 0;
 }
@@ -77,6 +80,13 @@ failed:
         s->workspace.layout=(struct ceph_gpu_va_plan){0};s->workspace.leased=0;
         for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)s->workspace.views[i]=(struct ceph_gpu_memory_view){0};
     }
+    /* The uploader has copies of workspace CPU VAs as well as TCM aliases.
+     * Quarantine retains backing, not permission for a second upload attempt.
+     * Leave accounting/error state intact but revoke all advertised aliases. */
+    for(unsigned i=0;i<3;++i)s->upload_maps[i]=(struct ceph_gmu_mapping){0};
+    b->upload.maps=NULL;b->upload.map_count=0;
+    b->upload.itcm=b->upload.dtcm=NULL;b->upload.itcm_words=b->upload.dtcm_words=0;
+    b->upload.quarantined=1;
     b->failed(b->owner,s->failed_stage,e);
     return e;
 }

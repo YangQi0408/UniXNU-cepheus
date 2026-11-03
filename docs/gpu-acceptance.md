@@ -119,6 +119,12 @@ session，直接用同一published workspace完成PREPARE_SLUMBER→park→detac
 PDC版CI41565725731（19ff9df）已完整成功，kernel SHA256
 `b45791dfd379bb0e5667080a169dfbc6b61f4e79e35a2063931b40c0c2787dd5`。
 
+启动失败清理进一步撤销upload maps中的CPU VA以及TCM别名，并把uploader锁存为
+quarantined，保留写入计数但不保留可重试入口。CPU-only workspace准备失败时，
+固件snapshot的complete若失败则保留唯一句柄，不误记为已释放。新增第11个整链
+fixture制造pool满+complete失败核对该句柄。MAIR源码测试也已区分slot编号与
+实际属性：KGSL NC slot0、本实现NC slot1，比较解码后的0x44而非宣称PTE数值相同。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

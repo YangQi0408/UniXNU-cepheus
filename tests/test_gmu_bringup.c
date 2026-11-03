@@ -174,6 +174,8 @@ int ceph_test_bringup(const char *path,unsigned mode)
     }
     else {
         assert(e && h.failed && s.stage==CE_BR_FAILED);
+        assert(b->upload.quarantined && !b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
+        for(unsigned i=0;i<3;++i)assert(!s.upload_maps[i].cpu);
         if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
         if(mode>=3) {
             struct ceph_gpu_group_status status;
@@ -184,4 +186,17 @@ int ceph_test_bringup(const char *path,unsigned mode)
     }
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;
+}
+
+int ceph_test_bringup_prepare_failure(const char *path)
+{
+    /* Fill eleven slots: firmware can allocate slot12, workspace fails after
+     * four buffers. Test main arranges complete() failure, so all handles
+     * remain diagnostic identities rather than being force-freed. */
+    uint64_t occupied[11];for(unsigned i=0;i<11;++i)assert(!cepheus_gpu_memory_alloc(4096,&occupied[i]));
+    uint8_t data[37680];FILE *f=fopen(path,"rb");assert(f);assert(fread(data,1,sizeof(data),f)==sizeof(data));fclose(f);
+    struct ceph_gmu_bringup s={0};assert(cepheus_gmu_bringup_prepare(&s,data,sizeof(data))<0);
+    assert(s.stage==CE_BR_FAILED && s.workspace.state==CE_WS_RETAINED && s.firmware);
+    assert(!s.workspace.table.words && !s.workspace.layout.start.hfi_va);
+    return 0;
 }
