@@ -418,8 +418,8 @@ extern "C" int cepheus_gpu_memory_group_status(uint64_t group,struct ceph_gpu_gr
     /* ALLOCATING buffers are being completed outside the lock. Their pointer
      * and byte fields may change; don't race them for diagnostic counts. A
      * RETIRING group can therefore report only its currently stable slots. */
-    for(unsigned i=0;i<16;++i)if(ceph_pool[i].group==group &&
-        ceph_pool[i].state.state!=CE_MEM_ALLOCATING && ceph_pool[i].buffer.memory) {
+    for(unsigned i=0;i<16;++i)if(ceph_pool[i].state.state!=CE_MEM_ALLOCATING &&
+        ceph_pool[i].group==group && ceph_pool[i].buffer.memory) {
         ++out->retained_buffers;out->retained_bytes+=ceph_pool[i].buffer.bytes;
     }
     IOLockUnlock(lock);return 0;

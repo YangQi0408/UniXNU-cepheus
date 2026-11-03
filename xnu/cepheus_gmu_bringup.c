@@ -1,6 +1,30 @@
 #include "cepheus_gmu_bringup.h"
 #include "cepheus_gpu_compile.h"
 
+int cepheus_gmu_bringup_thermal_check(struct ceph_gmu_bringup *s)
+{
+    if(!s || !s->thermal.active || !s->backend.temperature || !s->backend.now_ns)return CE_THERMAL_INVALID;
+    if(s->thermal.failure)return CE_THERMAL_LATCHED;
+    struct ceph_gpu_temperature sample;uint64_t now;
+    if(s->backend.temperature(s->backend.owner,&sample) || s->backend.now_ns(s->backend.owner,&now)) {
+        s->thermal.failure=CE_THERMAL_INVALID;return CE_THERMAL_INVALID;
+    }
+    return ceph_gpu_thermal_check(&s->thermal,&sample,now);
+}
+static int hfi_validate(void *p)
+{
+    struct ceph_gmu_bringup *s=p;
+    /* A latched thermal stop must not prevent the bounded PREPARE_SLUMBER
+     * needed to stop hardware. Link separately checks RETIRING group and id33.
+     * Only formal retirement enters this state; no ordinary requests admitted. */
+    if(s->stage!=CE_BR_RETIRING && cepheus_gmu_bringup_thermal_check(s))return -1;
+    return s->backend.transport.validate(s->backend.transport.ctx);
+}
+static int hfi_doorbell(void *p){struct ceph_gmu_bringup *s=p;return s->backend.transport.doorbell(s->backend.transport.ctx);}
+static int hfi_now(void *p,uint64_t *n){struct ceph_gmu_bringup *s=p;return s->backend.transport.now_ns(s->backend.transport.ctx,n);}
+static int hfi_pause(void *p){struct ceph_gmu_bringup *s=p;return s->backend.transport.pause(s->backend.transport.ctx);}
+static int hfi_fault(void *p){struct ceph_gmu_bringup *s=p;return s->backend.transport.fault(s->backend.transport.ctx);}
+
 static void revoke_upload_aliases(struct ceph_gmu_bringup *s)
 {
     for(unsigned i=0;i<3;++i)s->upload_maps[i]=(struct ceph_gmu_mapping){0};
@@ -50,7 +74,10 @@ int cepheus_gmu_bringup_prepare(struct ceph_gmu_bringup *s,const uint8_t *firmwa
 
 int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
 {
-    if(!s || s->stage!=CE_BR_MEMORY || !s->firmware || !s->backend.bind || !s->backend.failed)return -1;
+    if(!s || s->stage!=CE_BR_MEMORY || !s->firmware || !s->backend.bind || !s->backend.failed ||
+        !s->backend.temperature || !s->backend.now_ns || !s->backend.trial_ns || s->backend.trial_ns>30000000000ULL ||
+        !s->backend.transport.validate || !s->backend.transport.doorbell || !s->backend.transport.now_ns ||
+        !s->backend.transport.pause || !s->backend.transport.fault)return -1;
     struct ceph_gmu_bringup_backends *b=&s->backend;
     int e;
     /* Reject incomplete immutable policy before any power side effects. bind
@@ -65,9 +92,15 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     if(b->hfi.policy->acd && (!b->acd.begin || !b->acd.validate || !b->acd.read32 ||
         !b->acd.write32 || !b->acd.barrier || !b->acd.notify || !b->acd.now_ns || !b->acd.pause || !b->acd.end))return -1;
     const struct ceph_gpu_bin_policy policy=*b->hfi.policy;unsigned min_minor=b->hfi.min_fw_minor;
+    s->stage=CE_BR_THERMAL;uint64_t now;
+    e=b->now_ns(b->owner,&now);if(e)goto failed;
+    e=ceph_gpu_thermal_start(&s->thermal,now,b->trial_ns);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_POWER;e=ceph_power_start(&s->power,&b->power);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_BOUND;e=b->bind(b->owner,s);if(e)goto failed;
     e=policy_unchanged(b,perf,bw,acd,&pdc_plan,&policy,min_minor);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     /* Bind cannot swap/forge the prepared root; exact resource identities are
      * checked again by the publication pool and by each concrete engine. */
     if(!ceph_smmu_plan_canonical(&b->smmu_plan) || (b->smmu_plan.smr&0x7fffu)!=5 ||
@@ -90,15 +123,21 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     e=ceph_gmu_start_write(&retention,&b->cm3,CE_GMU_TCM_RETENTION,1,1);
     s->retention_writes=retention.effects;if(e)goto failed;
     if(b->hfi.policy->acd) {e=ceph_qmp_send_acd(&s->acd,&b->acd,1);if(e)goto failed;}
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_SHARED;e=cepheus_gmu_workspace_share(&s->workspace,&b->smmu_plan);if(e)goto failed;
     s->stage=CE_BR_PDC;e=ceph_pdc_install_a640v2(&s->pdc,&b->pdc,&b->pdc_input);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_SMMU;e=ceph_smmu_install_context(&s->smmu,&b->smmu,&b->smmu_plan,0x303);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_UPLOAD;e=cepheus_gpu_upload_snapshot(&b->upload,s->firmware,s->blocks,32);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     /* Bind pristine HFI table before CM3 starts modifying it. */
-    e=cepheus_gmu_hfi_bind(&s->link,&s->workspace,&b->transport);if(e)goto failed;
+    struct ceph_gmu_hfi_transport transport={s,hfi_validate,hfi_doorbell,hfi_now,hfi_pause,hfi_fault};
+    e=cepheus_gmu_hfi_bind(&s->link,&s->workspace,&transport);if(e)goto failed;
     s->stage=CE_BR_CM3;e=ceph_gmu_start_cold(&s->cm3,&b->cm3,&s->workspace.layout.start);if(e)goto failed;
     b->hfi.hfi_version=s->cm3.hfi_version;
     s->stage=CE_BR_HFI;e=ceph_hfi_boot_a640(&s->link.session,&b->hfi,&s->fw_version);if(e)goto failed;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     /* Image is host-only sealed copy, never DMA-mapped; release after upload.
      * Workspace remains shared and pinned until protocol retirement. */
     e=cepheus_gpu_memory_release_cpu(s->firmware);
@@ -130,10 +169,11 @@ int cepheus_gmu_bringup_retire(struct ceph_gmu_bringup *s,struct ceph_gpu_retire
     if(!s || s->stage!=CE_BR_HFI || s->firmware || s->workspace.state!=CE_WS_SHARED ||
         !s->link.bound || !b || b->hfi!=&s->link.session || b->plan!=&s->backend.smmu_plan ||
         !s->backend.hfi.bw || b->bw_levels!=s->backend.hfi.bw->levels || b->gx_levels!=s->backend.hfi.ng)return -1;
+    s->stage=CE_BR_RETIRING;
     int e=cepheus_gmu_workspace_retire(&s->workspace,b);
     /* Invalid retirement input refused before admission leaves the session
      * untouched. An attempted protocol failure instead quarantines the group. */
-    if(s->workspace.state==CE_WS_SHARED)return e?e:-1;
+    if(s->workspace.state==CE_WS_SHARED){s->stage=CE_BR_HFI;return e?e:-1;}
     cepheus_gmu_hfi_invalidate(&s->link);revoke_upload_aliases(s);
     s->error=e;
     if(e) {
