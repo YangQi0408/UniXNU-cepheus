@@ -93,6 +93,11 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     }
     if(words){assert(words==(int)count);assert(!memcmp(cmd+1,expected+1,(count-1)*4));}
     unsigned n=(cmd[0]&255)==1?4:3;uint32_t ack[]={ceph_hfi_header(cmd[0]&255,n,1,0),cmd[0],h->mode==7?1u:0u,0x20000042};
+    if(h->mode==9) {
+        struct ceph_hfi_queue debug=h->s->link.debug;debug.io=h->fw_tx.io;
+        uint32_t error[18]={0};error[0]=ceph_hfi_header(100,18,0,0);error[1]=0xc001;
+        assert(!ceph_hfi_write(&debug,error,18));
+    }
     return ceph_hfi_write(&h->fw_tx,ack,n);}
 static void failed(void *p,enum ceph_bringup_stage stage,int e){struct hw *h=p;assert(e && stage>=CE_BR_POWER);h->failed=1;}
 static int qnow(void *p,uint64_t *n){struct hw *h=p;
@@ -169,6 +174,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     }
     else {
         assert(e && h.failed && s.stage==CE_BR_FAILED);
+        if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
         if(mode>=3) {
             struct ceph_gpu_group_status status;
             assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
