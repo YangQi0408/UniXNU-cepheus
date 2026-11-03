@@ -351,6 +351,13 @@ payload后才发布read_index归还槽位；发送payload发布后、write_index
 完整barrier。原cache callback在读index之前的屏障不能替代这些顺序。新增空
 输出/未对齐索引拒绝。host测试不能证明ARM总线行为，实际NC共享仍待真机验收。
 
+`scripts/validate-gpu-offline.py`串行运行离线检查并保存每项日志/exit code、git
+commit/dirty状态、显式固件/FDT摘要；缺reference或专有fixture记SKIP，输出目录
+已存在则拒绝覆盖。完整参考输入的一次运行17项PASS记录在本地
+`logs/gpu-offline-20261103-1420/receipt.json`（当时脚本未提交所以dirty=true）。
+该receipt不包含任何真机执行证明，也不上传专有文件。PAS前置详见
+`docs/zap-platform-contract.md`，仍无XNU认证后端。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
