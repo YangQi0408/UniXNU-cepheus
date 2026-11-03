@@ -287,13 +287,23 @@ def report(blob,speed_bin=None):
         'iommu_path':kgsl_iommu,'streams':gx_streams,
         'hyp_secure_alloc':'qcom,hyp_secure_alloc' in nodes[kgsl_iommu],
         'three_level_tables':'qcom,use-3-lvl-tables' in nodes[smmu]}
+    zap_nodes=[path for path,props in nodes.items() if props.get('qcom,firmware-name')==b'a640_zap\0']
+    if len(zap_nodes)!=1:raise ValueError('expected one A640 ZAP loader')
+    zp=zap_nodes[0]
+    if 'qcom,pil-tz-generic' not in strings(nodes[zp]['compatible']):raise ValueError('unexpected ZAP loader')
+    zap={'path':zp,'pas_id':scalar(zp,'qcom,pas-id'),'no_auth':'qcom,pil-no-auth' in nodes[zp],
+         'memory_region':ref(zp,'memory-region') if 'memory-region' in nodes[zp] else None,
+         'subsys_vmid':scalar(zp,'qcom,subsys-vmid') if 'qcom,subsys-vmid' in nodes[zp] else None,
+         'clock_names':strings(nodes[zp]['clock-names']) if 'clock-names' in nodes[zp] else [],
+         'proxy_clock_names':strings(nodes[zp]['qcom,proxy-clock-names']) if 'qcom,proxy-clock-names' in nodes[zp] else []}
+    if zap['pas_id']!=13 or zap['no_auth']:raise ValueError('unsupported/unauthenticated ZAP policy')
     return {'fdt_sha256':hashlib.sha256(blob).hexdigest(),'fdt_bytes':len(blob),
         'chipid':scalar(gpu,'qcom,chipid'),'gpu_path':gpu,'gmu_path':gmu,'opp_path':opppath,
         'gpu_registers':regs(gpu),'gmu_registers':regs(gmu),'gmu_hz':[n[1] for n in gmu_levels],
         'opp_levels':opps,'speed_bins':bins,
         'selected_bin':selected,'speed_bin_evidence':'caller-supplied; not checked by this tool' if selected else 'UNKNOWN; no eFuse read performed',
         'ddr_vectors':ddr,'cnoc_vectors':cnoc,'bus_routes':routes,'streams':streams,'smmu_path':smmu,
-        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,'thermal':thermal,'gx':gx,
+        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,'thermal':thermal,'gx':gx,'zap':zap,
         'limitations':['saved FDT only, no hardware execution','BCM cmd-db unit/width/VCD values still needed',
                         'not an ARC vote ownership proof','selected OPP phandle must replace generic sm8150 table']}
 

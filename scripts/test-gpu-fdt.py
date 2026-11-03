@@ -65,6 +65,8 @@ class FdtTests(unittest.TestCase):
         self.assertEqual(r['gx']['streams'],{'gfx3d_user':{'sid':0,'mask':0x401},'gfx3d_secure':{'sid':2,'mask':0x400}})
         self.assertEqual([r['gx'][k] for k in ('highest_bank_bit','min_access_length','ubwc_mode','macrotiling_channels')],[15,32,3,None])
         self.assertTrue(r['gx']['hyp_secure_alloc'] and r['gx']['three_level_tables'])
+        self.assertEqual(r['zap'],{'path':'/soc/qcom,kgsl-hyp','pas_id':13,'no_auth':False,
+                                  'memory_region':None,'subsys_vmid':None,'clock_names':[],'proxy_clock_names':[]})
         self.assertEqual(r['opp_levels'][0],{'hz':257000000,'raw_vlvl':64})
         self.assertEqual(r['streams']['gmu_kernel'],{'sid':5,'mask':0x400,'actlr':0x303})
         self.assertEqual([b['throttle_mask'] for b in r['speed_bins']],[0x80,0x40])
