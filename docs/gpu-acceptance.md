@@ -358,6 +358,12 @@ commit/dirty状态、显式固件/FDT摘要；缺reference或专有fixture记SKI
 该receipt不包含任何真机执行证明，也不上传专有文件。PAS前置详见
 `docs/zap-platform-contract.md`，仍无XNU认证后端。
 
+`check-gpu-diagnostic-log.py`只分析已保存日志，输出OBSERVED/MISSING/CONFLICT/
+FAILED及摘要；完整只读材料也固定GPU_ACCELERATION=UNVERIFIED、ARC所有权UNKNOWN。
+缺项退出2、拒绝退出1，不把旧preflight缺少后续功能日志判成已验收。原d336276
+真机日志正确返回INCOMPLETE（触摸/主屏幕的既有用户验收不被否定）。日志工具
+无法认证来源，检测到RAM/host fixture则拒绝；不能替代用户交互/长期稳定性测试。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

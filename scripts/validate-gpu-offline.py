@@ -42,6 +42,7 @@ def main():
              'scope':'OFFLINE ONLY: no actual IOKit, GPU execution, PAS or device acceptance',
              'fixtures':{name:identity(getattr(a,name)) for name in ('gmu','sqe','fdt','zap')},'checks':[]}
     checks=[('host',['bash','scripts/test-gpu-stack.sh'],{}),
+            ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('sanitizers',['bash','scripts/test-gpu-sanitizers.sh'],{}),
             ('static',['python3','scripts/analyze-gpu-host.py'],{}),
             ('integration',['python3','scripts/test-gpu-integration.py'],
