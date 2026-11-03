@@ -112,6 +112,13 @@ id101的4word debug记录和id100的18word错误记录。未知/畸形消息、�
 原盲点。测试实际共享队列索引、debug消费、坏索引、消息洪泛、未知请求、
 ACK+ERROR和失去租约；公开CI不含真实固件。
 
+两种bin的整链测试进一步闭环：在启动成功后，不重置SMMU寄存器RAM、不替换HFI
+session，直接用同一published workspace完成PREPARE_SLUMBER→park→detach，
+最后核对C++分配/prepare/映射计数全归零，group不可再查，HFI序号连续增加。
+这是原生产模块在RAM硬件模型上的集成证明，绝不是SM8150实际TLB/DMA证据。
+PDC版CI41565725731（19ff9df）已完整成功，kernel SHA256
+`b45791dfd379bb0e5667080a169dfbc6b61f4e79e35a2063931b40c0c2787dd5`。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

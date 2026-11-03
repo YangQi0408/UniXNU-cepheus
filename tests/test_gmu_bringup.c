@@ -10,18 +10,24 @@
 #include "cepheus_gpu_config.h"
 #include "cepheus_qmp_mmio.h"
 #include "cepheus_pdc_mmio.h"
+#include "cepheus_gmu_retire_mmio.h"
+#include "cepheus_smmu_detach.h"
 #include "gpu_config_fixture.h"
 #include "gpu_smmu_fixture.h"
 struct hw {
     struct ceph_gmu_bringup *s;unsigned mode,phase,votes,commands,failed;
     uint32_t power[CE_PWR_REG_COUNT],gmu[0x30000/4],pdc_cfg[0x10000/4],pdc_seq[0x10000/4];
+    uint32_t gpu[0x40000/4];unsigned retiring,slumbered,parked,detached;
     struct ceph_gmu_mmio gmu_mmio;struct ceph_pdc_mmio pdc_mmio;
+    struct ceph_gmu_park_mmio park_mmio;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t itcm[4096],dtcm[4096],qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
-static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;return 0;}
+static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;
+    if(h->gpu[0x3c45]&2)h->gpu[0x3c46]|=2;
+    return 0;}
 static int delayus(void *p,unsigned n){struct hw *h=p;h->time+=n*1000;return 0;}
 static void end(void *p,int keep){struct hw *h=p;assert(h->s);(void)keep;}
 static int power_prepare(void *p,struct ceph_power_input *i){struct hw *h=p;if(h->mode==1)return -11;
@@ -68,6 +74,14 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     h->fw_rx=h->s->link.tx;h->fw_tx=h->s->link.rx;
     h->fw_rx.io=(struct ceph_hfi_ops){h,guard,guard,guard,guard};h->fw_tx.io=h->fw_rx.io;
     assert(!ceph_hfi_read(&h->fw_rx,cmd,255,&count));
+    if(h->retiring) {
+        assert(count==3 && (cmd[0]&255)==33 && cmd[1]==3 && cmd[2]==1);
+        uint32_t ack[]={ceph_hfi_header(33,3,1,0),cmd[0],0};
+        h->gmu[0x1f8ec-0x1a800]=15;h->gmu[0x1f8d0-0x1a800]=0xc0;
+        const uint32_t tcs[]={0x23746,0x237ee,0x23896,0x2393e};
+        for(unsigned i=0;i<4;++i)h->gmu[tcs[i]-0x1a800]=1;
+        return ceph_hfi_write(&h->fw_tx,ack,3);
+    }
     const unsigned ids0[]={1,4,3,11,14},ids1[]={1,4,3,11,7,11,11,14};
     const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?8:5;
     assert(h->commands<total && (cmd[0]&255)==ids[h->commands]);h->commands++;
@@ -89,6 +103,17 @@ static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==
     assert(!ceph_smmu_gmu_plan(streams,16,2,3,8,5,4,s->workspace.table.pa,0,&s->backend.smmu_plan));
     smmu_fixture_init(&h->smmu_mmio,h->smmu,&s->backend.smmu_plan,h,guard);
     s->backend.upload=(struct ceph_gmu_upload){h->itcm,h->dtcm,4096,4096,NULL,0,h,upload_begin,reset_held,guard,end,0,0};return 0;}
+static int slbegin(void *p){struct hw *h=p;assert(h->s->stage==CE_BR_HFI && !h->retiring);h->retiring=1;return 0;}
+static int slread(void *p,enum ceph_slumber_reg r,uint32_t *v){return ceph_gmu_mmio_slumber_read(&((struct hw *)p)->gmu_mmio,r,v);}
+static int slwrite(void *p,enum ceph_slumber_reg r,uint32_t v){return ceph_gmu_mmio_slumber_write(&((struct hw *)p)->gmu_mmio,r,v);}
+static void slend(void *p,int done){struct hw *h=p;h->slumbered=(unsigned)done;}
+static int park_begin(void *p){struct hw *h=p;assert(h->slumbered);return ceph_gmu_mmio_park_ready(&h->park_mmio);}
+static int park_read(void *p,enum ceph_gmu_park_reg r,uint32_t *v){return ceph_gmu_mmio_park_read(&((struct hw *)p)->park_mmio,r,v);}
+static int park_write(void *p,enum ceph_gmu_park_reg r,uint32_t v){return ceph_gmu_mmio_park_write(&((struct hw *)p)->park_mmio,r,v);}
+static void park_end(void *p,int done){struct hw *h=p;h->parked=(unsigned)done;}
+static int detach_begin(void *p,const struct ceph_smmu_plan *plan){struct hw *h=p;
+    assert(h->parked && plan->ttbr0==h->s->backend.smmu_plan.ttbr0);return 0;}
+static void detach_end(void *p,int done){struct hw *h=p;h->detached=(unsigned)done;}
 int ceph_test_bringup(const char *path,unsigned mode)
 {
     static struct ceph_gmu_bringup s;static struct hw h;h.s=&s;h.mode=mode;
@@ -124,7 +149,24 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.pdc_mmio=(struct ceph_pdc_mmio){.gmu=&h.gmu_mmio,.cfg=h.pdc_cfg,.seq=h.pdc_seq,
         .cfg_pa=0xb290000,.seq_pa=0xb490000,.cfg_bytes=sizeof(h.pdc_cfg),.seq_bytes=sizeof(h.pdc_seq),.owner=&h,.lease=guard,.finish=end};
     int e=cepheus_gmu_bringup_start(&s);
-    if(!mode || mode==8)assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
+    if(!mode || mode==8) {
+        assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
+        /* Full closed loop: no reset of SMMU/RAM/session between boot and
+         * retirement. Actual installed context and same HFI sequence retire. */
+        h.park_mmio=(struct ceph_gmu_park_mmio){&h.gmu_mmio,h.gpu,sizeof(h.gpu),&h,guard};
+        struct ceph_gmu_slumber_ops sl={&h,slbegin,guard,slread,slwrite,guard,now,guard,slend};
+        struct ceph_gmu_park_ops pk={&h,park_begin,guard,park_read,park_write,guard,now,guard,park_end};
+        struct ceph_smmu_detach_ops dt={&h,detach_begin,guard,smmu_read,smmu_write,guard,delayus,detach_end};
+        struct ceph_gpu_retire_ops retire={&sl,&pk,&dt,&s.link.session,&b->smmu_plan,
+            config.initial_bw,config.initial_freq,config.bw.levels,config.policy.gx_levels};
+        uint64_t group=s.workspace.publication.group;
+        assert(!cepheus_gmu_workspace_retire(&s.workspace,&retire));
+        assert(s.workspace.state==CE_WS_RELEASED && h.slumbered && h.parked && h.detached);
+        assert(s.link.session.sequence==h.commands+1);
+        struct ceph_gpu_group_status status;assert(cepheus_gpu_memory_group_status(group,&status)<0);
+        cepheus_gmu_hfi_invalidate(&s.link);
+        printf("Closed loop bin%u: same installed SMMU/HFI -> slumber -> park -> detach -> all buffers released PASS (RAM hardware)\n",config.policy.bin);
+    }
     else {
         assert(e && h.failed && s.stage==CE_BR_FAILED);
         if(mode>=3) {
