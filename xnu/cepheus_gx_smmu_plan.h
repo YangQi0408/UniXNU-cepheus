@@ -16,6 +16,7 @@ static inline int ceph_gx_smmu_plan(const struct ceph_smmu_stream *streams,unsig
 {
     if(!out || !streams || !g || g->bytes!=0x10000 || g->page_shift!=12 || g->cb_base!=0x8000 ||
         g->gr1!=0x1000 || count!=g->groups || !count || count>128 || slot>=count ||
+        g->va_bits<39 || g->ipa_bits<40 || g->pa_bits<40 || g->sid_bits<11 || g->sid_bits>15 ||
         cb<g->s2_contexts || cb>=g->contexts || !g->contexts || g->contexts>8 ||
         !asid || asid>255 || !root || (root&4095u) || root>=(1ULL<<40) ||
         current_sctlr==UINT32_MAX || (current_sctlr&1))return -1;

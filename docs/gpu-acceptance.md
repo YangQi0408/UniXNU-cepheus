@@ -330,6 +330,11 @@ CP workspace restore接口现把固定MMIO快照写入其实际池内restore buf
 真实C模块+真实C++池联测通过ASan/UBSan。数据仍CPU-owned，不发布/不执行；
 需要后续实际GX上下文/DMA生命周期才能使用这个包。
 
+SMMU geometry现在明确保留ID2的VA(UBS)、IPA(IAS)、PA(OAS)三种宽度；不能只
+检查输出PA40就接受GX39输入。GMU需要VA≥32/IPA≥40/PA≥40，GX纯规划另需
+VA≥39。新增VA32/IPA36拒绝负例；GX mock ID2改为实际表示40VA的0x1222，
+而不是原来仅32VA的0x1022。真实ID仍需允许的只读采样确认。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

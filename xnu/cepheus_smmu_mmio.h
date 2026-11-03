@@ -33,6 +33,7 @@ static inline int ceph_smmu_mmio_offset(const struct ceph_smmu_mmio *m,enum ceph
         !ceph_smmu_plan_canonical(&m->plan) || m->actlr!=0x303 ||
         m->geometry.bytes!=m->mapped_bytes || m->geometry.bytes!=0x10000 ||
         m->geometry.page_shift!=12 || m->geometry.cb_base!=0x8000 || m->geometry.gr1!=0x1000 ||
+        m->geometry.va_bits<32 || m->geometry.ipa_bits<40 || m->geometry.pa_bits<40 ||
         m->plan.slot>=m->geometry.groups || m->plan.cb<m->geometry.s2_contexts ||
         m->plan.cb>=m->geometry.contexts || !m->lease)return -1;
     uint32_t off=0;*width=4;

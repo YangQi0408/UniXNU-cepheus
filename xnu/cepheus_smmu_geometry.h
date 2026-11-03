@@ -6,7 +6,7 @@
 #ifndef CEPHEUS_SMMU_GEOMETRY_H
 #define CEPHEUS_SMMU_GEOMETRY_H
 #include <stdint.h>
-struct ceph_smmu_geometry {unsigned page_shift,groups,contexts,s2_contexts,pa_bits,sid_bits;uint32_t gr1,cb_base,bytes;};
+struct ceph_smmu_geometry {unsigned page_shift,groups,contexts,s2_contexts,pa_bits,sid_bits;uint32_t gr1,cb_base,bytes;unsigned va_bits,ipa_bits;};
 static inline unsigned ceph_smmu_address_bits(unsigned encoding)
 {
     static const unsigned bits[]={32,36,40,42,44,48};
@@ -20,9 +20,9 @@ static inline int ceph_smmu_geometry(uint32_t id0,uint32_t id1,uint32_t id2,uint
     g.page_shift=(id1&(1u<<31))?16:12;
     g.groups=id0&255;g.contexts=id1&255;g.s2_contexts=(id1>>16)&255;
     g.sid_bits=(id0>>9)&15;g.pa_bits=ceph_smmu_address_bits((id2>>4)&15);
+    g.va_bits=ceph_smmu_address_bits((id2>>8)&15);g.ipa_bits=ceph_smmu_address_bits(id2&15);
     if(!g.groups || g.groups>128 || !g.contexts || g.contexts>128 || g.s2_contexts>=g.contexts ||
-        g.sid_bits<11 || g.sid_bits>15 || g.pa_bits<40 || !ceph_smmu_address_bits(id2&15) ||
-        ceph_smmu_address_bits((id2>>8)&15)<32)return -1;
+        g.sid_bits<11 || g.sid_bits>15 || g.pa_bits<40 || g.ipa_bits<40 || g.va_bits<32)return -1;
     unsigned half_shift=g.page_shift+((id1>>28)&7)+1;
     if(half_shift>=31)return -1;
     g.cb_base=1u<<half_shift;g.gr1=1u<<g.page_shift;g.bytes=bytes;
