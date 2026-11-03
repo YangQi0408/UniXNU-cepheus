@@ -4,11 +4,15 @@
 #include <string.h>
 #include "cepheus_gmu_upload.h"
 static uint32_t itcm[4096],dtcm[4096];static uint8_t icache[0x3c000],dcache[0x3c000];
-struct mock {unsigned calls,fail,end,uncertain;};
+struct mock {unsigned calls,fail,end,uncertain,corrupt;};
 static int step(void *p) {struct mock *m=p;return ++m->calls==m->fail?-9:0;}
+static int publish(void *p){struct mock *m=p;
+    if(m->corrupt==1)itcm[0]^=1;
+    if(m->corrupt==2)dcache[0x13000]^=1;
+    return step(p);}
 static void end(void *p,int uncertain) {struct mock *m=p;m->end++;m->uncertain=(unsigned)uncertain;}
 static struct ceph_gmu_upload config(struct mock *m,const struct ceph_gmu_mapping *maps)
-{return (struct ceph_gmu_upload){itcm,dtcm,4096,4096,maps,2,m,step,step,step,end,0,0};}
+{return (struct ceph_gmu_upload){itcm,dtcm,4096,4096,maps,2,m,step,step,publish,end,0,0};}
 static void le32(uint8_t *p,uint32_t v) {for(unsigned i=0;i<4;++i)p[i]=(uint8_t)(v>>(8*i));}
 static void verify_block(const uint8_t *file,const struct ceph_gmu_block *b)
 {
@@ -37,6 +41,10 @@ int main(int argc,char **argv)
         memset(itcm,0,sizeof(itcm));m=(struct mock){.fail=f};u=config(&m,maps);
         assert(ceph_gmu_upload_file(&u,sample,sizeof(sample),plan,32)==-9);
         if(f==1)assert(!m.end && !u.writes);else assert(m.end==1 && m.uncertain==(u.writes!=0));
+    }
+    for(unsigned corrupt=1;corrupt<=2;++corrupt) {
+        m=(struct mock){.corrupt=corrupt};u=config(&m,maps);
+        assert(ceph_gmu_upload_file(&u,sample,sizeof(sample),plan,32)<0 && u.quarantined && m.uncertain && m.end==1);
     }
     m=(struct mock){0};u=config(&m,maps);u.map_count=1;
     assert(ceph_gmu_upload_file(&u,sample,sizeof(sample),plan,32)<0 && !m.calls && !u.writes);

@@ -194,6 +194,12 @@ SMMU install与detach现统一要求本机ACTLR0x303；detach在任何撤销写�
 ACTLR，属性变化即拒绝、不释放。原通用测试的0x10示例已替换为实际值并增加
 错ACTLR零副作用负例，所有stage/闭环/ASan回归通过。
 
+GMU uploader在publish屏障后、reset仍保持时回读全部已写TCM DWORD及Normal-NC
+cache字节，逐段比较sealed固件。原厂snapshot代码确认TCM窗口可读，但此处
+仍需真机确认总线行为；RAM回读不能替代它。新增TCM/cache损坏负例，以及
+第15个整链场景在publish后破坏ITCM：必须失败于UPLOAD、不得写CM3启动配置、
+不得开始HFI；已发布workspace隔离。ASan/UBSan与45组回归通过。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

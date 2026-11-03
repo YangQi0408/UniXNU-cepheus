@@ -68,6 +68,8 @@ static int publish_tables(void *p){struct hw *h=p;assert(h->s->workspace.state==
     ceph_smmu_mmio_order();return 0;}
 static int upload_begin(void *p){struct ceph_gmu_upload_mmio *m=p;struct hw *h=m->owner;
     assert(h->s->smmu.state==CE_SM_ENABLED);return h->mode==5?-15:ceph_gmu_upload_mmio_begin(m);}
+static int upload_publish(void *p){struct ceph_gmu_upload_mmio *m=p;struct hw *h=m->owner;
+    int e=ceph_gmu_upload_mmio_publish(m);if(!e && h->mode==14)h->gmu[0x3000/4]^=1;return e;}
 static int cm3_begin(void *p,const struct ceph_gmu_start_config *c){struct hw *h=p;
     assert(h->s->backend.upload.writes && c->hfi_va==0x60100000 && c->log_va==0x60200000);return h->mode==6?-16:0;}
 static int cm3_read(void *p,enum ceph_gmu_reg r,uint32_t *v){return ceph_gmu_mmio_start_read(&((struct hw *)p)->gmu_mmio,r,v);}
@@ -123,7 +125,7 @@ static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==
     smmu_fixture_init(&h->smmu_mmio,h->smmu,&s->backend.smmu_plan,h,guard);
     h->upload_mmio=(struct ceph_gmu_upload_mmio){&h->gmu_mmio,h,end,0,0};
     assert(!ceph_gmu_upload_mmio_bind(&h->upload_mmio,&s->backend.upload));
-    s->backend.upload.begin=upload_begin;
+    s->backend.upload.begin=upload_begin;s->backend.upload.publish=upload_publish;
     if(h->mode==12)++s->backend.hfi.min_fw_minor;
     return 0;}
 static int slbegin(void *p){struct hw *h=p;assert(h->s->stage==CE_BR_HFI && !h->retiring);h->retiring=1;return 0;}
@@ -218,7 +220,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
         assert(b->upload.quarantined && !b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
         for(unsigned i=0;i<3;++i)assert(!s.upload_maps[i].cpu);
         if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
-        if((mode>=3 && mode<=9) || mode==13) {
+        if((mode>=3 && mode<=9) || mode==13 || mode==14) {
             struct ceph_gpu_group_status status;
             assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
             assert(!cepheus_gpu_memory_group_status(s.workspace.publication.group,&status));
@@ -229,6 +231,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
             uint64_t fsr;assert(!ceph_smmu_mmio_read(&h.smmu_mmio,CE_SM_FSR,&fsr) && fsr==2);
             assert(s.failed_stage==CE_BR_HFI && !s.fw_version && h.commands==1 && !h.fault_held);
         }
+        if(mode==14)assert(s.failed_stage==CE_BR_UPLOAD && !s.cm3.effects && !h.commands);
     }
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;

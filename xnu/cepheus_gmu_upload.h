@@ -100,7 +100,24 @@ static inline int ceph_gmu_upload_file(struct ceph_gmu_upload *u,const uint8_t *
         }
     }
     e=u->publish(u->ctx);
-    if(!e)e=u->held_in_reset(u->ctx);
+    if(e)goto done;
+    /* Compare exactly uploaded ranges AFTER posted writes complete, still
+     * under reset/lease. KGSL's TCM snapshot path confirms readable windows.
+     * Normal-NC cache backing uses byte loads; TCM remains aligned LE32 MMIO. */
+    for(unsigned i=0;i<count;++i) {
+        e=u->held_in_reset(u->ctx);if(e)goto done;
+        const struct ceph_gmu_block *b=&plan[i];const uint8_t *src=file+b->file_offset;
+        if(b->region==CE_GMU_ITCM || b->region==CE_GMU_DTCM) {
+            volatile uint32_t *dst=b->region==CE_GMU_ITCM?u->itcm:u->dtcm;
+            unsigned offset=(b->address-(b->region==CE_GMU_ITCM?0u:0x40000u))/4;
+            for(unsigned j=0;j<b->size/4;++j)if(dst[offset+j]!=ceph_gmu_le32(src+4*j)){e=-1;goto done;}
+        } else {
+            unsigned which=0;e=ceph_gmu_upload_target(u,b,&which);if(e)goto done;
+            volatile uint8_t *dst=u->maps[which].cpu+(b->address-u->maps[which].va);
+            for(unsigned j=0;j<b->size;++j)if(dst[j]!=src[j]){e=-1;goto done;}
+        }
+    }
+    e=u->held_in_reset(u->ctx);
 done:
     if(e && u->writes)u->quarantined=1;
     u->end(u->ctx,u->quarantined);return e;
