@@ -30,7 +30,35 @@ static int link_notify(void *ctx){struct ceph_gmu_hfi_link *l=ctx;if(link_valida
 static int link_rx_notify(void *ctx){return link_validate(ctx);}
 static int link_now(void *ctx,uint64_t *now){struct ceph_gmu_hfi_link *l=ctx;return l->transport.now_ns(l->transport.ctx,now);}
 static int link_pause(void *ctx){struct ceph_gmu_hfi_link *l=ctx;return l->transport.pause(l->transport.ctx);}
-static int link_fault(void *ctx){struct ceph_gmu_hfi_link *l=ctx;if(link_validate(ctx))return -1;return l->transport.fault(l->transport.ctx);}
+int cepheus_gmu_hfi_poll_debug(struct ceph_gmu_hfi_link *l)
+{
+    if(!l || link_validate(l))return CE_HFI_IO;
+    if(l->debug_error)return l->debug_error;
+    for(unsigned messages=0;messages<32;++messages) {
+        uint32_t data[255];unsigned count=0;
+        int e=ceph_hfi_read(&l->debug,data,255,&count);
+        if(e==CE_HFI_EMPTY)return 0;
+        if(e){l->debug_error=e;return e;}
+        unsigned id=data[0]&255u,type=(data[0]>>16)&15u;
+        if(id==101 && type==0 && count==4) {
+            if(l->debug_messages==UINT32_MAX){l->debug_error=CE_HFI_PROTOCOL;return l->debug_error;}
+            ++l->debug_messages;for(unsigned i=0;i<4;++i)l->last_debug[i]=data[i];
+        } else {
+            l->error_words=count<18?count:18;
+            for(unsigned i=0;i<l->error_words;++i)l->last_error[i]=data[i];
+            l->debug_error=id==100 && type==0 && count==18?CE_HFI_FW_ERROR:CE_HFI_PROTOCOL;
+            return l->debug_error;
+        }
+    }
+    /* A perpetually producing firmware cannot monopolize a kernel call.
+     * More than32 records in this diagnostic poll is terminal, not clean. */
+    unsigned r,w;int e=ceph_hfi_indices(&l->debug,&r,&w);
+    if(e || r!=w){l->debug_error=e?e:CE_HFI_PROTOCOL;return l->debug_error;}
+    return 0;
+}
+static int link_fault(void *ctx){struct ceph_gmu_hfi_link *l=ctx;
+    if(link_validate(ctx) || l->transport.fault(l->transport.ctx))return -1;
+    return cepheus_gmu_hfi_poll_debug(l);}
 
 int cepheus_gmu_hfi_bind(struct ceph_gmu_hfi_link *l,struct ceph_gmu_workspace *w,const struct ceph_gmu_hfi_transport *b)
 {
@@ -52,6 +80,8 @@ int cepheus_gmu_hfi_bind(struct ceph_gmu_hfi_link *l,struct ceph_gmu_workspace *
         {l,link_acquire,link_publish,link_publish,link_notify},0};
     l->rx=(struct ceph_hfi_queue){table+56+1024,table+18+10,table+18+11,1024,2,
         {l,link_acquire,link_publish,link_publish,link_rx_notify},0};
+    l->debug=(struct ceph_hfi_queue){table+56+2048,table+30+10,table+30+11,1024,2,
+        {l,link_acquire,link_publish,link_publish,link_rx_notify},0};
     l->session=(struct ceph_hfi_session){&l->tx,&l->rx,l,link_now,link_pause,link_fault,0,0,0,0};
     if(link_validate(l)){cepheus_gmu_hfi_invalidate(l);return -1;}
     return 0;
@@ -59,7 +89,8 @@ int cepheus_gmu_hfi_bind(struct ceph_gmu_hfi_link *l,struct ceph_gmu_workspace *
 void cepheus_gmu_hfi_invalidate(struct ceph_gmu_hfi_link *l)
 {
     if(!l)return;
-    l->bound=0;l->session.poisoned=1;l->tx.poisoned=l->rx.poisoned=1;
-    l->workspace=NULL;l->tx.words=NULL;l->rx.words=NULL;
+    l->bound=0;l->session.poisoned=1;l->tx.poisoned=l->rx.poisoned=l->debug.poisoned=1;
+    l->workspace=NULL;l->tx.words=NULL;l->rx.words=NULL;l->debug.words=NULL;
     l->tx.read_index=l->tx.write_index=NULL;l->rx.read_index=l->rx.write_index=NULL;
+    l->debug.read_index=l->debug.write_index=NULL;
 }

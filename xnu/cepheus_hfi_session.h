@@ -61,6 +61,9 @@ static inline int ceph_hfi_exchange(struct ceph_hfi_session *s,const uint32_t *c
             return ceph_hfi_session_poison(s,CE_HFI_PROTOCOL);
         if(response[2])return ceph_hfi_session_poison(s,CE_HFI_FW_ERROR);
         if(count>capacity)return ceph_hfi_session_poison(s,CE_HFI_SMALL);
+        /* An ACK and an asynchronous error can arrive together. Recheck the
+         * hardware/debug fault path after receipt, before reporting success. */
+        if(s->fault(s->ctx))return ceph_hfi_session_poison(s,CE_HFI_IO);
         for(unsigned i=0;i<count;++i)reply[i]=response[i];
         *reply_words=count;s->busy=0;return 0;
     }

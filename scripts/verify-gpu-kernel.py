@@ -77,6 +77,7 @@ def main():
     required |= {'_cepheus_gpu_config_build'}
     required |= {'_cepheus_gpu_qmp_bind'}
     required |= {'_cepheus_gpu_pdc_mmio_bind'}
+    required |= {'_cepheus_gmu_hfi_poll_debug'}
     required |= {'_cepheus_gpu_park_read','_cepheus_gpu_park_write','_cepheus_gpu_slumber_read','_cepheus_gpu_slumber_write'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
