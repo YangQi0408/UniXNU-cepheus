@@ -24,6 +24,27 @@ host整链测试覆盖bin0和bin1两个完整序列及七阶段失败，仍不�
 terminal、保留所有backing和身份、清掉对外工作区指针。不是仅调用failed日志
 回调后继续保留SHARED就绪状态；测试对PDC/SMMU/upload/CM3/HFI失败均核对。
 
+### 本机配置接入（离线，不是平台租约）
+
+`cepheus_gpu_config.h`把固定Cepheus A640v2 profile接入现有解析/编码器：
+GPU OPP、两个bin的HFI索引、12档DDR与2档CNOC、三个BCM/路径、ACD真实12个
+数据word、PDC地址均与保存FDT逐项对照。GMU 200MHz的raw VLVL48另来自
+`gpucc-sm8150.c`的VDD_MIN及`vdd-level.h`/rpmh-regulator定义。KBps使用
+`msm_bus_of.c`的`*1000ULL`，最高DDR的8,363,000,000B/s不截断到32bit。
+
+配置器必须接收cmd-db和QFPROM word；ARC名/BCM名经原解析器查找，PDC按地址
+反查，缺失/非法/供电表不足拒绝且不改输出。没有默认BCM地址/unit/VCD，
+也没有当前DRV投票或所有权假设。调用者仍需验证live FDT匹配此profile、取得
+真实fuse和稳定cmd-db；当前没有接入启动钩子。
+
+整链host测试已替换简化BW及虚构ACD表，检查实际HFI ring发出的PERF/BW/ACD
+payload；cmd-db与寄存器仍是明确标记的测试替身，不是设备采样。
+`CEPHEUS_LIVE_FDT=/tmp/live-cepheus.dtb python3 scripts/test-gpu-fdt.py`
+会编译实际C profile、读取其报告并和独立FDT解析逐项比较。39组host测试通过。
+完整整合基线CI41503204545（988f919）通过，kernel SHA256
+`dc8079790a7de185e7c5a5788e4d58635c7c522dc5b9ca9bfd5d75e02402f0e5`；
+后续配置/失败隔离修改仍需新的完整CI，以上不等于真实GMU启动成功。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

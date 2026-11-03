@@ -14,6 +14,7 @@ HEADERS = ('cepheus_hfi.h', 'cepheus_hfi_boot.h', 'cepheus_hfi_messages.h', 'cep
 HEADERS += ('cepheus_gmu_start.h','cepheus_bcm.h')
 HEADERS += ('cepheus_gpu_ring.h','cepheus_a640_pm4.h','cepheus_sqe.h')
 HEADERS += ('cepheus_gpu_bw.h','cepheus_gpu_firmware.h','cepheus_gpu_fault.h')
+HEADERS += ('cepheus_gpu_config.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -70,6 +71,7 @@ def main():
                 '_cepheus_gmu_hfi_bind','_cepheus_gmu_hfi_invalidate',
                 '_cepheus_gpu_gmu_read','_cepheus_gpu_gmu_write','_cepheus_gpu_hfi_notify','_cepheus_gpu_gmu_fault',
                 '_cepheus_gmu_bringup_prepare','_cepheus_gmu_bringup_start'}
+    required |= {'_cepheus_gpu_config_build'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
     memory_api={'_cepheus_gpu_memory_alloc','_cepheus_gpu_memory_view_get','_cepheus_gpu_memory_view_put',

@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import importlib.util
+import json
 import os
 from pathlib import Path
 import struct
+import subprocess
+import tempfile
 import unittest
 
 spec=importlib.util.spec_from_file_location('fdt',Path(__file__).with_name('gpu-fdt-config.py'))
@@ -60,6 +63,28 @@ class FdtTests(unittest.TestCase):
         self.assertIsNone(r['selected_bin'])
         self.assertEqual(fdt.report(data,1)['selected_bin']['bin'],1)
         with self.assertRaises(ValueError):fdt.report(data,2)
+        # Compile the actual C profile, compare its emitted constants with an
+        # independent parse of the recorded FDT. cmd-db remains synthetic.
+        root=Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            exe=Path(directory)/'profile'
+            subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror',
+                            str(root/'xnu/test_gpu_config.c'),'-o',str(exe)],check=True)
+            c=json.loads(subprocess.check_output([str(exe),'--report']))
+        self.assertEqual(c['sha'],r['fdt_sha256'])
+        self.assertEqual(c['gx'],[[0,0]]+[[o['hz'],o['raw_vlvl']] for o in r['opp_levels']])
+        self.assertEqual([o[0] for o in c['cx']],r['gmu_hz'])
+        for which in ('ddr','cnoc'):
+            self.assertEqual(c[which],[[v['ab_kbps']*1000,v['ib_kbps']*1000] for v in r[which+'_vectors']])
+        routes=[[b['name'],n['buswidth'],n['ports']] for which in ('ddr','cnoc')
+                for n in r['bus_routes'][which] for b in n['bcms']]
+        self.assertEqual(c['routes'],routes)
+        a=r['acd'];self.assertEqual(c['acd'],[a['enable_mask'],a['stride'],a['levels']]+a['data'])
+        for b in r['speed_bins']:
+            levels=b['levels_descending']
+            self.assertEqual(c['gx'][:len(levels)],[[v['hz'],v['raw_vlvl']] for v in reversed(levels)])
+            self.assertEqual(len(levels)-1-b['initial_index'],1)
+            self.assertEqual(levels[b['initial_index']]['bus_index'],3)
 
 
 if __name__=='__main__':unittest.main()

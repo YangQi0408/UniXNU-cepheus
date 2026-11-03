@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "cepheus_gmu_bringup.h"
+#include "cepheus_gpu_config.h"
+#include "gpu_config_fixture.h"
 struct hw {
     struct ceph_gmu_bringup *s;unsigned mode,phase,votes,commands,failed;
     uint32_t power[CE_PWR_REG_COUNT],gmu[CE_GMU_REG_COUNT],pdc[3][0xc000];
@@ -50,6 +52,13 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     const unsigned ids0[]={1,4,3,11,14},ids1[]={1,4,3,11,7,11,11,14};
     const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?8:5;
     assert(h->commands<total && (cmd[0]&255)==ids[h->commands]);h->commands++;
+    uint32_t expected[160];int words=0;const struct ceph_hfi_boot_config *cfg=&h->s->backend.hfi;
+    switch(cmd[0]&255) {
+    case 4: words=ceph_hfi_perf(expected,160,cfg->gx,cfg->ng,cfg->cx,cfg->nc,cfg->gfx,cfg->cxl,cfg->mx);break;
+    case 3: words=ceph_hfi_bandwidth(expected,160,cfg->bw);assert(cmd[1]==12 && cmd[2]==3 && cmd[3]==3);break;
+    case 7: words=ceph_hfi_acd_table(expected,160,cfg->acd);assert(cmd[5]==2687328253u && cmd[16]==21521);break;
+    }
+    if(words){assert(words==(int)count);assert(!memcmp(cmd+1,expected+1,(count-1)*4));}
     unsigned n=(cmd[0]&255)==1?4:3;uint32_t ack[]={ceph_hfi_header(cmd[0]&255,n,1,0),cmd[0],h->mode==7?1u:0u,0x20000042};
     return ceph_hfi_write(&h->fw_tx,ack,n);}
 static void failed(void *p,enum ceph_bringup_stage stage,int e){struct hw *h=p;assert(e && stage>=CE_BR_POWER);h->failed=1;}
@@ -74,16 +83,12 @@ int ceph_test_bringup(const char *path,unsigned mode)
     b->smmu=(struct ceph_smmu_ops){&h,smmu_begin,guard,smmu_read,smmu_write,guard,guard,delayus,end};
     b->cm3=(struct ceph_gmu_start_ops){&h,cm3_begin,guard,cm3_read,cm3_write,guard,now,guard,end};
     b->transport=(struct ceph_gmu_hfi_transport){&h,guard,notify,now,guard,guard};
-    struct ceph_arc_resource rail={.levels={0,16,48,64,128,192,224,256,320},.count=9};
-    struct ceph_hfi_opp gx[]={{0,0},{257000000,64},{345000000,128},{427000000,192},{499200000,224},{585000000,256},{675000000,320},{770000000,320}};
-    struct ceph_hfi_opp cx[]={{0,0},{200000000,48}};
-    struct ceph_hfi_bw bw={.levels=2,.cnoc_count=1,.ddr_count=1,.cnoc_addr={0x50000},.ddr_addr={0x50004}};
-    struct ceph_gpu_bin_policy bin;assert(!ceph_gpu_bin_policy(0x06040001,mode==8?0x20000000:0,&bin));
-    struct ceph_hfi_acd acd={.enable_mask=0x7e,.stride=2,.levels=6,.data={1,2,3,4,5,6,7,8,9,10,11,12}};
-    b->hfi=(struct ceph_hfi_boot_config){0x20000001,0,bin.throttle_mask,gx,cx,bin.gx_levels,2,&rail,&rail,&rail,&bw,mode==8?&acd:NULL,&bin};
+    config_fixture();struct ceph_arc_db db={config_db,sizeof(config_db),config_read};
+    struct ceph_gpu_config config;
+    assert(!ceph_gpu_config_build(&db,0x06040001,mode==8?0x20000000:0,&config));
+    assert(!ceph_gpu_config_hfi(&config,0x20000001,&b->hfi));
     b->acd=(struct ceph_qmp_ops){&h,qbegin,guard,qread,qwrite,guard,qnotify,now,guard,end};
-    b->pdc_input=(struct ceph_pdc_input){.chipid=0x06040001,.cfg_pa=0xb290000,.seq_pa=0xb490000};
-    for(unsigned i=0;i<3;++i){b->pdc_input.resources[i]=rail;b->pdc_input.resources[i].address=(uint32_t[]){0x30010,0x30000,0x30090}[i];}
+    b->pdc_input=config.pdc;
     h.power[CE_PWR_CX]=h.power[CE_PWR_GX]=0x222001;h.power[CE_PWR_CX_STATUS]=0x5ff4;h.power[CE_PWR_CFG_AHB]=1;
     h.power[CE_PWR_RCG]=0x80000000;h.power[CE_PWR_GMU]=0x80004220;h.power[CE_PWR_CM3_RESET]=1;
     for(unsigned i=CE_PWR_CXO;i<=CE_PWR_DVM;++i)h.power[i]=0x80000001;

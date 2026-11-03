@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_config_build(const struct ceph_arc_db *db,uint32_t chipid,uint32_t fuse,struct ceph_gpu_config *out)
+{ return ceph_gpu_config_build(db,chipid,fuse,out); }
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *s,const struct ceph_hfi_boot_config *c,uint32_t *v)
 { return ceph_hfi_boot_a640(s,c,v); }
 int cepheus_gpu_upload(struct ceph_gmu_upload *u,const uint8_t *f,size_t n,struct ceph_gmu_block *p,unsigned capacity)
