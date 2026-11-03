@@ -324,6 +324,12 @@ T0SZ25的39bit VA、40bit PA、NC walk、ACTLR0x303；严格排除foreign CB/str
 DMA publication；单上下文只是最小受控试验候选，不代表可忽略secure CB分配或
 CP SMMU aperture的SCM初始化要求。多进程页表切换、fault handler仍未实现。
 
+CP workspace restore接口现把固定MMIO快照写入其实际池内restore buffer，并以
+该已构表VA生成CP_ME_INIT。前后复检SQE/页表/角色身份，拒绝packet输出别名到
+任何backing、workspace、adapter或GPU窗口；失败保持输出不变，禁止重复准备。
+真实C模块+真实C++池联测通过ASan/UBSan。数据仍CPU-owned，不发布/不执行；
+需要后续实际GX上下文/DMA生命周期才能使用这个包。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

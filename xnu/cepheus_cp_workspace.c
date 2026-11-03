@@ -57,7 +57,7 @@ int cepheus_cp_workspace_release(struct ceph_cp_workspace *w)
             else w->handles[n]=0;
         }
     }
-    w->sqe=(struct ceph_sqe_image){0};w->table=(struct ceph_vm_pool){0};
+    w->sqe=(struct ceph_sqe_image){0};w->table=(struct ceph_vm_pool){0};w->restore_ready=0;
     for(unsigned i=0;i<CE_CP_ROOT;++i)w->regions[i]=(struct ceph_vm_region){0};
     w->state=e?CE_CP_WS_RETAINED:CE_CP_WS_RELEASED;return e;
 }
@@ -114,4 +114,28 @@ int cepheus_cp_workspace_table(struct ceph_cp_workspace *w,const uint64_t va[CE_
     if(ceph_vm39_build(&p,regions,CE_CP_ROOT) || ceph_vm39_matches(&p,regions,CE_CP_ROOT))return -1;
     for(unsigned i=0;i<CE_CP_ROOT;++i)w->regions[i]=regions[i];
     w->table=p;w->state=CE_CP_WS_TABLED;return 0;
+}
+
+int cepheus_cp_workspace_restore(struct ceph_cp_workspace *w,struct ceph_cp_snapshot_mmio *mmio,uint32_t packet[12])
+{
+    if(!w || w->state!=CE_CP_WS_TABLED || w->restore_ready || !packet || !mmio || cepheus_cp_workspace_validate(w))return -1;
+    uintptr_t dst=(uintptr_t)packet;
+    if((dst&3u) || 48>UINTPTR_MAX-dst)return -1;
+    /* Caller packet buffer cannot alias any backing or lease object. */
+    for(unsigned i=0;i<CE_CP_BUFFERS;++i) {
+        uintptr_t base=(uintptr_t)w->views[i].cpu;
+        if(dst<base+w->views[i].bytes && base<dst+48)return -1;
+    }
+    uintptr_t self=(uintptr_t)w,regs=(uintptr_t)mmio->gpu,adapter=(uintptr_t)mmio;
+    if(sizeof(*w)>UINTPTR_MAX-self || sizeof(*mmio)>UINTPTR_MAX-adapter ||
+        (dst<adapter+sizeof(*mmio) && adapter<dst+48) ||
+        (dst<self+sizeof(*w) && self<dst+48) || mmio->bytes>UINTPTR_MAX-regs ||
+        (dst<regs+mmio->bytes && regs<dst+48))return -1;
+    uint32_t local_packet[12],snapshot[CE_CP_REGLIST_WORDS];
+    if(ceph_cp_me_init(local_packet,12,w->regions[CE_CP_RESTORE].va,w->regions[CE_CP_RESTORE].bytes)!=12 ||
+        ceph_cp_snapshot_mmio_copy(mmio,snapshot,CE_CP_REGLIST_WORDS) || cepheus_cp_workspace_validate(w))return -1;
+    uint32_t *target=w->views[CE_CP_RESTORE].cpu;
+    for(unsigned i=0;i<CE_CP_REGLIST_WORDS;++i)target[i]=snapshot[i];
+    for(unsigned i=0;i<12;++i)packet[i]=local_packet[i];
+    w->restore_ready=1;return 0;
 }

@@ -15,9 +15,10 @@ struct ceph_cp_workspace {
     struct ceph_sqe_image sqe;
     struct ceph_vm_pool table;
     struct ceph_vm_region regions[CE_CP_ROOT];
-    unsigned leased,firmware_view;
+    unsigned leased,firmware_view,restore_ready;
     enum ceph_cp_workspace_state state;
 };
+struct ceph_cp_snapshot_mmio;
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,6 +31,9 @@ int cepheus_cp_workspace_table(struct ceph_cp_workspace *,const uint64_t va[CE_C
  * Verifies live pool view identity, fixed SQE payload digest/tail and page tables.
  * Does not seal CPU VAs or prove GPU mapping/PAS authentication. */
 int cepheus_cp_workspace_validate(struct ceph_cp_workspace *);
+/* Read fixed protected GX regs into CPU-owned restore buffer and encode one
+ * ME_INIT packet for later use. Does not publish, unhalt or ring a doorbell. */
+int cepheus_cp_workspace_restore(struct ceph_cp_workspace *,struct ceph_cp_snapshot_mmio *,uint32_t packet[12]);
 #ifdef __cplusplus
 }
 #endif

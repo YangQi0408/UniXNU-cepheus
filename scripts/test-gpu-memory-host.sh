@@ -37,9 +37,11 @@ if [[ $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
 "$tmp/terminal"
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
     -c "$root/xnu/cepheus_cp_workspace.c" -o "$tmp/cp-workspace.o"
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
+    -c "$root/tests/test_cp_workspace_restore.c" -o "$tmp/cp-restore.o"
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -Wno-missing-field-initializers -fsanitize="$sanitizers" -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
-    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_cp_workspace.cpp" "$tmp/cp-workspace.o" "$tmp/workspace.o" "$tmp/retire.o" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_cp_workspace.cpp" "$tmp/cp-workspace.o" "$tmp/cp-restore.o" "$tmp/workspace.o" "$tmp/retire.o" \
     -o "$tmp/cp-workspace" "${libs[@]}"
 if [[ $# -ge 2 ]]; then for mode in 0 1 2 3; do "$tmp/cp-workspace" "$2" "$mode"; done; else "$tmp/cp-workspace"; fi
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -Wno-missing-field-initializers -fsanitize="$sanitizers" -pthread \
