@@ -30,7 +30,7 @@ HEADERS += ('cepheus_gpu_vm39.h',)
 HEADERS += ('cepheus_gx_core.h',)
 HEADERS += ('cepheus_gx_perfcounter.h',)
 HEADERS += ('cepheus_cp_preinit.h',)
-HEADERS += ('cepheus_gx_va_layout.h','cepheus_gx_gbif.h')
+HEADERS += ('cepheus_gx_va_layout.h','cepheus_gx_gbif.h','cepheus_gx_hwcg.h')
 HEADERS += ('cepheus_gx_smmu_plan.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
@@ -59,7 +59,10 @@ def main():
     parser.add_argument('kernel', type=Path)
     args = parser.parse_args()
     for name in HEADERS:
-        if (args.xnu / 'bsd/dev' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
+        staged = args.xnu / 'bsd/dev' / name
+        if not staged.exists():
+            raise ValueError(f'header declared in HEADERS but never staged: {name}')
+        if staged.read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged BSD source mismatch: {name}')
     for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h','cepheus_gpu_firmware.h',
                  'cepheus_gpu_retire.h','cepheus_gpu_memory_private.h'):
@@ -105,6 +108,7 @@ def main():
     required |= {'_cepheus_gpu_gx_core_configure'}
     required |= {'_cepheus_gpu_gx_perfcounter_configure'}
     required |= {'_cepheus_gpu_gx_gbif_configure','_cepheus_gpu_gx_va_partition'}
+    required |= {'_cepheus_gpu_gx_hwcg_configure'}
     required |= {'_cepheus_gpu_gx_smmu_plan'}
     required |= {'_cepheus_cp_workspace_table'}
     required |= {'_cepheus_cp_workspace_validate'}

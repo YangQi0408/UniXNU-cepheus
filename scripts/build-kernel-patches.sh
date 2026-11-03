@@ -36,7 +36,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_cp_workspace.c cepheus_cp_workspace.h \
     cepheus_gpu_vm39.h \
     cepheus_gx_core.h \
-    cepheus_gx_perfcounter.h cepheus_gx_gbif.h cepheus_gx_va_layout.h cepheus_cp_preinit.h \
+    cepheus_gx_perfcounter.h cepheus_gx_gbif.h cepheus_gx_va_layout.h cepheus_gx_hwcg.h cepheus_cp_preinit.h \
     cepheus_gx_smmu_plan.h \
     cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
     cepheus_gpu_retire.c cepheus_gpu_retire.h cepheus_gpu_memory_private.h \

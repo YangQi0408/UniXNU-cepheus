@@ -845,6 +845,28 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### A640 GBIF 块（`a6xx_start` 的第一步）
 
+### A640 HWCG 块（`a6xx_hwcg_set(true)`）
+
+`a6xx_start` 在 GBIF 之后调用 `a6xx_hwcg_set(adreno_dev, true)`。A640 走默认分支
+（非 a612/a615），顺序为：
+
+1. GMU AO `CGC_MODE/DELAY/HYST`(0x23b09/0x23b0a/0x23b0b) =
+   `0x00020202`/`0x00010111`/`0x00005555`
+2. 读 `RBBM_CLOCK_CNTL`(0xae)；**若已等于 `0x8aa8aa82` 直接返回**
+3. 清 `GMU_GX_SPTPRAC_CLOCK_CONTROL`(0x1a880) bit0
+4. 写 49 项 `a640_hwcg_regs` 表
+5. 置回 `0x1a880` bit0
+6. 写顶层 `RBBM_CLOCK_CNTL` = `0x8aa8aa82`
+
+第 2 步的提前返回是语义的一部分：对已门控的块重复编程会再次无谓地开关
+SPTPRAC 门控。`cepheus_gx_hwcg.h` 保留该分支，并记录 `skipped`。
+冷启动共 55 次写（3 + SPTPRAC off + 49 + SPTPRAC on + 顶层）。
+
+49 项表覆盖 GPU word 到 `0x533`，所以短/错位的 GPU aperture 在**任何写之前**
+就拒绝，不会中途越界。测试验证 55 次写的落点、`0x1a880` 最终 bit0=1、
+提前返回时 `writes==3` 且不重写表、halt 全程保持、
+以及错误 chipid/aperture/CP 解除 halt/CP fault/GMU fault 全部前置拒绝。
+
 `a6xx_start()` 第一件事是 `adreno_vbif_start(adreno_dev, a6xx_vbif_platforms, ...)`。
 平台表按 `adreno_is_a640` 选 **`a640_gbif`**，不是 `a630_vbif`：
 `GBIF_QSB_SIDE0..3`(0x3c03..0x3c06) 各写 `0x00071620`，
