@@ -13,6 +13,7 @@
 #include "cepheus_gmu_retire_mmio.h"
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_upload_mmio.h"
+#include "cepheus_gpu_fault_mmio.h"
 #include "gpu_config_fixture.h"
 #include "gpu_smmu_fixture.h"
 struct hw {
@@ -22,6 +23,8 @@ struct hw {
     struct ceph_gmu_mmio gmu_mmio;struct ceph_pdc_mmio pdc_mmio;
     struct ceph_gmu_park_mmio park_mmio;
     struct ceph_gmu_upload_mmio upload_mmio;
+    struct ceph_gpu_fault_mmio fault_mmio;
+    unsigned fault_held;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
@@ -100,6 +103,7 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
         uint32_t error[18]={0};error[0]=ceph_hfi_header(100,18,0,0);error[1]=0xc001;
         assert(!ceph_hfi_write(&debug,error,18));
     }
+    if(h->mode==13)smmu_fixture_set(&h->smmu_mmio,CE_SM_FSR,2);
     return ceph_hfi_write(&h->fw_tx,ack,n);}
 static void failed(void *p,enum ceph_bringup_stage stage,int e){struct hw *h=p;assert(e && stage>=CE_BR_POWER);h->failed=1;}
 static int qnow(void *p,uint64_t *n){struct hw *h=p;
@@ -125,6 +129,10 @@ static void park_end(void *p,int done){struct hw *h=p;h->parked=(unsigned)done;}
 static int detach_begin(void *p,const struct ceph_smmu_plan *plan){struct hw *h=p;
     assert(h->parked && plan->ttbr0==h->s->backend.smmu_plan.ttbr0);return 0;}
 static void detach_end(void *p,int done){struct hw *h=p;h->detached=(unsigned)done;}
+static int fault_acquire(void *p,unsigned *domains){struct hw *h=p;assert(!h->fault_held);h->fault_held=1;*domains=6;return 0;}
+static int fault_lease(void *p,unsigned domains){struct hw *h=p;assert(h->fault_held && domains==6);return 0;}
+static void fault_release(void *p){struct hw *h=p;assert(h->fault_held);h->fault_held=0;}
+static int fault_health(void *p){return ceph_gpu_fault_mmio_gmu_health(&((struct hw *)p)->fault_mmio);}
 int ceph_test_bringup(const char *path,unsigned mode)
 {
     static struct ceph_gmu_bringup s;static struct hw h;h.s=&s;h.mode=mode;
@@ -137,7 +145,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,pdc_validate,pdc_read,pdc_write,pdc_barrier,pdc_end};
     b->smmu=(struct ceph_smmu_ops){&h,smmu_begin,guard,smmu_read,smmu_write,publish_tables,guard,delayus,end};
     b->cm3=(struct ceph_gmu_start_ops){&h,cm3_begin,guard,cm3_read,cm3_write,guard,now,guard,end};
-    b->transport=(struct ceph_gmu_hfi_transport){&h,guard,notify,now,guard,guard};
+    b->transport=(struct ceph_gmu_hfi_transport){&h,guard,notify,now,guard,fault_health};
     config_fixture();struct ceph_arc_db db={config_db,sizeof(config_db),config_read};
     struct ceph_gpu_config config;
     assert(!ceph_gpu_config_build(&db,0x06040001,mode==8?0x20000000:0,&config));
@@ -159,6 +167,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.gmu_mmio=(struct ceph_gmu_mmio){(volatile uint8_t *)h.gmu,sizeof(h.gmu),s.workspace.layout.start,0x20000001,&h,guard};
     h.pdc_mmio=(struct ceph_pdc_mmio){.gmu=&h.gmu_mmio,.cfg=h.pdc_cfg,.seq=h.pdc_seq,
         .cfg_pa=0xb290000,.seq_pa=0xb490000,.cfg_bytes=sizeof(h.pdc_cfg),.seq_bytes=sizeof(h.pdc_seq),.owner=&h,.lease=guard,.finish=end};
+    h.fault_mmio=(struct ceph_gpu_fault_mmio){&h.gmu_mmio,&h.smmu_mmio,NULL,0,&h,fault_acquire,fault_lease,now,fault_release,0,0};
     int e=cepheus_gmu_bringup_start(&s);
     if(!mode || mode==8 || mode==11) {
         assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
@@ -197,13 +206,17 @@ int ceph_test_bringup(const char *path,unsigned mode)
         assert(b->upload.quarantined && !b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
         for(unsigned i=0;i<3;++i)assert(!s.upload_maps[i].cpu);
         if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
-        if(mode>=3 && mode<=9) {
+        if((mode>=3 && mode<=9) || mode==13) {
             struct ceph_gpu_group_status status;
             assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
             assert(!cepheus_gpu_memory_group_status(s.workspace.publication.group,&status));
             assert(status.state==CE_GPU_GROUP_UNCERTAIN && status.pool_terminal && status.retained_buffers==CE_GPU_WORKSPACE_BUFFERS);
         }
         if(mode==12)assert(s.failed_stage==CE_BR_BOUND && !s.workspace.publication.group && !s.retention_writes && !s.pdc.attempted);
+        if(mode==13) {
+            uint64_t fsr;assert(!ceph_smmu_mmio_read(&h.smmu_mmio,CE_SM_FSR,&fsr) && fsr==2);
+            assert(s.failed_stage==CE_BR_HFI && !s.fw_version && h.commands==1 && !h.fault_held);
+        }
     }
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;

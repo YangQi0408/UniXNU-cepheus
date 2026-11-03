@@ -80,4 +80,9 @@ static inline int ceph_gpu_fault_mmio_snapshot(struct ceph_gpu_fault_mmio *m,str
     struct ceph_gpu_fault_ops b={m,ceph_gpu_fault_mmio_begin,ceph_gpu_fault_mmio_read,ceph_gpu_fault_mmio_now,ceph_gpu_fault_mmio_end};
     return ceph_gpu_fault_snapshot(&b,out);
 }
+static inline int ceph_gpu_fault_mmio_gmu_health(struct ceph_gpu_fault_mmio *m)
+{
+    struct ceph_gpu_fault_record r;
+    return ceph_gpu_fault_mmio_snapshot(m,&r)?-1:ceph_gpu_fault_domains_status(&r,CE_FAULT_DOMAIN_GMU|CE_FAULT_DOMAIN_SMMU);
+}
 #endif

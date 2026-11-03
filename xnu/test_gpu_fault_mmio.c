@@ -19,6 +19,7 @@ int main(void)
     struct ceph_gpu_fault_mmio f={&g,&m,gpu,sizeof(gpu),&h,acquire,lease,now,release,0,0};
     struct ceph_gpu_fault_record out;
     assert(!ceph_gpu_fault_mmio_snapshot(&f,&out) && !ceph_gpu_fault_status(&out) && h.released==1);
+    assert(!ceph_gpu_fault_domains_status(&out,6) && ceph_gpu_fault_domains_status(&out,8)<0 && ceph_gpu_fault_domains_status(&out,0)<0);
     unsigned calls=h.calls;
     for(unsigned fail=1;fail<=calls;++fail) {
         h.calls=0;h.fail=fail;assert(ceph_gpu_fault_mmio_snapshot(&f,&out)<0 && !out.domains && !h.held);
@@ -31,6 +32,8 @@ int main(void)
     gmu[0x1f8d0-0x1a800]=0xc0;assert(ceph_gpu_fault_mmio_snapshot(&f,&out)<0); /* GX read forbidden */
     h.grant=CE_FAULT_DOMAIN_GMU;f.gpu=NULL;f.smmu=NULL;
     assert(!ceph_gpu_fault_mmio_snapshot(&f,&out) && out.domains==2 && ceph_gpu_fault_status(&out)==-1);
+    assert(ceph_gpu_fault_domains_status(&out,6)==-1 && !ceph_gpu_fault_domains_status(&out,2));
+    assert(ceph_gpu_fault_mmio_gmu_health(&f)==-1); /* missing SMMU not waived */
     gmu[0x23b05-0x1a800]=1;assert(!ceph_gpu_fault_mmio_snapshot(&f,&out) && ceph_gpu_fault_status(&out)==1);
     gmu[0x23b05-0x1a800]=UINT32_MAX;assert(ceph_gpu_fault_mmio_snapshot(&f,&out)<0);
     assert(!h.held);

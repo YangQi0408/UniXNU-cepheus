@@ -57,13 +57,17 @@ done:
     b->end(b->ctx);return e;
 }
 /* clean=0, detected=1, incomplete=-1. Never treat unreadable domains as clean. */
-static inline int ceph_gpu_fault_status(const struct ceph_gpu_fault_record *r)
+static inline int ceph_gpu_fault_domains_status(const struct ceph_gpu_fault_record *r,unsigned required)
 {
-    if(!r)return -1;
+    if(!r || !required || (required&~7u) || (r->domains&~7u))return -1;
     const uint32_t rbbm_errors=(1u<<1)|(1u<<6)|(1u<<7)|(1u<<9)|(1u<<22)|(1u<<23)|(1u<<24)|(1u<<25)|(1u<<28);
     if(((r->domains&CE_FAULT_DOMAIN_GX) && ((r->rbbm&rbbm_errors) || r->cp)) ||
         ((r->domains&CE_FAULT_DOMAIN_GMU) && ((r->gmu_ao&0x29u)||(r->gmu_hfi&(1u<<15)))) ||
         ((r->domains&CE_FAULT_DOMAIN_SMMU) && (r->fsr&0xc00001feu)))return 1;
-    return r->domains==7 && r->coherent?0:-1;
+    return (r->domains&required)==required && (!(required&CE_FAULT_DOMAIN_SMMU) || r->coherent)?0:-1;
 }
+/* Full GPU health still requires ALL domains. GMU startup can explicitly ask
+ * for GMU+SMMU (6) without misrepresenting powered-down GX as observed clean. */
+static inline int ceph_gpu_fault_status(const struct ceph_gpu_fault_record *r)
+{return ceph_gpu_fault_domains_status(r,7);}
 #endif

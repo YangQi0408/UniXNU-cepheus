@@ -160,6 +160,13 @@ RETIRING期间计数仅表示当前稳定槽，最终状态仍保留完整组身
 场景改变最低FW版本后拒绝于BOUND，未发布工作区/写retention/PDC。策略生命周期
 仍要求调用者独占与immutable，不能用该检查抵御恶意内核代码或并发写policy。
 
+HFI整链的fault回调现通过真实只读适配器读取GMU+SMMU（required domains=6），
+而非永远返回0。新增第14个场景在ACK同时注入SMMU FSR，必须拒绝成功、保留FSR
+及全部workspace。全GPU健康接口仍要求7域，不把未上电的GX报告为干净。
+混合生产C/C++全测试可用`CEPHEUS_GPU_HOST_ASAN=1 ASAN_OPTIONS=detect_leaks=0`
+运行，14场景通过ASan+UBSan；有意隔离保留backing所以关闭退出泄漏检查，
+这不构成“无保留分配”证明。新增MMIO地址源码对照也通过。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
