@@ -235,6 +235,12 @@ GX/fence/OOB/SMMU/固件身份、SQE已halt、冷态ring/SQE/RPTR且无CP fault�
 47组host回归、7写入逐项源码寄存器对照、每lease失败以及保持halt测试通过。
 此前thermal+TSENS整合CI41576685181（c0d0a68）已完整成功；后续CP增量待CI。
 
+进一步补`cepheus_cp_protection.h`实际配置：12个64bit地址模式、CP_PROTECT_CNTL
+值11、32个span，共45写，始终保持SQE halt。ring配置入口逐项回读验证45项，
+不接受仅callback声称“保护已配”。源码对照提取a6xx_enable_64bit的12个实际
+寄存器并比较编译后的表；48组host回归通过。仅设置受保护的访问模式，不触碰
+TRUST_CONTROL或安全认证状态；GX其余初始化/认证/执行仍未完成。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

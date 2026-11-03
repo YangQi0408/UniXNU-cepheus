@@ -7,6 +7,7 @@
 #ifndef CEPHEUS_CP_RING_CONFIG_H
 #define CEPHEUS_CP_RING_CONFIG_H
 #include "cepheus_gmu_mmio.h"
+#include "cepheus_cp_protection.h"
 struct ceph_cp_ring_input {uint64_t ring_va,rptr_va,sqe_va;size_t ring_bytes,rptr_bytes,sqe_bytes;};
 struct ceph_cp_ring_write {uint32_t word,value;};
 struct ceph_cp_ring_plan {struct ceph_cp_ring_write writes[7];};
@@ -49,6 +50,7 @@ static inline int ceph_cp_ring_configure_halted(struct ceph_cp_ring_config *s)
     struct ceph_cp_ring_plan plan;
     if(!s || s->terminal || s->writes || ceph_cp_ring_plan(&s->input,&plan) || ceph_cp_ring_config_ready(s))return -1;
     s->terminal=1;int e=0;
+    e=ceph_cp_protection_check(s->gmu,s->gpu,s->bytes,s->owner,s->lease);if(e)goto done;
     /* Cold context only. Do not erase an inherited ring/SQE/RPTR or pending
      * pointer values. A halted foreign context is still somebody else's. */
     static const uint32_t empty[]={0x800,0x801,0x804,0x805,0x806,0x807,0x830,0x831};

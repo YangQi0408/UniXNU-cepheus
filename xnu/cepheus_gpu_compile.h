@@ -33,6 +33,7 @@
 #include "cepheus_qmp_connect.h"
 #include "cepheus_gpu_tsens.h"
 #include "cepheus_cp_ring_config.h"
+#include "cepheus_cp_protection.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
 int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);
@@ -42,6 +43,7 @@ int cepheus_gpu_upload_mmio_bind(struct ceph_gmu_upload_mmio *,struct ceph_gmu_u
 int cepheus_gpu_qmp_connect(struct ceph_qmp_connect *,struct ceph_qmp_mmio *);
 int cepheus_gpu_temperature_sample(struct ceph_gpu_tsens *,struct ceph_gpu_temperature *);
 int cepheus_gpu_cp_ring_configure(struct ceph_cp_ring_config *);
+int cepheus_gpu_cp_protect_configure(struct ceph_cp_protection *);
 int cepheus_gpu_park_read(void *,enum ceph_gmu_park_reg,uint32_t *);
 int cepheus_gpu_park_write(void *,enum ceph_gmu_park_reg,uint32_t);
 int cepheus_gpu_slumber_read(void *,enum ceph_slumber_reg,uint32_t *);

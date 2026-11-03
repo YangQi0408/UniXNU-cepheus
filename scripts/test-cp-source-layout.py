@@ -28,6 +28,9 @@ def main():
         if int(index)!=len(expected_spans):raise ValueError('unexpected protection order')
         a,b=int(first,16),int(last,16);expected_spans.append(a|((b-a)<<18)|(int(deny)<<31))
     if len(expected_spans)!=32:raise ValueError('source protection count changed')
+    mode_body=re.search(r'static void a6xx_enable_64bit\([^)]*\)\s*\{(.*?)\n\}',source,re.S).group(1)
+    address_modes=[defs[k] for k in re.findall(r'kgsl_regwrite\(device,\s*(A6XX_\w+),\s*0x1\)',mode_body)]
+    if len(address_modes)!=12:raise ValueError('source address mode count changed')
     snippet=r'''
 #include <stdint.h>
 #include <stddef.h>
@@ -38,13 +41,15 @@ def main():
         'static const uint32_t spans[]={' + ','.join(hex(v) for v in expected_spans) + '};\n' + \
         'static const uint32_t ringregs[]={' + ','.join(hex(defs[k]) for k in (
             'A6XX_CP_RB_RPTR_ADDR_LO','A6XX_CP_RB_RPTR_ADDR_HI','A6XX_CP_RB_CNTL',
-            'A6XX_CP_RB_BASE','A6XX_CP_RB_BASE_HI','A6XX_CP_SQE_INSTR_BASE_LO','A6XX_CP_SQE_INSTR_BASE_HI')) + '};\n' + r'''
+            'A6XX_CP_RB_BASE','A6XX_CP_RB_BASE_HI','A6XX_CP_SQE_INSTR_BASE_LO','A6XX_CP_SQE_INSTR_BASE_HI')) + '};\n' + \
+        'static const uint32_t modes[]={' + ','.join(hex(v) for v in address_modes) + '};\n' + r'''
 _Static_assert(sizeof(struct cpu_gpu_lock)==16,"lock size");
 _Static_assert(offsetof(struct cpu_gpu_lock,list_length)==12,"length offset");
 _Static_assert(offsetof(struct cpu_gpu_lock,list_offset)==14,"list offset");
 int main(void) {
     for(unsigned i=0;i<66;++i)assert(offsets[i]==ceph_cp_restore_offsets[i]);
     for(unsigned i=0;i<32;++i){uint32_t value;assert(!ceph_cp_protect_word(i,&value) && value==spans[i]);}
+    for(unsigned i=0;i<12;++i){uint32_t reg,value;assert(!ceph_cp_protection_word(i,&reg,&value) && reg==modes[i] && value==1);}
     uint32_t packet[12];assert(ceph_cp_me_init(packet,12,0x100004000ULL,4096)==12);
     const uint32_t expected[]={0x70c8000b,0x16f,3,0x20000000,0,0,0,2,0x4000,1,0,0};
     for(unsigned i=0;i<12;++i)assert(packet[i]==expected[i]);
