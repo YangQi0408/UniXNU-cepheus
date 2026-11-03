@@ -13,7 +13,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 STRUCTS = ("hfi_bwtable_cmd", "opp_gx_desc", "opp_desc", "hfi_dcvstable_cmd",
-           "hfi_acd_table_cmd", "hfi_fw_version_cmd", "hfi_feature_ctrl_cmd", "hfi_core_fw_start_cmd", "hfi_prep_slumber_cmd")
+           "hfi_acd_table_cmd", "hfi_fw_version_cmd", "hfi_feature_ctrl_cmd", "hfi_core_fw_start_cmd", "hfi_prep_slumber_cmd",
+           "hfi_err_cmd", "hfi_debug_cmd")
 
 
 def main():
@@ -49,6 +50,8 @@ _Static_assert(offsetof(struct hfi_bwtable_cmd,cnoc_cmd_data)==12*4, "CNOC data 
 _Static_assert(offsetof(struct hfi_bwtable_cmd,ddr_cmd_addrs)==24*4, "DDR address offset");
 _Static_assert(offsetof(struct hfi_bwtable_cmd,ddr_cmd_data)==32*4, "DDR data offset");
 _Static_assert(sizeof(struct hfi_acd_table_cmd)==CE_HFI_ACD_WORDS*4, "ACD size");
+_Static_assert(sizeof(struct hfi_err_cmd)==18*4 && offsetof(struct hfi_err_cmd,error_code)==4, "ERR ABI");
+_Static_assert(sizeof(struct hfi_debug_cmd)==4*4 && offsetof(struct hfi_debug_cmd,data)==12, "DEBUG ABI");
 int main(void) {
     struct ceph_arc_resource r={.levels={0,16,48,64},.count=4};
     struct ceph_hfi_opp gx[]={{0,0},{215000000,64}},cx[]={{0,0},{200000000,48}};
