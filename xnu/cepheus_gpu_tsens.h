@@ -12,6 +12,7 @@
 struct ceph_gpu_tsens {
     volatile uint32_t *tm[2];size_t bytes[2];uint64_t pa[2];
     void *owner;int (*lease)(void *);int (*now_ns)(void *,uint64_t *);
+    volatile uint32_t *srot[2];size_t srot_bytes[2];uint64_t srot_pa[2];
 };
 static inline void ceph_gpu_tsens_order(void)
 {
@@ -36,11 +37,18 @@ static inline int ceph_gpu_tsens_sample(void *ctx,struct ceph_gpu_temperature *o
     *out=(struct ceph_gpu_temperature){0};struct ceph_gpu_tsens *m=ctx;
     if(!m || !m->lease || !m->now_ns || m->lease(m->owner))return -1;
     for(unsigned i=0;i<2;++i)
-        if(!m->tm[i] || ((uintptr_t)m->tm[i]&3u) || m->pa[i]!=(i?0xc265000u:0xc263000u) || m->bytes[i]!=4096)return -1;
-    if(m->tm[0]==m->tm[1])return -1;
+        if(!m->tm[i] || ((uintptr_t)m->tm[i]&3u) || m->pa[i]!=(i?0xc265000u:0xc263000u) || m->bytes[i]!=4096 ||
+            !m->srot[i] || ((uintptr_t)m->srot[i]&3u) || m->srot_pa[i]!=(i?0xc223000u:0xc222000u) || m->srot_bytes[i]!=4096)return -1;
+    if(m->tm[0]==m->tm[1] || m->srot[0]==m->srot[1])return -1;
     uint64_t start,end;if(m->now_ns(m->owner,&start))return -1;
     struct ceph_gpu_temperature s={0};s.sampled_ns=start;
     for(unsigned i=0;i<2;++i) {
+        /* Downstream tsens2xxx_hw_sensor_en reads SROT+4. FDT gives a4-byte
+         * resource but ioremap covers its containing page; platform must own
+         * the full page explicitly, not claim offset4 is inside a4-byte map. */
+        uint32_t enabled=m->srot[i][1];ceph_gpu_tsens_order();
+        unsigned sensor=i?11:15;
+        if(enabled==UINT32_MAX || !(enabled&1) || !(enabled&(1u<<(sensor+3))))return -1;
         uint32_t ready=m->tm[i][0xe4/4];ceph_gpu_tsens_order();
         if(ready==UINT32_MAX || !(ready&8))return -1;
         int value=0,valid=0;
@@ -54,6 +62,8 @@ static inline int ceph_gpu_tsens_sample(void *ctx,struct ceph_gpu_temperature *o
         s.valid_mask|=1u<<i;
     }
     for(unsigned i=0;i<2;++i) {
+        uint32_t enabled=m->srot[i][1];ceph_gpu_tsens_order();
+        if(enabled==UINT32_MAX || !(enabled&1) || !(enabled&(1u<<((i?11:15)+3))))return -1;
         uint32_t ready=m->tm[i][0xe4/4];ceph_gpu_tsens_order();
         if(ready==UINT32_MAX || !(ready&8))return -1;
     }

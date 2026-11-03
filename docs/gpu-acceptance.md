@@ -296,6 +296,12 @@ ROQ与内存池阈值、AHB错误响应、HBB15/MAL32/UBWC3等。1MiB GMEM来自
 51组host及扩展适配器ASan/UBSan通过；不是完整GX初始化（HWCG/GBIF/LLCC/
 QoS/地址空间/PAS等仍缺），始终保持CP halt。不得将该configured视为GPU ready。
 
+TSENS采样补SROT+4的controller enable及对应sensor enable位，前后均检查，
+避免TM valid旧值来自已禁用传感器。两组SROT基址0xc222000/0xc223000，FDT声明
+4字节而源码访问+4；此实现明确要求平台拥有完整4KiB映射，不谎称+4在4字节内。
+只读、不改变使能位。soc诊断仍只是单次温度样本而非完整热许可；实际热监督
+必须走完整sampler+lease。测试包括controller/sensor各自禁用的拒绝。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

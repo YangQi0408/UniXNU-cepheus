@@ -60,6 +60,8 @@ class FdtTests(unittest.TestCase):
         self.assertEqual(r['qmp']['channel'],0)
         self.assertEqual([(t['zone'],t['tm']['address'],t['sensor']) for t in r['thermal']],
                          [('gpuss-0-usr',0xc263000,15),('gpuss-1-usr',0xc265000,11)])
+        self.assertEqual([t['srot'] for t in r['thermal']],
+                         [{'address':0xc222000,'bytes':4},{'address':0xc223000,'bytes':4}])
         self.assertEqual(r['gx']['streams'],{'gfx3d_user':{'sid':0,'mask':0x401},'gfx3d_secure':{'sid':2,'mask':0x400}})
         self.assertEqual([r['gx'][k] for k in ('highest_bank_bit','min_access_length','ubwc_mode','macrotiling_channels')],[15,32,3,None])
         self.assertTrue(r['gx']['hyp_secure_alloc'] and r['gx']['three_level_tables'])

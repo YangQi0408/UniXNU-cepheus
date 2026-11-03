@@ -272,7 +272,7 @@ def report(blob,speed_bin=None):
         controller=handles[spec[0]]
         if 'qcom,tsens24xx' not in strings(nodes[controller]['compatible']):raise ValueError('unsupported GPU thermal controller')
         thermal.append({'zone':name,'controller':controller,'sensor':spec[1],
-                        'tm':regs(controller)['tsens_tm_physical']})
+                        'tm':regs(controller)['tsens_tm_physical'],'srot':regs(controller)['tsens_srot_physical']})
     if len(thermal)!=2:raise ValueError('expected two GPU thermal zones')
     kgsl_iommu=unique('qcom,kgsl-smmu-v2');gx_streams={}
     for child in children(kgsl_iommu):

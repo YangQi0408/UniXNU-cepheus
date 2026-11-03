@@ -28,7 +28,7 @@ struct hw {
     struct ceph_gmu_upload_mmio upload_mmio;
     struct ceph_gpu_fault_mmio fault_mmio;
     unsigned fault_held;
-    uint32_t tsens_ram[2][1024];struct ceph_gpu_tsens tsens;
+    uint32_t tsens_ram[2][1024],tsens_srot[2][1024];struct ceph_gpu_tsens tsens;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
@@ -159,7 +159,9 @@ int ceph_test_bringup(const char *path,unsigned mode)
     assert(!cepheus_gmu_bringup_prepare(&s,data,(size_t)size));free(data);
     struct ceph_gmu_bringup_backends *b=&s.backend;
     b->owner=&h;b->bind=bind;b->failed=failed;
-    h.tsens=(struct ceph_gpu_tsens){{h.tsens_ram[0],h.tsens_ram[1]},{4096,4096},{0xc263000,0xc265000},&h,guard,now};
+    h.tsens=(struct ceph_gpu_tsens){{h.tsens_ram[0],h.tsens_ram[1]},{4096,4096},{0xc263000,0xc265000},&h,guard,now,
+        {h.tsens_srot[0],h.tsens_srot[1]},{4096,4096},{0xc222000,0xc223000}};
+    h.tsens_srot[0][1]=1|(1u<<18);h.tsens_srot[1][1]=1|(1u<<14);
     b->temperature=temperature;b->now_ns=now;b->trial_ns=30000000000ULL;
     b->power=(struct ceph_power_ops){&h,power_prepare,guard,power_read,power_write,vote,delayus,end};
     b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,pdc_validate,pdc_read,pdc_write,pdc_barrier,pdc_end};
