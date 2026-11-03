@@ -26,6 +26,10 @@ int cepheus_cp_workspace_release(struct ceph_cp_workspace *);
 /* Build only CPU page-table data from caller-reserved GPU VAs. Does not install
  * a context or publish DMA. VA reservation/GMEM carveout ownership is external. */
 int cepheus_cp_workspace_table(struct ceph_cp_workspace *,const uint64_t va[CE_CP_ROOT]);
+/* CPU-only integrity check before later mapping/configuration integration.
+ * Verifies live pool view identity, fixed SQE payload digest/tail and page tables.
+ * Does not seal CPU VAs or prove GPU mapping/PAS authentication. */
+int cepheus_cp_workspace_validate(struct ceph_cp_workspace *);
 #ifdef __cplusplus
 }
 #endif

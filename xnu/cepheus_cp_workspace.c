@@ -1,5 +1,38 @@
 #include "cepheus_cp_workspace.h"
 #include "cepheus_gpu_compile.h"
+#include "cepheus_gpu_firmware.h"
+
+int cepheus_cp_workspace_validate(struct ceph_cp_workspace *w)
+{
+    if(!w || (w->state!=CE_CP_WS_READY && w->state!=CE_CP_WS_TABLED) ||
+        w->leased!=((1u<<CE_CP_BUFFERS)-1) || w->firmware || w->firmware_view ||
+        w->sqe.offset!=4 || w->sqe.bytes!=32300 || w->sqe.words!=8075 || w->sqe.version!=0x16ee190)return -1;
+    const size_t minimum[]={32768,4096,32768,4096,4096,131072};
+    for(unsigned i=0;i<CE_CP_BUFFERS;++i) {
+        struct ceph_gpu_memory_view actual;
+        if(cepheus_gpu_memory_view_get(w->handles[i],&actual))return -1;
+        int invalid=actual.cpu!=w->views[i].cpu || actual.pa!=w->views[i].pa || actual.bytes!=w->views[i].bytes ||
+            actual.bytes<minimum[i] || actual.bytes>((minimum[i]+16383)&~(size_t)16383);
+        if(cepheus_gpu_memory_view_put(w->handles[i]) || invalid)return -1;
+        for(unsigned j=0;j<i;++j)if(w->handles[j]==w->handles[i])return -1;
+    }
+    static const uint8_t expected[32]={0xec,0x4c,0x62,0xfc,0x9d,0x38,0x44,0x33,0x7d,0x54,0xfc,0x6a,0x04,0xfe,0x01,0x82,
+        0x9e,0xff,0xf3,0x77,0x9f,0xe0,0x3b,0xcc,0xe9,0x6e,0xe8,0x7d,0x2d,0x52,0x3c,0xe0};
+    uint8_t digest[32];if(ceph_firmware_sha256(w->views[CE_CP_SQE].cpu,32300,digest))return -1;
+    unsigned diff=0;for(unsigned i=0;i<32;++i)diff|=digest[i]^expected[i];if(diff)return -1;
+    const volatile uint8_t *sqe=w->views[CE_CP_SQE].cpu;
+    for(size_t i=32300;i<w->views[CE_CP_SQE].bytes;++i)if(sqe[i])return -1;
+    if(w->state==CE_CP_WS_TABLED) {
+        static const unsigned prot[]={CE_VM_READ|CE_VM_UNPRIV|CE_VM_NOCACHE,
+            CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_EXEC|CE_VM_UNPRIV|CE_VM_NOCACHE,
+            CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
+        if(w->table.words!=w->views[CE_CP_ROOT].cpu || w->table.pa!=w->views[CE_CP_ROOT].pa || w->table.pages!=32)return -1;
+        for(unsigned i=0;i<CE_CP_ROOT;++i)if(w->regions[i].pa!=w->views[i].pa ||
+            w->regions[i].bytes!=minimum[i] || w->regions[i].permissions!=prot[i] || w->regions[i].va<0x300000)return -1;
+        if(ceph_vm39_matches(&w->table,w->regions,CE_CP_ROOT))return -1;
+    } else if(w->table.words || w->table.used)return -1;
+    return 0;
+}
 
 int cepheus_cp_workspace_release(struct ceph_cp_workspace *w)
 {
@@ -61,6 +94,7 @@ int cepheus_cp_workspace_table(struct ceph_cp_workspace *w,const uint64_t va[CE_
 {
     if(!w || w->state!=CE_CP_WS_READY || !va || w->leased!=((1u<<CE_CP_BUFFERS)-1) ||
         w->firmware || w->table.words)return -1;
+    if(cepheus_cp_workspace_validate(w))return -1;
     static const size_t bytes[]={32768,4096,32768,4096,4096};
     /* KGSL: ring GPUREADONLY; SQE GPUREADONLY|UCODE; scratch/RPTR and powerup
      * list privileged RW. None is host-coherent: Normal-NC backing/MAIR. */

@@ -307,6 +307,12 @@ TSENS24xx另检查TM0x14的watchdog bark(bit31)及所选sensor critical位，前
 ready/valid无错误也不能独立证明转换器没冻结。真实平台lease须保证采样时钟/
 转换健康与独立超时监督，当前仍未具备这个真机证据。
 
+CP workspace完整性接口重取池内view核对句柄/PA/容量，重新SHA256校验剥首DWORD
+后的SQE payload（32300B，`ec4c62fc9d3844337d54fc6a04fe01829efff3779fe03bcce96ee87d2d523ce0`）
+及32KiB零尾，TABLED时核对各角色固定权限/完整页表。损坏payload/尾字节、假view、
+篡改表根均拒绝；构表前强制该检查。CPU视图仍未硬件只读封存，此接口不是抵御
+恶意内核的安全边界，也不是PAS认证；DMA发布前还需真正的密封/生命周期绑定。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

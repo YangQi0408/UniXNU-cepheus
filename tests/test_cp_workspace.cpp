@@ -31,6 +31,12 @@ int main(int argc,char **argv)
     assert(!cepheus_cp_workspace_prepare(&w,fw.data(),fw.size()) && w.state==CE_CP_WS_READY);
     assert(w.sqe.bytes==32300 && w.sqe.version==0x16ee190 && !w.firmware && mock_io::live==12);
     assert(!memcmp(w.views[CE_CP_SQE].cpu,fw.data()+4,fw.size()-4));
+    assert(!cepheus_cp_workspace_validate(&w));
+    auto *sqe=(uint8_t *)w.views[CE_CP_SQE].cpu;sqe[1024]^=1;
+    assert(cepheus_cp_workspace_validate(&w)<0);sqe[1024]^=1;
+    sqe[32767]=1;assert(cepheus_cp_workspace_validate(&w)<0);sqe[32767]=0;
+    auto saved=w.views[CE_CP_RING];w.views[CE_CP_RING]=w.views[CE_CP_RPTR];
+    assert(cepheus_cp_workspace_validate(&w)<0);w.views[CE_CP_RING]=saved;
     for(unsigned role=0;role<CE_CP_BUFFERS;++role) {
         assert(w.views[role].cpu && w.views[role].bytes>=4096);
         auto *p=(uint8_t *)w.views[role].cpu;
@@ -41,6 +47,8 @@ int main(int argc,char **argv)
     va[0]=0x100000;assert(cepheus_cp_workspace_table(&w,va)<0 && !w.table.words);va[0]=0xfc000000;
     va[1]=va[0];assert(cepheus_cp_workspace_table(&w,va)<0 && w.state==CE_CP_WS_READY && !w.table.words);va[1]=0xfc010000;
     assert(!cepheus_cp_workspace_table(&w,va) && w.state==CE_CP_WS_TABLED && !ceph_vm39_matches(&w.table,w.regions,CE_CP_ROOT));
+    assert(!cepheus_cp_workspace_validate(&w));
+    w.table.words[0]^=1;assert(cepheus_cp_workspace_validate(&w)<0);w.table.words[0]^=1;
     for(unsigned i=0;i<CE_CP_ROOT;++i){uint64_t pa,flags;
         assert(!ceph_vm39_lookup(&w.table,va[i],&pa,&flags) && pa==w.views[i].pa);
         if(i==CE_CP_SQE)assert(!(flags&(3ULL<<53)) && (flags&(3u<<6))==(3u<<6));
