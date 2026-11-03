@@ -841,6 +841,30 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### 只读 GX halted-window 诊断开关（`cephgx=1`）
 
+### 安全上下文存在时的 GX VA 分区（新发现的硬约束）
+
+保存的 FDT 里 `/soc/qcom,kgsl-iommu@0x02CA0000/gfx3d_secure` 存在
+（`iommus = <0x1b8 0x02 0x400>`，即 SID2/mask0x400）。按 `kgsl_iommu.c`，
+这会让 `device->mmu.secured = true`，于是 `adreno.c:_set_secvid()` **会真的执行**，
+并且 `setup_64bit_pagetable()` 把 secure pagetable 限定在
+`[secure_base, 0xfc000000)`，同时把所有非安全 pagetable 的可用区间压到
+`[0x300000, secure_base)`（32 位/compat）与 `[0x500000000, 0x600000000)`（64 位）。
+本机 FDT 没有 `qcom,secure-size`，因此 `secure_size` 取默认 `SZ_256M`，
+`secure_base = 0xec000000`。
+
+也就是说：**这台机器上用户上下文不能使用 0xec000000 以上的 32 位 VA**。
+此前只按"39 位 VA"做约束，没有体现这条 carve-out。
+
+`cepheus_gx_va_layout.h` 现在把该分区算成纯逻辑并强制：任意 GX 映射必须
+完整落在某一个非安全区间内（跨界直接拒绝、不做裁剪），secure 窗口不得出现在
+非安全表里，窗口上界必须被页表几何覆盖（39 位可覆盖到 24GiB 的 64 位窗口，
+34 位不行），GMU 工作区的 `0x60000000` 仍落在 user32 内不受影响。
+非安全尺寸必须 4KiB 对齐且不超过 256MiB，否则拒绝而不静默取默认值。
+
+**仍然缺失**：真正分配安全 CB、写 SMR/S2CR、认证 ZAP/PAS、写 SECVID
+（`RBBM_SECVID_TSB_CNTL`/`TSB_TRUSTED_BASE/SIZE`、`TRUST_CNTL`）全部没有实现，
+因为没有可信 SCM/PAS 通道。该模块只保证地址空间不被自己占错，不授予任何写权限。
+
 真机目前没有任何手段在不写电源的前提下采集 GX 侧真实读数。新增
 `--gpu-gx-probe` / `cephgx=1`，严格只读：
 
