@@ -269,6 +269,12 @@ snapshot+固定SHA校验，再逐字节核对目标；无效固件拒绝、slot�
 未启动的c0d0a68诊断候选含旧GPU温度来源，**不作为GPU热验证候选**；需要从
 本次修复后成功CI重新打包。没有手机实际运行错误热保护，GPU启动钩子始终禁用。
 
+FDT报告同时补充GX专属输入：gfx3d_user SID0/mask0x401（匹配0/1/0x400/0x401）、
+secure SID2/mask0x400，与GMU kernel SID5严格分离；存在hyp_secure_alloc、
+use-3-lvl-tables。原SMMU驱动在AArch64三层模式限制IAS≤39，不应把GMU的32bit
+VA假定为完整GPU用户地址空间。GX图形参数HBB15、MAL32、UBWC3、macrotiling
+channels缺省，已由独立解析测试记录。尚未用这些字段冒充已实现GX页表/GMEM。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

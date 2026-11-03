@@ -274,13 +274,26 @@ def report(blob,speed_bin=None):
         thermal.append({'zone':name,'controller':controller,'sensor':spec[1],
                         'tm':regs(controller)['tsens_tm_physical']})
     if len(thermal)!=2:raise ValueError('expected two GPU thermal zones')
+    kgsl_iommu=unique('qcom,kgsl-smmu-v2');gx_streams={}
+    for child in children(kgsl_iommu):
+        if 'iommus' not in nodes[child]:continue
+        spec=cells(nodes[child]['iommus'])
+        if len(spec)!=3 or handles.get(spec[0])!=smmu:raise ValueError('unexpected GX SMMU')
+        gx_streams[child.rsplit('/',1)[1]]={'sid':spec[1],'mask':spec[2]}
+    gx={'highest_bank_bit':scalar(gpu,'qcom,highest-bank-bit'),
+        'min_access_length':scalar(gpu,'qcom,min-access-length'),
+        'ubwc_mode':scalar(gpu,'qcom,ubwc-mode'),
+        'macrotiling_channels':scalar(gpu,'qcom,macrotiling-channels') if 'qcom,macrotiling-channels' in nodes[gpu] else None,
+        'iommu_path':kgsl_iommu,'streams':gx_streams,
+        'hyp_secure_alloc':'qcom,hyp_secure_alloc' in nodes[kgsl_iommu],
+        'three_level_tables':'qcom,use-3-lvl-tables' in nodes[smmu]}
     return {'fdt_sha256':hashlib.sha256(blob).hexdigest(),'fdt_bytes':len(blob),
         'chipid':scalar(gpu,'qcom,chipid'),'gpu_path':gpu,'gmu_path':gmu,'opp_path':opppath,
         'gpu_registers':regs(gpu),'gmu_registers':regs(gmu),'gmu_hz':[n[1] for n in gmu_levels],
         'opp_levels':opps,'speed_bins':bins,
         'selected_bin':selected,'speed_bin_evidence':'caller-supplied; not checked by this tool' if selected else 'UNKNOWN; no eFuse read performed',
         'ddr_vectors':ddr,'cnoc_vectors':cnoc,'bus_routes':routes,'streams':streams,'smmu_path':smmu,
-        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,'thermal':thermal,
+        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,'thermal':thermal,'gx':gx,
         'limitations':['saved FDT only, no hardware execution','BCM cmd-db unit/width/VCD values still needed',
                         'not an ARC vote ownership proof','selected OPP phandle must replace generic sm8150 table']}
 
