@@ -9,14 +9,17 @@
 #include "cepheus_gmu_bringup.h"
 #include "cepheus_gpu_config.h"
 #include "cepheus_qmp_mmio.h"
+#include "cepheus_pdc_mmio.h"
 #include "gpu_config_fixture.h"
 struct hw {
     struct ceph_gmu_bringup *s;unsigned mode,phase,votes,commands,failed;
-    uint32_t power[CE_PWR_REG_COUNT],gmu[CE_GMU_REG_COUNT],pdc[3][0xc000];
+    uint32_t power[CE_PWR_REG_COUNT],gmu[0x30000/4],pdc_cfg[0x10000/4],pdc_seq[0x10000/4];
+    struct ceph_gmu_mmio gmu_mmio;struct ceph_pdc_mmio pdc_mmio;
     uint64_t smmu[CE_SM_REG_COUNT],time;
     uint32_t itcm[4096],dtcm[4096],qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
+static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
 static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;return 0;}
 static int delayus(void *p,unsigned n){struct hw *h=p;h->time+=n*1000;return 0;}
 static void end(void *p,int keep){struct hw *h=p;assert(h->s);(void)keep;}
@@ -31,22 +34,27 @@ static int power_write(void *p,enum ceph_power_reg r,uint32_t v){struct hw *h=p;
     if(r==CE_PWR_GMU)h->power[CE_PWR_RCG]&=~(1u<<31);
     return 0;}
 static int vote(void *p,uint32_t address,unsigned v){struct hw *h=p;assert(v==2 && address==(h->votes?0x30000u:0x30004u));h->votes++;return 0;}
-static int pdc_begin(void *p,const struct ceph_pdc_input *i){struct hw *h=p;assert(h->s->workspace.state==CE_WS_SHARED && i->cfg_pa==0xb290000 && h->gmu[CE_GMU_TCM_RETENTION]==1);return h->mode==3?-13:0;}
-static int pdc_read(void *p,enum ceph_pdc_window w,uint32_t o,uint32_t *v){*v=((struct hw *)p)->pdc[w][o/4];return 0;}
-static int pdc_write(void *p,enum ceph_pdc_window w,uint32_t o,uint32_t v){struct hw *h=p;h->pdc[w][o/4]=v;return 0;}
+static int pdc_begin(void *p,const struct ceph_pdc_input *i){struct hw *h=p;assert(h->s->workspace.state==CE_WS_SHARED && i->cfg_pa==0xb290000 && *gmu_reg(h,CE_GMU_TCM_RETENTION)==1);return h->mode==3?-13:ceph_pdc_mmio_begin(&h->pdc_mmio,i);}
+static int pdc_read(void *p,enum ceph_pdc_window w,uint32_t o,uint32_t *v){return ceph_pdc_mmio_read(&((struct hw *)p)->pdc_mmio,w,o,v);}
+static int pdc_write(void *p,enum ceph_pdc_window w,uint32_t o,uint32_t v){return ceph_pdc_mmio_write(&((struct hw *)p)->pdc_mmio,w,o,v);}
+static int pdc_validate(void *p){return ceph_pdc_mmio_validate(&((struct hw *)p)->pdc_mmio);}
+static int pdc_barrier(void *p){return ceph_pdc_mmio_barrier(&((struct hw *)p)->pdc_mmio);}
+static void pdc_end(void *p,int keep){ceph_pdc_mmio_end(&((struct hw *)p)->pdc_mmio,keep);}
 static int smmu_begin(void *p,const struct ceph_smmu_plan *plan,uint32_t actlr){struct hw *h=p;assert(h->s->pdc.attempted==48 && actlr==0x303 && plan->cb==3);return h->mode==4?-14:0;}
 static int smmu_read(void *p,enum ceph_smmu_reg r,uint64_t *v){*v=((struct hw *)p)->smmu[r];return 0;}
 static int smmu_write(void *p,enum ceph_smmu_reg r,uint64_t v){struct hw *h=p;h->smmu[r]=v;if(r==CE_SM_TLBSYNC)h->smmu[CE_SM_TLBSTATUS]=0;return 0;}
 static int upload_begin(void *p){struct hw *h=p;assert(h->s->smmu.state==CE_SM_ENABLED);return h->mode==5?-15:0;}
-static int reset_held(void *p){struct hw *h=p;return h->gmu[CE_GMU_SYSRESET]==1?0:-1;}
+static int reset_held(void *p){struct hw *h=p;return *gmu_reg(h,CE_GMU_SYSRESET)==1?0:-1;}
 static int cm3_begin(void *p,const struct ceph_gmu_start_config *c){struct hw *h=p;
     assert(h->s->backend.upload.writes && c->hfi_va==0x60100000 && c->log_va==0x60200000);return h->mode==6?-16:0;}
-static int cm3_read(void *p,enum ceph_gmu_reg r,uint32_t *v){*v=((struct hw *)p)->gmu[r];return 0;}
-static int cm3_write(void *p,enum ceph_gmu_reg r,uint32_t v){struct hw *h=p;h->gmu[r]=v;
-    if(r==CE_GMU_SYSRESET && !v)h->gmu[CE_GMU_INIT_RESULT]=0xbabeface;
-    if(r==CE_GMU_HFI_INIT)h->gmu[CE_GMU_HFI_STATUS]=1;
+static int cm3_read(void *p,enum ceph_gmu_reg r,uint32_t *v){return ceph_gmu_mmio_start_read(&((struct hw *)p)->gmu_mmio,r,v);}
+static int cm3_write(void *p,enum ceph_gmu_reg r,uint32_t v){struct hw *h=p;
+    int e=ceph_gmu_mmio_start_write(&h->gmu_mmio,r,v);if(e)return e;
+    if(r==CE_GMU_SYSRESET && !v)*gmu_reg(h,CE_GMU_INIT_RESULT)=0xbabeface;
+    if(r==CE_GMU_HFI_INIT)*gmu_reg(h,CE_GMU_HFI_STATUS)=1;
     return 0;}
 static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READY);uint32_t cmd[255];unsigned count;
+    assert(!ceph_gmu_mmio_hfi_notify(&h->gmu_mmio));
     h->fw_rx=h->s->link.tx;h->fw_tx=h->s->link.rx;
     h->fw_rx.io=(struct ceph_hfi_ops){h,guard,guard,guard,guard};h->fw_tx.io=h->fw_rx.io;
     assert(!ceph_hfi_read(&h->fw_rx,cmd,255,&count));
@@ -79,7 +87,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     struct ceph_gmu_bringup_backends *b=&s.backend;
     b->owner=&h;b->bind=bind;b->failed=failed;
     b->power=(struct ceph_power_ops){&h,power_prepare,guard,power_read,power_write,vote,delayus,end};
-    b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,guard,pdc_read,pdc_write,guard,end};
+    b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,pdc_validate,pdc_read,pdc_write,pdc_barrier,pdc_end};
     b->smmu=(struct ceph_smmu_ops){&h,smmu_begin,guard,smmu_read,smmu_write,guard,guard,delayus,end};
     b->cm3=(struct ceph_gmu_start_ops){&h,cm3_begin,guard,cm3_read,cm3_write,guard,now,guard,end};
     b->transport=(struct ceph_gmu_hfi_transport){&h,guard,notify,now,guard,guard};
@@ -99,7 +107,11 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.power[CE_PWR_CX]=h.power[CE_PWR_GX]=0x222001;h.power[CE_PWR_CX_STATUS]=0x5ff4;h.power[CE_PWR_CFG_AHB]=1;
     h.power[CE_PWR_RCG]=0x80000000;h.power[CE_PWR_GMU]=0x80004220;h.power[CE_PWR_CM3_RESET]=1;
     for(unsigned i=CE_PWR_CXO;i<=CE_PWR_DVM;++i)h.power[i]=0x80000001;
-    h.smmu[CE_SM_S2CR]=2u<<16;h.gmu[CE_GMU_SYSRESET]=1;h.gmu[CE_GMU_HFI_VERSION]=0x20000001;
+    h.smmu[CE_SM_S2CR]=2u<<16;*gmu_reg(&h,CE_GMU_SYSRESET)=1;*gmu_reg(&h,CE_GMU_HFI_VERSION)=0x20000001;
+    h.gmu[0x1f8d0-0x1a800]=0xc0;
+    h.gmu_mmio=(struct ceph_gmu_mmio){(volatile uint8_t *)h.gmu,sizeof(h.gmu),s.workspace.layout.start,0x20000001,&h,guard};
+    h.pdc_mmio=(struct ceph_pdc_mmio){.gmu=&h.gmu_mmio,.cfg=h.pdc_cfg,.seq=h.pdc_seq,
+        .cfg_pa=0xb290000,.seq_pa=0xb490000,.cfg_bytes=sizeof(h.pdc_cfg),.seq_bytes=sizeof(h.pdc_seq),.owner=&h,.lease=guard,.finish=end};
     int e=cepheus_gmu_bringup_start(&s);
     if(!mode || mode==8)assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
     else {

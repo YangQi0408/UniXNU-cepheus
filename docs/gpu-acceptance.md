@@ -92,6 +92,14 @@ FDT的GMU `mboxes` phandle解析到AOP，MSG RAM=`0xc300000+0x1000`、通知寄�
 配置版63adbf1的完整CI41561755541通过（kernel364448bd...）；权限修正版
 11f9ec1的CI41562697282通过（kernel4580d810...）。QMP/退休接入待后续CI。
 
+后续be396a6已由CI41564224598完整验证，kernel SHA256：
+`c9dff1f27c3e2253844c7fbb23947edfc562f7f7429dfb7912515f57c9abdc1f`。
+`cepheus_pdc_mmio.h`进一步连接三个实际aperture，以48项plan为唯一写白名单，
+强制顺序/值匹配，拒绝活动PDC、未reset CM3或GX未off。全回调失效测试通过。
+整链GMU host测试已统一PDC/CM3/HFI doorbell所用GMU RAM aperture，执行真实
+volatile适配器，仅硬件响应仍由测试替身模拟；不再用独立枚举值掩盖地址错误。
+42组host回归及实际固件模拟上传/启动通过。该PDC增量仍需新的完整CI。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

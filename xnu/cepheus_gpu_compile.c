@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_pdc_mmio_bind(struct ceph_pdc_mmio *m,struct ceph_pdc_ops *out)
+{ return ceph_pdc_mmio_ops(m,out); }
 int cepheus_gpu_park_read(void *m,enum ceph_gmu_park_reg r,uint32_t *v)
 { return ceph_gmu_mmio_park_read(m,r,v); }
 int cepheus_gpu_park_write(void *m,enum ceph_gmu_park_reg r,uint32_t v)
