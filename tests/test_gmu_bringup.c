@@ -111,7 +111,9 @@ static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==
     smmu_fixture_init(&h->smmu_mmio,h->smmu,&s->backend.smmu_plan,h,guard);
     h->upload_mmio=(struct ceph_gmu_upload_mmio){&h->gmu_mmio,h,end,0,0};
     assert(!ceph_gmu_upload_mmio_bind(&h->upload_mmio,&s->backend.upload));
-    s->backend.upload.begin=upload_begin;return 0;}
+    s->backend.upload.begin=upload_begin;
+    if(h->mode==12)++s->backend.hfi.min_fw_minor;
+    return 0;}
 static int slbegin(void *p){struct hw *h=p;assert(h->s->stage==CE_BR_HFI && !h->retiring);h->retiring=1;return 0;}
 static int slread(void *p,enum ceph_slumber_reg r,uint32_t *v){return ceph_gmu_mmio_slumber_read(&((struct hw *)p)->gmu_mmio,r,v);}
 static int slwrite(void *p,enum ceph_slumber_reg r,uint32_t v){return ceph_gmu_mmio_slumber_write(&((struct hw *)p)->gmu_mmio,r,v);}
@@ -195,12 +197,13 @@ int ceph_test_bringup(const char *path,unsigned mode)
         assert(b->upload.quarantined && !b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
         for(unsigned i=0;i<3;++i)assert(!s.upload_maps[i].cpu);
         if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
-        if(mode>=3) {
+        if(mode>=3 && mode<=9) {
             struct ceph_gpu_group_status status;
             assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
             assert(!cepheus_gpu_memory_group_status(s.workspace.publication.group,&status));
             assert(status.state==CE_GPU_GROUP_UNCERTAIN && status.pool_terminal && status.retained_buffers==CE_GPU_WORKSPACE_BUFFERS);
         }
+        if(mode==12)assert(s.failed_stage==CE_BR_BOUND && !s.workspace.publication.group && !s.retention_writes && !s.pdc.attempted);
     }
     printf("Whole GMU chain mode=%u: sealed file/workspace -> power -> PDC -> SMMU -> upload -> CM3 -> actual HFI rings PASS (emulated hardware)\n",mode);
     return e;

@@ -8,6 +8,33 @@ static void revoke_upload_aliases(struct ceph_gmu_bringup *s)
     u->maps=NULL;u->map_count=0;u->itcm=u->dtcm=NULL;u->itcm_words=u->dtcm_words=0;
 }
 
+/* Compare serialized policy, not pointer identity or struct padding. bind may
+ * fill MMIO adapters, but must not change what preflight validated before power
+ * side effects. Buffers are bounded scratch reused one at a time (XNU stack). */
+static int policy_unchanged(const struct ceph_gmu_bringup_backends *b,const uint32_t perf[59],
+    const uint32_t bw[160],const uint32_t acd[17],const struct ceph_pdc_plan *pdc,
+    const struct ceph_gpu_bin_policy *policy,unsigned min_minor)
+{
+    const struct ceph_hfi_boot_config *h=&b->hfi;
+    if(!ceph_gpu_bin_policy_valid(h->policy) || h->policy->bin!=policy->bin ||
+        h->ng!=policy->gx_levels || h->throttle_mask!=policy->throttle_mask ||
+        (!!h->acd)!=policy->acd || h->min_fw_minor!=min_minor)return -1;
+    uint32_t words[160];
+    if(ceph_hfi_perf(words,160,h->gx,h->ng,h->cx,h->nc,h->gfx,h->cxl,h->mx)!=59)return -1;
+    for(unsigned i=0;i<59;++i)if(words[i]!=perf[i])return -1;
+    if(ceph_hfi_bandwidth(words,160,h->bw)!=160)return -1;
+    for(unsigned i=0;i<160;++i)if(words[i]!=bw[i])return -1;
+    if(h->acd) {
+        if(ceph_hfi_acd_table(words,160,h->acd)!=17)return -1;
+        for(unsigned i=0;i<17;++i)if(words[i]!=acd[i])return -1;
+    }
+    struct ceph_pdc_plan plan;if(ceph_pdc_plan_a640v2(&b->pdc_input,&plan) || plan.count!=pdc->count)return -1;
+    for(unsigned i=0;i<plan.count;++i)
+        if(plan.writes[i].window!=pdc->writes[i].window || plan.writes[i].offset!=pdc->writes[i].offset ||
+            plan.writes[i].value!=pdc->writes[i].value)return -1;
+    return 0;
+}
+
 int cepheus_gmu_bringup_prepare(struct ceph_gmu_bringup *s,const uint8_t *firmware,size_t bytes)
 {
     if(!s || s->stage!=CE_BR_NEW || s->firmware || s->workspace.state!=CE_WS_NEW)return -1;
@@ -37,8 +64,10 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
         ceph_pdc_plan_a640v2(&b->pdc_input,&pdc_plan))return -1;
     if(b->hfi.policy->acd && (!b->acd.begin || !b->acd.validate || !b->acd.read32 ||
         !b->acd.write32 || !b->acd.barrier || !b->acd.notify || !b->acd.now_ns || !b->acd.pause || !b->acd.end))return -1;
+    const struct ceph_gpu_bin_policy policy=*b->hfi.policy;unsigned min_minor=b->hfi.min_fw_minor;
     s->stage=CE_BR_POWER;e=ceph_power_start(&s->power,&b->power);if(e)goto failed;
     s->stage=CE_BR_BOUND;e=b->bind(b->owner,s);if(e)goto failed;
+    e=policy_unchanged(b,perf,bw,acd,&pdc_plan,&policy,min_minor);if(e)goto failed;
     /* Bind cannot swap/forge the prepared root; exact resource identities are
      * checked again by the publication pool and by each concrete engine. */
     if(!ceph_smmu_plan_canonical(&b->smmu_plan) || (b->smmu_plan.smr&0x7fffu)!=5 ||
