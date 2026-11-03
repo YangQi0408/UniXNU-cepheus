@@ -313,6 +313,11 @@ CP workspace完整性接口重取池内view核对句柄/PA/容量，重新SHA256
 篡改表根均拒绝；构表前强制该检查。CPU视图仍未硬件只读封存，此接口不是抵御
 恶意内核的安全边界，也不是PAS认证；DMA发布前还需真正的密封/生命周期绑定。
 
+`test_gpu_keepalive.c`将同一GMU/GPU RAM的OOB请求/ACK/clear接入GX子集→CP保护→
+halted ring配置；只有OOB_HELD租约才准许GX配置，未drain不能释放，release后
+租约立即拒绝。52组host与ASan通过。不声称OOB release使GX断电；后续仍必须
+slumber/park，也没有在该链路中执行CP或认证ZAP。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
