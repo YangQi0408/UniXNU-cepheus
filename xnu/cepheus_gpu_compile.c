@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_cp_snapshot_mmio(struct ceph_cp_snapshot_mmio *s,uint32_t *out,unsigned words)
+{ return ceph_cp_snapshot_mmio_copy(s,out,words); }
 int cepheus_gpu_cp_protect_configure(struct ceph_cp_protection *s)
 { return ceph_cp_protection_install(s); }
 int cepheus_gpu_cp_ring_configure(struct ceph_cp_ring_config *s)

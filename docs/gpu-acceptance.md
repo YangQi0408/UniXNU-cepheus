@@ -241,6 +241,13 @@ GX/fence/OOB/SMMU/固件身份、SQE已halt、冷态ring/SQE/RPTR且无CP fault�
 寄存器并比较编译后的表；48组host回归通过。仅设置受保护的访问模式，不触碰
 TRUST_CONTROL或安全认证状态；GX其余初始化/认证/执行仍未完成。
 
+`cepheus_cp_snapshot_mmio.h`只读取固定66个恢复寄存器，读取前验证完整保护/
+地址模式且CP保持halt；输出不得别名到MMIO或适配器对象，失败不写部分快照。
+联测复用同一GPU RAM：protection安装→ring/SQE预配置→实际寄存器快照→
+136word恢复列表→12word CP_ME_INIT生成，确认始终未写WPTR/未释放halt。
+49组host测试通过；ring配置版CI41577933766（48d6199）已成功，新保护/快照
+增量仍待完整CI。尚未执行该CP_ME_INIT，不能称GPU命令提交成功。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

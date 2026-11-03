@@ -24,6 +24,7 @@ HEADERS += ('cepheus_qmp_connect.h',)
 HEADERS += ('cepheus_gpu_tsens.h',)
 HEADERS += ('cepheus_cp_ring_config.h',)
 HEADERS += ('cepheus_cp_protection.h',)
+HEADERS += ('cepheus_cp_snapshot_mmio.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -91,6 +92,7 @@ def main():
     required |= {'_cepheus_gpu_temperature_sample'}
     required |= {'_cepheus_gpu_cp_ring_configure'}
     required |= {'_cepheus_gpu_cp_protect_configure'}
+    required |= {'_cepheus_gpu_cp_snapshot_mmio'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
     required |= {'_cepheus_gpu_park_read','_cepheus_gpu_park_write','_cepheus_gpu_slumber_read','_cepheus_gpu_slumber_write'}
