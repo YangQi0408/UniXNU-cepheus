@@ -69,7 +69,9 @@ int cepheus_cp_workspace_table(struct ceph_cp_workspace *w,const uint64_t va[CE_
         CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
     struct ceph_vm_region regions[CE_CP_ROOT];
     for(unsigned i=0;i<CE_CP_ROOT;++i) {
-        if(!va[i] || w->views[i].bytes<bytes[i])return -1;
+        /* Keep low GMEM/trap/null area out of system-memory tables. Current
+         * A6401MiB GMEM occupies[1MiB,2MiB); KGSL begins SVM at3MiB. */
+        if(va[i]<0x300000 || w->views[i].bytes<bytes[i])return -1;
         regions[i]=(struct ceph_vm_region){va[i],w->views[i].pa,bytes[i],prot[i]};
     }
     const struct ceph_gpu_memory_view *root=&w->views[CE_CP_ROOT];

@@ -34,5 +34,7 @@ int main(void)
     init(&h,&g,&s);s.input.sqe_va=s.input.ring_va;assert(ceph_cp_ring_configure_halted(&s)<0 && !h.calls);
     init(&h,&g,&s);s.input.sqe_va=(1ULL<<40)-4096;assert(ceph_cp_ring_configure_halted(&s)<0);
     init(&h,&g,&s);s.input.rptr_bytes=1;assert(ceph_cp_ring_configure_halted(&s)<0);
+    init(&h,&g,&s);s.input.ring_va=0x100000;assert(ceph_cp_ring_configure_halted(&s)<0 && !h.calls);
+    init(&h,&g,&s);s.input.sqe_va=1ULL<<39;assert(ceph_cp_ring_configure_halted(&s)<0 && !h.calls);
     puts("CP ring preconfiguration: exact7 address/control writes, halt retained, no WPTR/trust/start, every lease failure PASS (RAM)");
 }

@@ -18,7 +18,7 @@ static inline int ceph_cp_ring_plan(const struct ceph_cp_ring_input *in,struct c
     uint64_t va[]={in->ring_va,in->rptr_va,in->sqe_va};
     size_t bytes[]={in->ring_bytes,in->rptr_bytes,in->sqe_bytes};
     for(unsigned i=0;i<3;++i) {
-        if(!va[i] || ((va[i]|bytes[i])&4095u) || va[i]>=(1ULL<<40) || bytes[i]>(1ULL<<40)-va[i])return -1;
+        if(va[i]<0x300000 || ((va[i]|bytes[i])&4095u) || va[i]>=(1ULL<<39) || bytes[i]>(1ULL<<39)-va[i])return -1;
         for(unsigned j=0;j<i;++j)if(va[i]<va[j]+bytes[j] && va[j]<va[i]+bytes[i])return -1;
     }
     /* KGSL_RB_DWORDS=8192: log2(8192/2)=12; RPTR writeback block=log2(4)=2. */

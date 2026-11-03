@@ -38,6 +38,7 @@ int main(int argc,char **argv)
         assert(cepheus_gpu_memory_publish(w.handles[role])<0); /* held CPU views, no DMA */
     }
     uint64_t va[]={0xfc000000,0xfc010000,0xfc020000,0xfc030000,0x100000000ULL};
+    va[0]=0x100000;assert(cepheus_cp_workspace_table(&w,va)<0 && !w.table.words);va[0]=0xfc000000;
     va[1]=va[0];assert(cepheus_cp_workspace_table(&w,va)<0 && w.state==CE_CP_WS_READY && !w.table.words);va[1]=0xfc010000;
     assert(!cepheus_cp_workspace_table(&w,va) && w.state==CE_CP_WS_TABLED && !ceph_vm39_matches(&w.table,w.regions,CE_CP_ROOT));
     for(unsigned i=0;i<CE_CP_ROOT;++i){uint64_t pa,flags;
