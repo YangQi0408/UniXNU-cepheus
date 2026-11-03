@@ -3,6 +3,8 @@
  * physical addresses are supplied by a real allocator, not cast virtuals.
  * Table publication requires cache clean+SMMU context/TLB programming in a
  * platform backend. This module never alters the system SMMU configuration.
+ * Permissions govern device transactions, NOT CPU pmap protections. GMU cache
+ * backing needs source-faithful RW with no XN; do not impose CPU W^X on it.
  */
 #ifndef CEPHEUS_GPU_VM_H
 #define CEPHEUS_GPU_VM_H
@@ -18,8 +20,7 @@ static inline int ceph_vm_valid(const struct ceph_vm_region *r)
 	if (!r || !r->bytes || ((r->va | r->pa | r->bytes) & 4095u) ||
 	    r->va >= (1ULL<<32) || r->bytes > (1ULL<<32)-r->va ||
 	    r->pa >= (1ULL<<40) || r->bytes > (1ULL<<40)-r->pa ||
-	    !(r->permissions & CE_VM_READ) || (r->permissions & ~31u) ||
-	    ((r->permissions & (CE_VM_WRITE|CE_VM_EXEC)) == (CE_VM_WRITE|CE_VM_EXEC))) { return 0; }
+	    !(r->permissions & CE_VM_READ) || (r->permissions & ~31u)) { return 0; }
 	return 1;
 }
 static inline uint64_t ceph_vm_leaf(uint64_t pa, unsigned permissions)
@@ -63,7 +64,7 @@ static inline int ceph_vm_build(struct ceph_vm_pool *p,const struct ceph_vm_regi
 		if (r->pa < p->pa+(uint64_t)p->pages*CE_VM_PAGE && p->pa<r->pa+r->bytes) { return -1; }
 		for (unsigned j=0;j<i;j++) {
 			if (r->va<regions[j].va+regions[j].bytes && regions[j].va<r->va+r->bytes) { return -1; }
-			// Reject physical aliases too, to keep W^X meaningful.
+			// Reject physical aliases too: one device VA/permission set per backing.
 			if (r->pa<regions[j].pa+regions[j].bytes && regions[j].pa<r->pa+r->bytes) { return -1; }
 		}
 		for (uint64_t va=r->va;va<r->va+r->bytes;) {

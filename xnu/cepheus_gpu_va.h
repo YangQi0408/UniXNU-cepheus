@@ -1,6 +1,8 @@
 /* Immutable GMU virtual-address plan from actual owned allocation descriptors.
  * All backing memory is CPU Normal-NC. Firmware regions use privileged access;
- * HFI requires unprivileged RW. Log is privileged RW. GPU VA never equals a
+ * HFI requires unprivileged RW. Log is privileged RW. All these KGSL mappings
+ * omit IOMMU_NOEXEC: preserve device XN=0 even on writable cache backing. This
+ * does not make any CPU address executable. GPU VA never equals a
  * cast CPU pointer. Allocator handles/leases remain owned by the caller.
  */
 #ifndef CEPHEUS_GPU_VA_H
@@ -17,11 +19,11 @@ static inline int ceph_gpu_va_plan(const struct ceph_gpu_backing backing[CE_BUF_
      * separated by1MiB. HFI/log addresses are given to firmware explicitly. */
     static const uint32_t va[]={0x4000,0x44000,0x60100000,0x60200000,0x60000000};
     static const uint32_t length[]={0x3c000,0x3c000,5*4096,4096,4096};
-    static const unsigned permissions[]={CE_VM_READ|CE_VM_EXEC|CE_VM_NOCACHE,
-        CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,
-        CE_VM_READ|CE_VM_WRITE|CE_VM_UNPRIV|CE_VM_NOCACHE,
-        CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,
-        CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
+    static const unsigned permissions[]={CE_VM_READ|CE_VM_WRITE|CE_VM_EXEC|CE_VM_NOCACHE,
+        CE_VM_READ|CE_VM_WRITE|CE_VM_EXEC|CE_VM_NOCACHE,
+        CE_VM_READ|CE_VM_WRITE|CE_VM_EXEC|CE_VM_UNPRIV|CE_VM_NOCACHE,
+        CE_VM_READ|CE_VM_WRITE|CE_VM_EXEC|CE_VM_NOCACHE,
+        CE_VM_READ|CE_VM_WRITE|CE_VM_EXEC|CE_VM_NOCACHE};
 #ifdef __cplusplus
     struct ceph_gpu_va_plan p={};
 #else

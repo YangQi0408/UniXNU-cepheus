@@ -25,7 +25,9 @@ int main(void)
 	assert(ceph_vm_build(&pool,regions,3)==-1);regions[1].va=0x44000;
 	regions[1].pa=regions[0].pa;assert(ceph_vm_build(&pool,regions,3)==-1);
 	regions[1].pa=0x120040000ULL;regions[0].permissions|=CE_VM_WRITE;
-	assert(ceph_vm_build(&pool,regions,3)==-1);
+	assert(!ceph_vm_build(&pool,regions,3)); /* device RWX != CPU RWX */
+	assert(!ceph_vm_lookup(&pool,0x4000,&pa,&flags) && !(flags&((3ULL<<53)|(3u<<6))));
+	pool.used=0;regions[0].permissions|=32;assert(ceph_vm_build(&pool,regions,3)==-1);
 	regions[0].permissions=CE_VM_READ;regions[0].pa=pool.pa;
 	assert(ceph_vm_build(&pool,regions,3)==-1);
 	assert(!ceph_vm_valid(&(struct ceph_vm_region){0xfffff000,0x12345000,8192,CE_VM_READ}));
@@ -35,5 +37,5 @@ int main(void)
 	struct ceph_vm_region *alias=(struct ceph_vm_region *)(void *)tables;
 	*alias=(struct ceph_vm_region){0x4000,0x120000000ULL,4096,CE_VM_READ};
 	uint64_t saved=tables[0];assert(ceph_vm_build(&pool,alias,1)==-1 && tables[0]==saved && !pool.used);
-	puts("GMU page tables: walk/W^X/aliases/capacity/overflow/preflight: PASS (offline)");
+	puts("GMU device page tables: walk/AP/XN/aliases/capacity/overflow/preflight: PASS (offline, not CPU pmap)");
 }

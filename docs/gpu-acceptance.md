@@ -45,6 +45,24 @@ payload；cmd-db与寄存器仍是明确标记的测试替身，不是设备采�
 `dc8079790a7de185e7c5a5788e4d58635c7c522dc5b9ca9bfd5d75e02402f0e5`；
 后续配置/失败隔离修改仍需新的完整CI，以上不等于真实GMU启动成功。
 
+### GMU设备页表权限源码核对
+
+`kgsl_gmu.c:gmu_memory_probe`分别在persist/DCACHE/ICACHE/log使用
+`IOMMU_READ|IOMMU_WRITE|IOMMU_PRIV`，HFI使用RW无PRIV；这些映射均无
+`IOMMU_NOEXEC`。`io-pgtable-arm.c:arm_lpae_prot_to_pte`将它们编码为
+privileged AP=0（HFI AP=1）、Normal-NC、XN=0。此前CPU式W^X限制导致ICACHE
+只读，并人为给其他四区加XN，不能以离线测试证明这些收紧在GMU上可用。
+
+现按原驱动修正设备PTE，保持nG/AF/outer-shareable和无物理别名；不更改CPU
+pmap/IOKit映射或安全固件认证。S2CR PRIVCFG保持默认，不强制提升所有访问；
+SCTLR无WXN/UWXN覆盖。逐页测试包含实际C workspace构建的全部PTE。
+`python3 scripts/test-gmu-permissions-source.py /path/to/android/kernel`
+从实际KGSL分配调用提取权限后与C页表逐项比较，通过。是否解决具体硬件fault
+仍未知，当前没有GMU执行证据。
+
+独立复核子代理b4fca0ed在1800000ms超时，未给出正式结论，不能作为审查通过；
+上述更改依据父代理的源码核对与自动对照测试。失败日志保留，未换CLI重试。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
@@ -329,7 +347,8 @@ sealed状态不再允许获取可写view，也不允许直接publish为GPU DMA�
 GMU VA计划连接allocator与页表：ICACHE@0x4000、DCACHE@0x44000各240KiB；
 HFI@0x60000000映射20KiB，log@0x60100000映射4KiB。host按16KiB取整的多余
 页面不进入GPU VA；目标PA必须来自明确owned backing、不能重叠。全部Normal-NC，
-ICACHE privileged RO/execute、DCACHE/log privileged RW/NX、HFI unprivileged RW/NX。
+设备页表权限后来按KGSL原映射修正：ICACHE/DCACHE/log/persist privileged RW、
+HFI unprivileged RW；五区均未设置device XN。详见下方权限源码核对，CPU权限未改。
 初版512KiB预算不足以同时容纳480KiB缓存、表/HFI/log/固件快照，已提升到有界1MiB，
 保留单次256KiB限制及完整预算测试；不是无限增长的分配器。
 
