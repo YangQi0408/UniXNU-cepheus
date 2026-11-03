@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_vm39_build(struct ceph_vm_pool *p,const struct ceph_vm_region *r,unsigned n)
+{ return ceph_vm39_build(p,r,n); }
 int cepheus_gpu_cp_snapshot_mmio(struct ceph_cp_snapshot_mmio *s,uint32_t *out,unsigned words)
 { return ceph_cp_snapshot_mmio_copy(s,out,words); }
 int cepheus_gpu_cp_protect_configure(struct ceph_cp_protection *s)

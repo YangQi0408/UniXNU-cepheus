@@ -34,6 +34,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_cp_protection.h \
     cepheus_cp_snapshot_mmio.h \
     cepheus_cp_workspace.c cepheus_cp_workspace.h \
+    cepheus_gpu_vm39.h \
     cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
     cepheus_gpu_retire.c cepheus_gpu_retire.h cepheus_gpu_memory_private.h \
     cepheus_gmu_hfi_link.c cepheus_gmu_hfi_link.h \

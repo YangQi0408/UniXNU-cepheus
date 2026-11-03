@@ -275,6 +275,12 @@ use-3-lvl-tables。原SMMU驱动在AArch64三层模式限制IAS≤39，不应把
 VA假定为完整GPU用户地址空间。GX图形参数HBB15、MAL32、UBWC3、macrotiling
 channels缺省，已由独立解析测试记录。尚未用这些字段冒充已实现GX页表/GMEM。
 
+`cepheus_gpu_vm39.h`新增独立稀疏39bit VA/40bit PA三层4K页表构建器，16区、
+每区≤256KiB、最多64表页（当前CP工作集限定，不是通用用户VM）。支持>4GiB、
+跨L1边界和最高合法页；预检表预算/别名/溢出且拒绝时不改目标。GMU32构建器
+保持原样；没有为GX构造CB/TCR/ASID/SMR、安装SMMU或发布CP缓冲。50组host
+回归通过，下一步仍需独立GX上下文所有权与完整映射生命周期。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
