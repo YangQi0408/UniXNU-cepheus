@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Portable GPU source/staging integration checks, not XNU ABI or runtime tests."""
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -80,6 +81,31 @@ class Integration(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-c',
                             str(ROOT / 'xnu/cepheus_gpu_compile.c'), '-o', str(Path(directory) / 'gpu.o')], check=True)
+
+    def test_boot_sources_do_not_invoke_gpu_engines(self):
+        # A build can accidentally retain all symbols AND introduce a startup
+        # call. Keep this separate check on actual boot-facing source bodies.
+        dangerous=('cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
+                   'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
+                   'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
+                   'cepheus_gpu_submit','ceph_smmu_install_context')
+        for name in ('cepheus_soc.c','cepheus_touch.c','cepheus_arc_probe.h'):
+            text=(ROOT/'xnu'/name).read_text()
+            text=re.sub(r'/\*.*?\*/|//[^\n]*','',text,flags=re.S)
+            for call in dangerous:self.assertNotRegex(text,rf'\b{call}\s*\(',name)
+        source=(ROOT/'xnu/cepheus_gpu_compile.c').read_text()
+        body=source.split('int cepheus_gpu_config_probe',1)[1].split('int cepheus_gpu_qmp_connect',1)[0]
+        for call in dangerous:self.assertNotRegex(body,rf'\b{call}\s*\(')
+
+    def test_no_security_bypass_in_concrete_cp_adapters(self):
+        for name in ('cepheus_cp_ring_config.h','cepheus_cp_protection.h',
+                     'cepheus_cp_snapshot_mmio.h','cepheus_gx_core.h'):
+            source=(ROOT/'xnu'/name).read_text()
+            # Comments explicitly name forbidden registers; check executable
+            # code, not the presence of those cautionary words.
+            source=re.sub(r'/\*.*?\*/|//[^\n]*','',source,flags=re.S)
+            self.assertNotRegex(source,r'gpu\[0x(?:808|807)\]\s*=(?!=)',name)
+            self.assertNotIn('TRUST_CONTROL',source)
 
 
 if __name__ == '__main__':
