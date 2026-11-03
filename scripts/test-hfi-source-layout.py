@@ -77,7 +77,7 @@ int main(void) {
     assert(!memcmp(encoded,&s,sizeof(s)));
     struct hfi_prep_slumber_cmd sleep={0x321,3,1};ceph_hfi_slumber(encoded,160,3,1,12,8);
     assert(!memcmp(encoded,&sleep,sizeof(sleep)));
-    struct hfi_gx_bw_perf_vote_cmd dcvs={0x41e,1,1,3};ceph_hfi_dcvs(encoded,160,1,3,8,12);
+    struct hfi_gx_bw_perf_vote_cmd dcvs={0x41e,1,1,0xff};ceph_hfi_dcvs(encoded,160,1,0xff);
     assert(!memcmp(encoded,&dcvs,sizeof(dcvs)));
 }
 '''

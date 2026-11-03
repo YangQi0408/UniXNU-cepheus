@@ -112,13 +112,19 @@ static inline int ceph_hfi_core_start(uint32_t *out,unsigned capacity)
     if(!out || capacity<2)return CE_HFI_INVALID;
     out[0]=ceph_hfi_header(14,2,0,0);out[1]=0;return 2;
 }
-/* Select a non-off HFI performance/BW pair AFTER CORE_START. Table upload is
- * not a vote. No sentinel/partial updates in this initial diagnostic path. */
-static inline int ceph_hfi_dcvs(uint32_t *out,unsigned capacity,unsigned freq,unsigned bw,
-    unsigned gx_levels,unsigned bw_levels)
+/* H2F_MSG_GX_BW_PERF_VOTE after CORE_START. Uploading the PERF/BW tables is
+ * NOT a vote; this message is what actually selects a level.
+ * KGSL's startup path (kgsl_pwrctrl_set_default_gpu_pwrlevel ->
+ * kgsl_clk_set_rate -> gmu_core_dcvs_set(level, INVALID_DCVS_IDX)) only names
+ * a GPU level: bus_level stays INVALID_DCVS_IDX, and gmu_dcvs_set() then skips
+ * the bw assignment (`bus_level < num_bwlevels && bus_level > 0`), leaving the
+ * 0xFF sentinel in the wire field. Emitting a real bandwidth index here would
+ * be a vote KGSL never makes at startup. Both fields are bounded by
+ * MAX_GX_LEVELS on the source side, not by the BW table height. */
+enum {CE_HFI_DCVS_INVALID=0xff};
+static inline int ceph_hfi_dcvs(uint32_t *out,unsigned capacity,unsigned freq,unsigned bw)
 {
-    if(!out || capacity<4 || gx_levels<2 || gx_levels>16 || bw_levels<2 || bw_levels>16 ||
-        !freq || freq>=gx_levels || !bw || bw>=bw_levels)return CE_HFI_INVALID;
+    if(!out || capacity<4 || freq>=16 || (bw>=16 && bw!=CE_HFI_DCVS_INVALID))return CE_HFI_INVALID;
     out[0]=ceph_hfi_header(30,4,0,0);out[1]=1; /* DCVS_ACK_BLOCK */
     out[2]=freq;out[3]=bw;return 4;
 }

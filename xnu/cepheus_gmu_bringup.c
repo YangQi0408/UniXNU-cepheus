@@ -111,7 +111,7 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
         (b->hfi.acd && ceph_hfi_acd_table(acd,17,b->hfi.acd)!=17) ||
         ceph_pdc_plan_a640v2(&b->pdc_input,&pdc_plan))return -1;
     if(b->initial_freq!=1 || b->initial_bw!=3 || b->hfi.gx[1].hz!=257000000 ||
-        ceph_hfi_dcvs(dcvs,4,b->initial_freq,b->initial_bw,b->hfi.ng,b->hfi.bw->levels)!=4)return -1;
+        ceph_hfi_dcvs(dcvs,4,b->initial_freq,CE_HFI_DCVS_INVALID)!=4)return -1;
     if(b->hfi.policy->acd && (!b->acd.begin || !b->acd.validate || !b->acd.read32 ||
         !b->acd.write32 || !b->acd.barrier || !b->acd.notify || !b->acd.now_ns || !b->acd.pause || !b->acd.end))return -1;
     const struct ceph_gpu_bin_policy policy=*b->hfi.policy;unsigned min_minor=b->hfi.min_fw_minor;
@@ -162,9 +162,10 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     b->hfi.hfi_version=s->cm3.hfi_version;
     s->stage=CE_BR_HFI;e=ceph_hfi_boot_a640(&s->link.session,&b->hfi,&s->fw_version);if(e)goto failed;
     e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
-    /* KGSL requests the default DCVS pair after HFI boot. The bootstrap DDR
-     * bandwidth lease MUST still be held: BW_TBL alone never held bandwidth.
-     * This ACK does not prove physical frequency, nor release apps votes. */
+    /* KGSL requests the default GPU level after HFI boot with the BW field left
+     * at INVALID_DCVS_IDX, so the bootstrap DDR bandwidth lease is still the
+     * only thing holding bandwidth. BW_TBL never held bandwidth, and this ACK
+     * proves neither physical frequency nor release of apps votes. */
     s->stage=CE_BR_DCVS;uint32_t reply[16];unsigned reply_words;
     e=ceph_hfi_exchange(&s->link.session,dcvs,4,reply,16,&reply_words);if(e)goto failed;
     s->dcvs_acked=1;

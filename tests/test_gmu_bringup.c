@@ -112,7 +112,7 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     case 4: words=ceph_hfi_perf(expected,160,cfg->gx,cfg->ng,cfg->cx,cfg->nc,cfg->gfx,cfg->cxl,cfg->mx);break;
     case 3: words=ceph_hfi_bandwidth(expected,160,cfg->bw);assert(cmd[1]==12 && cmd[2]==3 && cmd[3]==3);break;
     case 7: words=ceph_hfi_acd_table(expected,160,cfg->acd);assert(cmd[5]==2687328253u && cmd[16]==21521);break;
-    case 30: assert(count==4 && cmd[1]==1 && cmd[2]==1 && cmd[3]==3 && h->s->stage==CE_BR_DCVS);break;
+    case 30: assert(count==4 && cmd[1]==1 && cmd[2]==1 && cmd[3]==0xff && h->s->stage==CE_BR_DCVS);break;
     }
     if(words){assert(words==(int)count);assert(!memcmp(cmd+1,expected+1,(count-1)*4));}
     unsigned n=(cmd[0]&255)==1?4:3;uint32_t ack[]={ceph_hfi_header(cmd[0]&255,n,1,0),cmd[0],h->mode==7?1u:0u,0x20000042};

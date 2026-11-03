@@ -371,6 +371,16 @@ FAILED及摘要；完整只读材料也固定GPU_ACCELERATION=UNVERIFIED、ARC�
 同时发现冷启动前原厂持有默认档DDR bootstrap vote；目前此真实带宽租约
 仍未实现，BW_TBL不替代它。它与ARC所有权一样是禁止真机启用的明确前置。
 
+**纠错（同一处）**：上面初版把id30的bw写成带宽档3是错的。KGSL冷启动链是
+`set_default_gpu_pwrlevel(6) -> kgsl_clk_set_rate -> gmu_core_dcvs_set(6,0xFF)`，
+gmu_dcvs_set只在`bus_level < num_bwlevels && bus_level > 0`时才写bw，0xFF被
+跳过并原样上线。所以启动投票是freq=1（=8-6-1，FDT bin0 initial-pwrlevel=6）、
+**bw=0xFF哨兵**。带宽档3属于slumber：a6xx_gmu_notify_slumber取
+`pwrlevels[default].bus_freq=3`与`perf_idx=1`。两者语义不同，混用会向固件
+声明一个它从未进入的带宽档。现两条路径分别固定，退休时强制等于实际启动值。
+字段顺序亦按源码核对：id30为(hdr,ack,freq,bw)，id33为(hdr,bw,freq)。
+本地21个固件场景、ABI逐字节对照通过。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
