@@ -13,14 +13,16 @@
 #include "cepheus_hfi_boot.h"
 #include "cepheus_qmp_acd.h"
 #include "cepheus_gpu_thermal.h"
+#include "cepheus_gmu_oob.h"
 enum ceph_bringup_stage {CE_BR_NEW,CE_BR_MEMORY,CE_BR_POWER,CE_BR_BOUND,CE_BR_SHARED,
     CE_BR_PDC,CE_BR_SMMU,CE_BR_UPLOAD,CE_BR_CM3,CE_BR_HFI,CE_BR_FAILED,CE_BR_RETIRED,
-    CE_BR_THERMAL,CE_BR_RETIRING,CE_BR_DCVS};
+    CE_BR_THERMAL,CE_BR_RETIRING,CE_BR_DCVS,CE_BR_KEEPALIVE,CE_BR_START};
 /* Enum order is not boot order (THERMAL/DCVS are appended), so never compare
  * stages numerically. These are the stages where CM3 may already be running:
  * the firmware could be executing and DMA-visible memory live. */
 static inline int ceph_bringup_stage_cm3_maybe_live(enum ceph_bringup_stage s)
-{return s==CE_BR_CM3 || s==CE_BR_HFI || s==CE_BR_DCVS || s==CE_BR_RETIRING;}
+{return s==CE_BR_CM3 || s==CE_BR_HFI || s==CE_BR_DCVS || s==CE_BR_KEEPALIVE ||
+    s==CE_BR_START || s==CE_BR_RETIRING;}
 struct ceph_gmu_bringup;
 struct ceph_gmu_bringup_backends {
     void *owner;
@@ -38,6 +40,10 @@ struct ceph_gmu_bringup_backends {
     struct ceph_smmu_ops smmu;
     struct ceph_gmu_start_ops cm3;
     struct ceph_qmp_ops acd; /* bin1 must notify AOP before GMU startup */
+    /* A640 needs the oob_gpu keepalive held across GX bring-up, exactly as
+     * _adreno_start() does before hfi_start_msg(). Without a real OOB backend
+     * the chain must refuse rather than send id10 into an unkept GX. */
+    struct ceph_oob_ops oob;
     struct ceph_gmu_hfi_transport transport;
     struct ceph_hfi_boot_config hfi;
     unsigned initial_freq,initial_bw; /* fixed lowest Cepheus startup pair1/3 */
@@ -49,6 +55,10 @@ struct ceph_gmu_bringup_backends {
      * and report, never assume the device is quiescent. Same session/plan
      * identity rules as retirement apply. */
     struct ceph_gpu_retire_ops *stop;
+    /* Released only after the bounded stop drained the device, mirroring
+     * _adreno_stop()'s oob_clear(oob_gpu) ordering. NULL refuses retirement
+     * of a chain that actually acquired the keepalive. */
+    struct ceph_oob_ops *oob_release;
     void (*failed)(void *,enum ceph_bringup_stage,int); /* retain/dump, NO assumed safe rollback */
 };
 struct ceph_gmu_bringup {
@@ -71,6 +81,8 @@ struct ceph_gmu_bringup {
     struct ceph_gmu_bringup_backends backend;
     uint32_t fw_version;
     unsigned dcvs_acked;
+    struct ceph_gmu_oob keepalive;
+    unsigned start_sent;
 };
 #ifdef __cplusplus
 extern "C" {

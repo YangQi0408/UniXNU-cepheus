@@ -112,6 +112,10 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
         ceph_pdc_plan_a640v2(&b->pdc_input,&pdc_plan))return -1;
     if(b->initial_freq!=1 || b->initial_bw!=3 || b->hfi.gx[1].hz!=257000000 ||
         ceph_hfi_dcvs(dcvs,4,b->initial_freq,CE_HFI_DCVS_INVALID)!=4)return -1;
+    /* A640 GX bring-up requires a held oob_gpu keepalive; refuse before any
+     * power side effect if no real OOB backend was supplied. */
+    if(!b->oob.begin || !b->oob.validate || !b->oob.read || !b->oob.write ||
+        !b->oob.barrier || !b->oob.now || !b->oob.pause || !b->oob.drained || !b->oob.end)return -1;
     if(b->hfi.policy->acd && (!b->acd.begin || !b->acd.validate || !b->acd.read32 ||
         !b->acd.write32 || !b->acd.barrier || !b->acd.notify || !b->acd.now_ns || !b->acd.pause || !b->acd.end))return -1;
     const struct ceph_gpu_bin_policy policy=*b->hfi.policy;unsigned min_minor=b->hfi.min_fw_minor;
@@ -170,6 +174,17 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     e=ceph_hfi_exchange(&s->link.session,dcvs,4,reply,16,&reply_words);if(e)goto failed;
     s->dcvs_acked=1;
     e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
+    /* Order from _adreno_start(): hold oob_gpu keepalive, then H2F_MSG_START
+     * for A640/A680, and only then touch GX registers. Sending id10 without a
+     * held keepalive would let the GMU power GX down underneath the caller. */
+    s->stage=CE_BR_KEEPALIVE;
+    e=ceph_gmu_oob_acquire(&s->keepalive,&b->oob,s->cm3.hfi_version);if(e)goto failed;
+    s->stage=CE_BR_START;
+    uint32_t start_cmd[1];
+    if(ceph_hfi_start(start_cmd,1)!=1) {e=-1;goto failed;}
+    e=ceph_hfi_exchange(&s->link.session,start_cmd,1,reply,16,&reply_words);if(e)goto failed;
+    s->start_sent=1;
+    e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     /* Image is host-only sealed copy, never DMA-mapped; release after upload.
      * Workspace remains shared and pinned until protocol retirement. */
     e=cepheus_gpu_memory_release_cpu(s->firmware);
@@ -205,6 +220,10 @@ failed:
         if(!se)se=ceph_smmu_detach_context(&dt,b->stop->detach,&b->smmu_plan);
         s->stopping=0;s->stop_error=se;
         if(se)printf("CEPHEUS GMU BRINGUP: failure-path stop refused/failed (%d); retaining all backing\n",se);
+        /* Only a completed stop justifies dropping the GX keepalive; a refused
+         * stop keeps it held so the device cannot power down unexpectedly. */
+        if(!se && s->keepalive.state==CE_OOB_HELD && b->oob_release)
+            (void)ceph_gmu_oob_release(&s->keepalive,b->oob_release);
     }
     if(s->link.bound)cepheus_gmu_hfi_invalidate(&s->link);
     if(s->workspace.state==CE_WS_SHARED) {
@@ -238,12 +257,21 @@ int cepheus_gmu_bringup_retire(struct ceph_gmu_bringup *s,struct ceph_gpu_retire
         !s->backend.hfi.bw || b->bw_levels!=s->backend.hfi.bw->levels || b->gx_levels!=s->backend.hfi.ng ||
         /* Firmware only ever entered the fixed startup pair; preparing slumber
          * for any other levels would be a state the GMU never reached. */
-        b->bw!=s->backend.initial_bw || b->freq!=s->backend.initial_freq)return -1;
+        b->bw!=s->backend.initial_bw || b->freq!=s->backend.initial_freq ||
+        /* A chain that holds the GX keepalive must be able to drop it after the
+         * stop; otherwise retirement would leave GX pinned awake. */
+        (s->keepalive.state==CE_OOB_HELD && !s->backend.oob_release))return -1;
     s->stage=CE_BR_RETIRING;
     int e=cepheus_gmu_workspace_retire(&s->workspace,b);
     /* Invalid retirement input refused before admission leaves the session
      * untouched. An attempted protocol failure instead quarantines the group. */
     if(s->workspace.state==CE_WS_SHARED){s->stage=CE_BR_HFI;return e?e:-1;}
+    /* slumber->park->detach finished: only now may the GX keepalive be dropped.
+     * A release failure leaves it held and is reported, never silently ignored. */
+    if(!e && s->keepalive.state==CE_OOB_HELD && s->backend.oob_release) {
+        int oe=ceph_gmu_oob_release(&s->keepalive,s->backend.oob_release);
+        if(oe){s->error=oe;e=oe;}
+    }
     cepheus_gmu_hfi_invalidate(&s->link);revoke_upload_aliases(s);
     s->error=e;
     if(e) {

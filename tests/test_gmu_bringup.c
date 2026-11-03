@@ -33,6 +33,7 @@ struct hw {
     uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
     struct ceph_gmu_slumber_ops sl;struct ceph_gmu_park_ops pk;
     struct ceph_smmu_detach_ops dt;struct ceph_gpu_retire_ops retire;
+    struct ceph_oob_ops oob;uint32_t oob_info,oob_gx;unsigned oob_held,oob_released;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static int temperature(void *p,struct ceph_gpu_temperature *sample){struct hw *h=p;
@@ -104,8 +105,8 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
         for(unsigned i=0;i<4;++i)h->gmu[tcs[i]-0x1a800]=1;
         return ceph_hfi_write(&h->fw_tx,ack,3);
     }
-    const unsigned ids0[]={1,4,3,11,14,30},ids1[]={1,4,3,11,7,11,11,14,30};
-    const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?9:6;
+    const unsigned ids0[]={1,4,3,11,14,30,10},ids1[]={1,4,3,11,7,11,11,14,30,10};
+    const unsigned *ids=h->mode==8?ids1:ids0;unsigned total=h->mode==8?10:7;
     assert(h->commands<total && (cmd[0]&255)==ids[h->commands]);h->commands++;
     uint32_t expected[160];int words=0;const struct ceph_hfi_boot_config *cfg=&h->s->backend.hfi;
     switch(cmd[0]&255) {
@@ -113,6 +114,7 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     case 3: words=ceph_hfi_bandwidth(expected,160,cfg->bw);assert(cmd[1]==12 && cmd[2]==3 && cmd[3]==3);break;
     case 7: words=ceph_hfi_acd_table(expected,160,cfg->acd);assert(cmd[5]==2687328253u && cmd[16]==21521);break;
     case 30: assert(count==4 && cmd[1]==1 && cmd[2]==1 && cmd[3]==0xff && h->s->stage==CE_BR_DCVS);break;
+    case 10: assert(count==1 && h->s->stage==CE_BR_START && h->s->keepalive.state==CE_OOB_HELD);break;
     }
     if(words){assert(words==(int)count);assert(!memcmp(cmd+1,expected+1,(count-1)*4));}
     unsigned n=(cmd[0]&255)==1?4:3;uint32_t ack[]={ceph_hfi_header(cmd[0]&255,n,1,0),cmd[0],h->mode==7?1u:0u,0x20000042};
@@ -155,6 +157,25 @@ static void park_end(void *p,int done){struct hw *h=p;h->parked=(unsigned)done;}
 static int detach_begin(void *p,const struct ceph_smmu_plan *plan){struct hw *h=p;
     assert(h->parked && plan->ttbr0==h->s->backend.smmu_plan.ttbr0);return 0;}
 static void detach_end(void *p,int done){struct hw *h=p;h->detached=(unsigned)done;}
+static int oob_begin(void *p){struct hw *h=p;assert(!h->oob_held);h->oob_held=1;return 0;}
+static int oob_validate(void *p){struct hw *h=p;return h->oob_held?0:-1;}
+static int oob_read(void *p,enum ceph_oob_reg r,uint32_t *v){struct hw *h=p;
+    if(!h->oob_held)return -1;
+    *v=r==CE_OOB_G2H_INFO?h->oob_info:h->oob_gx;return 0;}
+static int oob_write(void *p,enum ceph_oob_reg r,uint32_t v){struct hw *h=p;
+    struct ceph_oob_bits bits;
+    assert(h->oob_held && !ceph_gmu_oob_gpu_bits(h->s->cm3.hfi_version,&bits));
+    if(r==CE_OOB_H2G_SET) {
+        if(v==bits.request) {
+            if(h->mode!=22)h->oob_info|=bits.ack;
+        } else {
+            assert(v==bits.release);++h->oob_released;
+        }
+        return 0;
+    }
+    assert(r==CE_OOB_G2H_CLEAR && v==bits.ack);h->oob_info&=~v;return 0;}
+static int oob_drained(void *p){struct hw *h=p;return h->retiring?0:-1;}
+static void oob_end(void *p,int keep){struct hw *h=p;(void)keep;h->oob_held=1;}
 static int fault_acquire(void *p,unsigned *domains){struct hw *h=p;assert(!h->fault_held);h->fault_held=1;*domains=6;return 0;}
 static int fault_lease(void *p,unsigned domains){struct hw *h=p;assert(h->fault_held && domains==6);return 0;}
 static void fault_release(void *p){struct hw *h=p;assert(h->fault_held);h->fault_held=0;}
@@ -211,9 +232,11 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.retire=(struct ceph_gpu_retire_ops){&h.sl,&h.pk,&h.dt,&s.link.session,&b->smmu_plan,
         config.initial_bw,config.initial_freq,config.bw.levels,config.policy.gx_levels};
     b->stop=&h.retire;
+    h.oob=(struct ceph_oob_ops){&h,oob_begin,oob_validate,oob_read,oob_write,guard,now,guard,oob_drained,oob_end};
+    b->oob=h.oob;b->oob_release=&h.oob;
     int e=cepheus_gmu_bringup_start(&s);
     if(!mode || mode==8 || mode==11 || mode==18) {
-        assert(!e && !h.failed && s.stage==CE_BR_HFI && s.dcvs_acked && s.fw_version==0x20000042 && h.commands==(mode==8?9u:6u) && !s.firmware && h.qmp_notified==(mode==8));
+        assert(!e && !h.failed && s.stage==CE_BR_HFI && s.dcvs_acked && s.fw_version==0x20000042 && h.commands==(mode==8?10u:7u) && s.start_sent && !s.firmware && h.qmp_notified==(mode==8));
         /* Full closed loop: no reset of SMMU/RAM/session between boot and
          * retirement. Actual installed context and same HFI sequence retire. */
         struct ceph_gpu_retire_ops retire=h.retire;
@@ -246,6 +269,8 @@ int ceph_test_bringup(const char *path,unsigned mode)
         assert(s.workspace.state==CE_WS_RELEASED && h.slumbered && h.parked && h.detached);
         assert(s.link.session.sequence==h.commands+1);
         assert(s.stage==CE_BR_RETIRED && !s.link.bound && !b->upload.maps && !b->upload.itcm);
+        /* Keepalive must be dropped only after slumber/park/detach completed. */
+        assert(h.oob_released==1 && s.keepalive.state==CE_OOB_RELEASED && h.detached);
         struct ceph_gpu_group_status status;assert(cepheus_gpu_memory_group_status(group,&status)<0);
         assert(cepheus_gmu_bringup_retire(&s,&retire)<0);
         printf("Closed loop bin%u: same installed SMMU/HFI -> slumber -> park -> detach -> all buffers released PASS (RAM hardware)\n",config.policy.bin);
@@ -265,6 +290,11 @@ int ceph_test_bringup(const char *path,unsigned mode)
                 /* Post-HFI failure with a healthy session: the bounded stop must
                  * actually run and complete before the backing is quarantined. */
                 assert(!s.stop_error && h.slumbered && h.parked && h.detached && !h.fault_held);
+            } else if(mode==22) {
+                /* CM3/HFI are live but the keepalive was never acquired, so the
+                 * stop still runs; no keepalive release is owed because none
+                 * was held. */
+                assert(!s.stop_error && h.slumbered && h.parked && h.detached && !h.oob_released);
             } else {
                 /* An already-poisoned session cannot stop the device; the
                  * refusal must be recorded, never reported as quiescent. */
@@ -299,6 +329,11 @@ int ceph_test_bringup(const char *path,unsigned mode)
          * the stop must be refused and reported rather than assumed quiet. */
         if(mode==20)assert(s.failed_stage==CE_BR_HFI && s.stop_error && !h.slumbered);
         if(mode==21)assert(s.failed_stage==CE_BR_DCVS);
+        /* A refused keepalive must fail before id10 is ever sent. */
+        if(mode==22) {
+            assert(s.failed_stage==CE_BR_KEEPALIVE && !s.start_sent && h.commands==6);
+            assert(s.keepalive.state==CE_OOB_FAILED && !h.oob_released);
+        }
         if(mode==16)assert(s.failed_stage==CE_BR_SMMU && !b->upload.writes && !s.cm3.effects && s.thermal.failure);
         if(mode==19)assert(s.failed_stage==CE_BR_DCVS && !s.dcvs_acked && h.commands==6);
     }

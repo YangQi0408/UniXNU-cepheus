@@ -837,6 +837,25 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### CP 侧 halted 预配置顺序编排
 
+### oob_gpu keepalive 与 H2F_MSG_START（A640 GX 启动前置）
+
+源码 `_adreno_start()` 的顺序是：`kgsl_mmu_start` → `oob_set(oob_gpu)` →
+`hfi_start_msg()` → 才写 GX 寄存器；A640/A680 的 `a6xx_gmu_hfi_start_msg()`
+实际发送 `H2F_MSG_START`(id10，4字节纯 header)。此前本移植只有 HFI boot 和
+DCVS，**没有 keepalive、也没发 id10**，属于 GX 启动链的真实缺口。
+
+现启动链补为：HFI boot → DCVS(id30) → `oob_gpu` keepalive 持有 →
+id10 → 热检查。缺 OOB 后端时在**任何电源副作用之前**拒绝，绝不把 id10 发进
+一个没有被 pin 住的 GX（否则 GMU 可能在调用方操作期间把 GX 掉电）。
+失败路径只有在上限停机**确实完成**后才释放 keepalive；停机被拒绝则保持持有，
+不让设备意外掉电。退休路径同样要求：持有 keepalive 却拿不到 release 后端时
+直接拒绝，避免退完还让 GX 常亮；释放失败会作为错误上报，不静默吞掉。
+
+新增本地场景 mode22（keepalive 永不 ACK）：验证停在 `CE_BR_KEEPALIVE`、
+`start_sent==0`、id10 从未发出、keepalive 保持 `CE_OOB_FAILED` 且不释放。
+退休用例新增断言：keepalive 必须在 slumber→park→detach 全部完成之后才释放。
+仍为模拟寄存器，真机未验证。
+
 此前 GX core(23写)、GX perfcounter(5写)、保护表(45写)、halted ring/SQE(7写)、
 恢复快照+ME_INIT 各自独立可用，但**没有顺序约束**。源码里 `a6xx_start()` 先
 HWCG/UCHE/ROQ，再 `a6xx_enable_64bit`/`a6xx_protect_init`，之后 ring buffer

@@ -41,6 +41,7 @@ int main(void)
     assert(ceph_hfi_dcvs(out,4,1,CE_HFI_DCVS_INVALID)==4 && out[0]==0x41e && out[1]==1 &&
         out[2]==1 && out[3]==0xff);
     assert(ceph_hfi_dcvs(out,4,16,0)==CE_HFI_INVALID && ceph_hfi_dcvs(out,4,1,16)==CE_HFI_INVALID);
+    assert(ceph_hfi_start(out,1)==1 && out[0]==0x10a && ceph_hfi_start(out,0)==CE_HFI_INVALID);
     assert(ceph_hfi_slumber(out,3,3,1,12,8)==3 && out[0]==0x321 && out[1]==3 && out[2]==1);
     assert(ceph_hfi_slumber(out,3,12,1,12,8)==CE_HFI_INVALID);
     assert(ceph_hfi_slumber(out,3,3,8,12,8)==CE_HFI_INVALID);

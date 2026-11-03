@@ -14,7 +14,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 STRUCTS = ("hfi_bwtable_cmd", "opp_gx_desc", "opp_desc", "hfi_dcvstable_cmd",
            "hfi_acd_table_cmd", "hfi_fw_version_cmd", "hfi_feature_ctrl_cmd", "hfi_core_fw_start_cmd", "hfi_prep_slumber_cmd",
-           "hfi_err_cmd", "hfi_debug_cmd", "hfi_gx_bw_perf_vote_cmd")
+           "hfi_err_cmd", "hfi_debug_cmd", "hfi_gx_bw_perf_vote_cmd", "hfi_start_cmd")
 
 
 def main():
@@ -79,6 +79,8 @@ int main(void) {
     assert(!memcmp(encoded,&sleep,sizeof(sleep)));
     struct hfi_gx_bw_perf_vote_cmd dcvs={0x41e,1,1,0xff};ceph_hfi_dcvs(encoded,160,1,0xff);
     assert(!memcmp(encoded,&dcvs,sizeof(dcvs)));
+    struct hfi_start_cmd start={0x10a};assert(ceph_hfi_start(encoded,160)==1);
+    assert(!memcmp(encoded,&start,sizeof(start)));
 }
 '''
     with tempfile.TemporaryDirectory(prefix="ceph-hfi-source-") as tmp:

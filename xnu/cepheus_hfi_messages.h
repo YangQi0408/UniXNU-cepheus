@@ -122,6 +122,14 @@ static inline int ceph_hfi_core_start(uint32_t *out,unsigned capacity)
  * be a vote KGSL never makes at startup. Both fields are bounded by
  * MAX_GX_LEVELS on the source side, not by the BW table height. */
 enum {CE_HFI_DCVS_INVALID=0xff};
+/* H2F_MSG_START: A640/A680-only GX bring-up kick, sent by
+ * a6xx_gmu_hfi_start_msg() AFTER the OOB keepalive is held and BEFORE any GX
+ * register programming. Header-only payload (sizeof(hfi_start_cmd)==4). */
+static inline int ceph_hfi_start(uint32_t *out,unsigned capacity)
+{
+    if(!out || capacity<1)return CE_HFI_INVALID;
+    out[0]=ceph_hfi_header(10,1,0,0);return 1;
+}
 static inline int ceph_hfi_dcvs(uint32_t *out,unsigned capacity,unsigned freq,unsigned bw)
 {
     if(!out || capacity<4 || freq>=16 || (bw>=16 && bw!=CE_HFI_DCVS_INVALID))return CE_HFI_INVALID;
