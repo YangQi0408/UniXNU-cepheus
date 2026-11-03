@@ -36,6 +36,7 @@
 #include "cepheus_cp_protection.h"
 #include "cepheus_cp_snapshot_mmio.h"
 #include "cepheus_gpu_vm39.h"
+#include "cepheus_gx_core.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
 int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);
@@ -48,6 +49,7 @@ int cepheus_gpu_cp_ring_configure(struct ceph_cp_ring_config *);
 int cepheus_gpu_cp_protect_configure(struct ceph_cp_protection *);
 int cepheus_gpu_cp_snapshot_mmio(struct ceph_cp_snapshot_mmio *,uint32_t *,unsigned);
 int cepheus_gpu_vm39_build(struct ceph_vm_pool *,const struct ceph_vm_region *,unsigned);
+int cepheus_gpu_gx_core_configure(struct ceph_gx_core *);
 int cepheus_gpu_park_read(void *,enum ceph_gmu_park_reg,uint32_t *);
 int cepheus_gpu_park_write(void *,enum ceph_gmu_park_reg,uint32_t);
 int cepheus_gpu_slumber_read(void *,enum ceph_slumber_reg,uint32_t *);

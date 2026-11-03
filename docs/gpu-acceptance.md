@@ -288,6 +288,14 @@ RPTR/restore/scratch privileged RW/NX（NC）。权限来自kgsl_iommu_get_protf
 检查，GMU接口仍固定32bit。全部仅CPU表数据；没有SMMU context配置/DMA发布。
 包含CP root后的双工作区可在1MiB池共存，release清空表指针，ASan/UBSan通过。
 
+`cepheus_gx_core.h`补A640v2核心配置子集23写：UCHE trap/write-through/GMEM、
+ROQ与内存池阈值、AHB错误响应、HBB15/MAL32/UBWC3等。1MiB GMEM来自本地
+原厂内核36f369f的adreno-gpulist A640条目，UCHE base为按1MiB对齐后的size；
+未独立实测。`test-gx-source-layout.py`提取实际源码寄存器/literal、GMEM条目
+并结合保存FDT计算值，与编译plan比对通过。联测将此子集接入保护/CP快照链。
+51组host及扩展适配器ASan/UBSan通过；不是完整GX初始化（HWCG/GBIF/LLCC/
+QoS/地址空间/PAS等仍缺），始终保持CP halt。不得将该configured视为GPU ready。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
