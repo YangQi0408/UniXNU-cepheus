@@ -76,4 +76,4 @@ done
     "$tmp/workspace.o" "$tmp/retire.o" "$tmp/cepheus_gmu_hfi_link.c.o" \
     "$tmp/cepheus_gmu_bringup.c.o" "$tmp/cepheus_gpu_compile.c.o" "$tmp/test_gmu_bringup.c.o" \
     -o "$tmp/bringup" "${libs[@]}"
-if [[ $# -ge 1 ]]; then for mode in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do "$tmp/bringup" "$1" "$mode"; done; else "$tmp/bringup"; fi
+if [[ $# -ge 1 ]]; then for mode in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21; do "$tmp/bringup" "$1" "$mode"; done; else "$tmp/bringup"; fi

@@ -23,12 +23,9 @@ int cepheus_cp_workspace_validate(struct ceph_cp_workspace *w)
     const volatile uint8_t *sqe=w->views[CE_CP_SQE].cpu;
     for(size_t i=32300;i<w->views[CE_CP_SQE].bytes;++i)if(sqe[i])return -1;
     if(w->state==CE_CP_WS_TABLED) {
-        static const unsigned prot[]={CE_VM_READ|CE_VM_UNPRIV|CE_VM_NOCACHE,
-            CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_EXEC|CE_VM_UNPRIV|CE_VM_NOCACHE,
-            CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
         if(w->table.words!=w->views[CE_CP_ROOT].cpu || w->table.pa!=w->views[CE_CP_ROOT].pa || w->table.pages!=32)return -1;
         for(unsigned i=0;i<CE_CP_ROOT;++i)if(w->regions[i].pa!=w->views[i].pa ||
-            w->regions[i].bytes!=minimum[i] || w->regions[i].permissions!=prot[i] || w->regions[i].va<0x300000)return -1;
+            w->regions[i].bytes!=minimum[i] || w->regions[i].permissions!=ceph_cp_workspace_permissions(i) || w->regions[i].va<0x300000)return -1;
         if(ceph_vm39_matches(&w->table,w->regions,CE_CP_ROOT))return -1;
     } else if(w->table.words || w->table.used)return -1;
     return 0;
@@ -98,15 +95,12 @@ int cepheus_cp_workspace_table(struct ceph_cp_workspace *w,const uint64_t va[CE_
     static const size_t bytes[]={32768,4096,32768,4096,4096};
     /* KGSL: ring GPUREADONLY; SQE GPUREADONLY|UCODE; scratch/RPTR and powerup
      * list privileged RW. None is host-coherent: Normal-NC backing/MAIR. */
-    static const unsigned prot[]={CE_VM_READ|CE_VM_UNPRIV|CE_VM_NOCACHE,
-        CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_EXEC|CE_VM_UNPRIV|CE_VM_NOCACHE,
-        CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE,CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE};
     struct ceph_vm_region regions[CE_CP_ROOT];
     for(unsigned i=0;i<CE_CP_ROOT;++i) {
         /* Keep low GMEM/trap/null area out of system-memory tables. Current
          * A6401MiB GMEM occupies[1MiB,2MiB); KGSL begins SVM at3MiB. */
         if(va[i]<0x300000 || w->views[i].bytes<bytes[i])return -1;
-        regions[i]=(struct ceph_vm_region){va[i],w->views[i].pa,bytes[i],prot[i]};
+        regions[i]=(struct ceph_vm_region){va[i],w->views[i].pa,bytes[i],ceph_cp_workspace_permissions(i)};
     }
     const struct ceph_gpu_memory_view *root=&w->views[CE_CP_ROOT];
     if(!root->cpu || root->bytes!=32*4096)return -1;

@@ -8,6 +8,15 @@
 #include "cepheus_sqe.h"
 #include "cepheus_gpu_vm39.h"
 enum {CE_CP_RING,CE_CP_RPTR,CE_CP_SQE,CE_CP_RESTORE,CE_CP_SCRATCH,CE_CP_ROOT,CE_CP_BUFFERS};
+/* Device mapping permissions, not host pmap: KGSL ring RO, SQE RO+UCODE,
+ * scratch/RPTR/restore privileged RW; all current backing Normal-NC. */
+static inline unsigned ceph_cp_workspace_permissions(unsigned role)
+{
+    if(role==CE_CP_RING)return CE_VM_READ|CE_VM_UNPRIV|CE_VM_NOCACHE;
+    if(role==CE_CP_SQE)return CE_VM_READ|CE_VM_EXEC|CE_VM_UNPRIV|CE_VM_NOCACHE;
+    if(role==CE_CP_RPTR || role==CE_CP_RESTORE || role==CE_CP_SCRATCH)return CE_VM_READ|CE_VM_WRITE|CE_VM_NOCACHE;
+    return 0;
+}
 enum ceph_cp_workspace_state {CE_CP_WS_NEW,CE_CP_WS_BUILDING,CE_CP_WS_READY,CE_CP_WS_RELEASED,CE_CP_WS_RETAINED,CE_CP_WS_TABLED};
 struct ceph_cp_workspace {
     uint64_t handles[CE_CP_BUFFERS],firmware;

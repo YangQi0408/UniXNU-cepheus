@@ -1,5 +1,13 @@
 #include "cepheus_gmu_bringup.h"
 #include "cepheus_gpu_compile.h"
+#include "cepheus_smmu_detach.h"
+#include "cepheus_gmu_slumber.h"
+#include "cepheus_gmu_park.h"
+#if defined(KERNEL)
+#include <sys/systm.h>
+#else
+#include <stdio.h>
+#endif
 
 int cepheus_gmu_bringup_thermal_check(struct ceph_gmu_bringup *s)
 {
@@ -16,8 +24,13 @@ static int hfi_validate(void *p)
     struct ceph_gmu_bringup *s=p;
     /* A latched thermal stop must not prevent the bounded PREPARE_SLUMBER
      * needed to stop hardware. Link separately checks RETIRING group and id33.
-     * Only formal retirement enters this state; no ordinary requests admitted. */
-    if(s->stage!=CE_BR_RETIRING && cepheus_gmu_bringup_thermal_check(s))return -1;
+     * Only formal retirement or the failure-path stop enters this state; no
+     * ordinary requests are admitted. Return the thermal code, not -1, so the
+     * caller can tell a thermal refusal from a transport fault. */
+    if(s->stage!=CE_BR_RETIRING && !s->stopping) {
+        int t=cepheus_gmu_bringup_thermal_check(s);
+        if(t)return t;
+    }
     return s->backend.transport.validate(s->backend.transport.ctx);
 }
 static int hfi_doorbell(void *p){struct ceph_gmu_bringup *s=p;return s->backend.transport.doorbell(s->backend.transport.ctx);}
@@ -67,8 +80,15 @@ int cepheus_gmu_bringup_prepare(struct ceph_gmu_bringup *s,const uint8_t *firmwa
     if(cepheus_gmu_workspace_prepare(&s->workspace)) {
         /* complete() can fail even before publication. Keep the only handle
          * for diagnostics if backing was retained; never report it released. */
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)if(s->workspace.handles[i])++s->unpublished_retained;
         if(!cepheus_gpu_memory_release_cpu(s->firmware))s->firmware=0;
-        s->stage=CE_BR_FAILED;s->error=-1;return -1;
+        s->stage=CE_BR_FAILED;s->error=-1;
+        /* Never published, so no device ever saw these buffers; the pool has
+         * already quarantined any slot whose IOKit completion failed. */
+        if(s->unpublished_retained)
+            printf("CEPHEUS GMU BRINGUP: prepare failed; %u unpublished buffers retained (never device-visible)\n",
+                s->unpublished_retained);
+        return -1;
     }
     s->stage=CE_BR_MEMORY;return 0;
 }
@@ -128,6 +148,7 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     if(b->hfi.policy->acd) {e=ceph_qmp_send_acd(&s->acd,&b->acd,1);if(e)goto failed;}
     e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_SHARED;e=cepheus_gmu_workspace_share(&s->workspace,&b->smmu_plan);if(e)goto failed;
+    s->device_visible=1;
     s->stage=CE_BR_PDC;e=ceph_pdc_install_a640v2(&s->pdc,&b->pdc,&b->pdc_input);if(e)goto failed;
     e=cepheus_gmu_bringup_thermal_check(s);if(e)goto failed;
     s->stage=CE_BR_SMMU;e=ceph_smmu_install_context(&s->smmu,&b->smmu,&b->smmu_plan,0x303);if(e)goto failed;
@@ -155,21 +176,56 @@ int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *s)
     s->firmware=0;s->error=0;s->stage=CE_BR_HFI;return 0;
 failed:
     s->failed_stage=s->stage;s->stage=CE_BR_FAILED;s->error=e;
+    /* A transport failure is reported as CE_HFI_IO even when the underlying
+     * cause was a thermal refusal. Keep both so the platform can choose a
+     * thermal stop vs a firmware/SMMU dump. */
+    s->io_error=e;
+    /* A latched thermal refusal surfaces through the HFI transport as a generic
+     * IO-class error, and CE_THERMAL_HOT/CE_HFI_IO share the value -3. An
+     * overwritten error code therefore cannot distinguish them; keep the raw
+     * error and set an explicit flag so the platform can pick a thermal stop
+     * instead of dumping firmware/SMMU state. */
+    s->thermal_refused=(e && s->thermal.failure)?1u:0u;
+    /* CM3 may already be out of reset with firmware DMA live. Attempt the same
+     * bounded stop used by retirement BEFORE quarantining the backing. A
+     * poisoned/unusable session cannot stop the device; record that instead of
+     * pretending the hardware is quiet. */
+    /* HFI is only reachable once CM3 runs. Before that there is no bounded stop
+     * primitive: CM3 has not been released (CE_BR_CM3 failures happen inside
+     * ceph_gmu_start_cold, which quarantines its own state) so nothing is live. */
+    if(ceph_bringup_stage_cm3_maybe_live(s->failed_stage) && s->workspace.state==CE_WS_SHARED && s->link.bound && b->stop &&
+        b->stop->slumber && b->stop->park && b->stop->detach && b->stop->hfi==&s->link.session &&
+        b->stop->plan==&b->smmu_plan) {
+        struct ceph_gmu_slumber sl={0};struct ceph_gmu_park pk={0};struct ceph_smmu_detach dt={0};
+        s->stop_attempted=1;s->stopping=1;
+        int se=ceph_gmu_slumber_request(&sl,b->stop->slumber,&s->link.session,
+            b->initial_bw,b->initial_freq,b->hfi.bw->levels,b->hfi.ng);
+        if(!se)se=ceph_gmu_park_slumbered(&pk,b->stop->park);
+        if(!se)se=ceph_smmu_detach_context(&dt,b->stop->detach,&b->smmu_plan);
+        s->stopping=0;s->stop_error=se;
+        if(se)printf("CEPHEUS GMU BRINGUP: failure-path stop refused/failed (%d); retaining all backing\n",se);
+    }
     if(s->link.bound)cepheus_gmu_hfi_invalidate(&s->link);
     if(s->workspace.state==CE_WS_SHARED) {
-        (void)cepheus_gpu_memory_abandon_workspace(&s->workspace.publication);
-        s->workspace.state=CE_WS_RETAINED;
+        /* Do not claim RETAINED unless the pool actually moved the group out of
+         * SHARED; otherwise the group stays device-visible and must be reported. */
+        int ae=cepheus_gpu_memory_abandon_workspace(&s->workspace.publication);
+        s->abandon_error=ae;
+        if(!ae)s->workspace.state=CE_WS_RETAINED;
         /* Record handles/group, but never leave accessible aliases advertised
          * as a ready workspace after a failed device-visible transition. */
         s->workspace.table=(struct ceph_vm_pool){0};
         s->workspace.layout=(struct ceph_gpu_va_plan){0};s->workspace.leased=0;
         for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)s->workspace.views[i]=(struct ceph_gpu_memory_view){0};
+        if(ae)printf("CEPHEUS GMU BRINGUP: abandon refused (%d); group still device-visible\n",ae);
     }
     /* The uploader has copies of workspace CPU VAs as well as TCM aliases.
      * Quarantine retains backing, not permission for a second upload attempt.
      * Leave accounting/error state intact but revoke all advertised aliases. */
     revoke_upload_aliases(s);
-    b->upload.quarantined=1;
+    /* Only claim quarantine of device-visible memory when a device could have
+     * touched it. A pre-power refusal must not look like a DMA-era failure. */
+    b->upload.quarantined=b->upload.writes||s->device_visible;
     b->failed(b->owner,s->failed_stage,e);
     return e;
 }
@@ -178,7 +234,10 @@ int cepheus_gmu_bringup_retire(struct ceph_gmu_bringup *s,struct ceph_gpu_retire
 {
     if(!s || s->stage!=CE_BR_HFI || !s->dcvs_acked || s->firmware || s->workspace.state!=CE_WS_SHARED ||
         !s->link.bound || !b || b->hfi!=&s->link.session || b->plan!=&s->backend.smmu_plan ||
-        !s->backend.hfi.bw || b->bw_levels!=s->backend.hfi.bw->levels || b->gx_levels!=s->backend.hfi.ng)return -1;
+        !s->backend.hfi.bw || b->bw_levels!=s->backend.hfi.bw->levels || b->gx_levels!=s->backend.hfi.ng ||
+        /* Firmware only ever entered the fixed startup pair; preparing slumber
+         * for any other levels would be a state the GMU never reached. */
+        b->bw!=s->backend.initial_bw || b->freq!=s->backend.initial_freq)return -1;
     s->stage=CE_BR_RETIRING;
     int e=cepheus_gmu_workspace_retire(&s->workspace,b);
     /* Invalid retirement input refused before admission leaves the session

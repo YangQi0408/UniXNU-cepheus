@@ -31,12 +31,16 @@ struct hw {
     uint32_t tsens_ram[2][1024],tsens_srot[2][1024];struct ceph_gpu_tsens tsens;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
+    struct ceph_gmu_slumber_ops sl;struct ceph_gmu_park_ops pk;
+    struct ceph_smmu_detach_ops dt;struct ceph_gpu_retire_ops retire;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static int temperature(void *p,struct ceph_gpu_temperature *sample){struct hw *h=p;
     h->tsens_ram[0][0xe4/4]=h->tsens_ram[1][0xe4/4]=8;
     h->tsens_ram[0][0xdc/4]=(1u<<21)|400;h->tsens_ram[1][0xcc/4]=(1u<<21)|420;
-    if(h->mode==15 || (h->mode==16 && h->s->stage==CE_BR_SMMU))h->tsens_ram[1][0xcc/4]=(1u<<21)|600;
+    if(h->mode==15 || (h->mode==16 && h->s->stage==CE_BR_SMMU) ||
+        (h->mode==20 && h->s->stage==CE_BR_HFI) || (h->mode==21 && h->s->dcvs_acked))
+        h->tsens_ram[1][0xcc/4]=(1u<<21)|600;
     if(h->mode==17)h->tsens_ram[1][0xcc/4]=420;
     return ceph_gpu_tsens_sample(&h->tsens,sample);}
 static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
@@ -87,11 +91,12 @@ static int cm3_write(void *p,enum ceph_gmu_reg r,uint32_t v){struct hw *h=p;
     if(r==CE_GMU_HFI_INIT)*gmu_reg(h,CE_GMU_HFI_STATUS)=1;
     return 0;}
 static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READY);uint32_t cmd[255];unsigned count;
+    if(!h->retiring)assert(h->s->cm3.state==CE_GS_HFI_READY);
     assert(!ceph_gmu_mmio_hfi_notify(&h->gmu_mmio));
     h->fw_rx=h->s->link.tx;h->fw_tx=h->s->link.rx;
     h->fw_rx.io=(struct ceph_hfi_ops){h,guard,guard,guard,guard};h->fw_tx.io=h->fw_rx.io;
     assert(!ceph_hfi_read(&h->fw_rx,cmd,255,&count));
-    if(h->retiring) {
+    if(h->retiring || h->s->stopping) {
         assert(count==3 && (cmd[0]&255)==33 && cmd[1]==3 && cmd[2]==1);
         uint32_t ack[]={ceph_hfi_header(33,3,1,0),cmd[0],0};
         h->gmu[0x1f8ec-0x1a800]=15;h->gmu[0x1f8d0-0x1a800]=0xc0;
@@ -138,7 +143,8 @@ static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==
     s->backend.upload.begin=upload_begin;s->backend.upload.publish=upload_publish;
     if(h->mode==12)++s->backend.hfi.min_fw_minor;
     return 0;}
-static int slbegin(void *p){struct hw *h=p;assert(h->s->stage==CE_BR_RETIRING && !h->retiring);h->retiring=1;return 0;}
+static int slbegin(void *p){struct hw *h=p;
+    assert((h->s->stage==CE_BR_RETIRING || h->s->stopping) && !h->retiring);h->retiring=1;return 0;}
 static int slread(void *p,enum ceph_slumber_reg r,uint32_t *v){return ceph_gmu_mmio_slumber_read(&((struct hw *)p)->gmu_mmio,r,v);}
 static int slwrite(void *p,enum ceph_slumber_reg r,uint32_t v){return ceph_gmu_mmio_slumber_write(&((struct hw *)p)->gmu_mmio,r,v);}
 static void slend(void *p,int done){struct hw *h=p;h->slumbered=(unsigned)done;}
@@ -197,21 +203,30 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.pdc_mmio=(struct ceph_pdc_mmio){.gmu=&h.gmu_mmio,.cfg=h.pdc_cfg,.seq=h.pdc_seq,
         .cfg_pa=0xb290000,.seq_pa=0xb490000,.cfg_bytes=sizeof(h.pdc_cfg),.seq_bytes=sizeof(h.pdc_seq),.owner=&h,.lease=guard,.finish=end};
     h.fault_mmio=(struct ceph_gpu_fault_mmio){&h.gmu_mmio,&h.smmu_mmio,NULL,0,&h,fault_acquire,fault_lease,now,fault_release,0,0};
+    h.park_mmio=(struct ceph_gmu_park_mmio){&h.gmu_mmio,h.gpu,sizeof(h.gpu),&h,guard};
+    h.sl=(struct ceph_gmu_slumber_ops){&h,slbegin,guard,slread,slwrite,guard,now,guard,slend};
+    h.pk=(struct ceph_gmu_park_ops){&h,park_begin,guard,park_read,park_write,guard,now,guard,park_end};
+    h.dt=(struct ceph_smmu_detach_ops){&h,detach_begin,guard,smmu_read,smmu_write,guard,delayus,detach_end};
+    /* Failure-path stop must use the same session/plan as retirement. */
+    h.retire=(struct ceph_gpu_retire_ops){&h.sl,&h.pk,&h.dt,&s.link.session,&b->smmu_plan,
+        config.initial_bw,config.initial_freq,config.bw.levels,config.policy.gx_levels};
+    b->stop=&h.retire;
     int e=cepheus_gmu_bringup_start(&s);
     if(!mode || mode==8 || mode==11 || mode==18) {
         assert(!e && !h.failed && s.stage==CE_BR_HFI && s.dcvs_acked && s.fw_version==0x20000042 && h.commands==(mode==8?9u:6u) && !s.firmware && h.qmp_notified==(mode==8));
         /* Full closed loop: no reset of SMMU/RAM/session between boot and
          * retirement. Actual installed context and same HFI sequence retire. */
-        h.park_mmio=(struct ceph_gmu_park_mmio){&h.gmu_mmio,h.gpu,sizeof(h.gpu),&h,guard};
-        struct ceph_gmu_slumber_ops sl={&h,slbegin,guard,slread,slwrite,guard,now,guard,slend};
-        struct ceph_gmu_park_ops pk={&h,park_begin,guard,park_read,park_write,guard,now,guard,park_end};
-        struct ceph_smmu_detach_ops dt={&h,detach_begin,guard,smmu_read,smmu_write,guard,delayus,detach_end};
-        struct ceph_gpu_retire_ops retire={&sl,&pk,&dt,&s.link.session,&b->smmu_plan,
-            config.initial_bw,config.initial_freq,config.bw.levels,config.policy.gx_levels};
+        struct ceph_gpu_retire_ops retire=h.retire;
         uint64_t group=s.workspace.publication.group;
         struct ceph_hfi_session foreign=s.link.session;retire.hfi=&foreign;
         assert(cepheus_gmu_bringup_retire(&s,&retire)<0 && s.stage==CE_BR_HFI && !h.retiring);
         retire.hfi=&s.link.session;
+        /* Slumber must name the pair firmware actually entered. */
+        retire.bw=0;
+        assert(cepheus_gmu_bringup_retire(&s,&retire)<0 && s.stage==CE_BR_HFI && !h.retiring && !s.link.session.busy);
+        retire.bw=config.initial_bw;retire.freq=0;
+        assert(cepheus_gmu_bringup_retire(&s,&retire)<0 && s.stage==CE_BR_HFI && !h.retiring && !s.link.session.busy);
+        retire.freq=config.initial_freq;
         if(mode==18) {
             h.time+=30000000000ULL;
             assert(cepheus_gmu_bringup_thermal_check(&s)==CE_THERMAL_EXPIRED);
@@ -237,10 +252,27 @@ int ceph_test_bringup(const char *path,unsigned mode)
     }
     else {
         assert(e && h.failed && s.stage==CE_BR_FAILED);
-        assert(b->upload.quarantined && !b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
+        /* Quarantine flag must distinguish a device-touching failure from a
+         * refusal that happened before any publish/power write. */
+        assert(b->upload.quarantined==(int)s.device_visible);
+        assert(!b->upload.itcm && !b->upload.dtcm && !b->upload.maps && !b->upload.map_count);
         for(unsigned i=0;i<3;++i)assert(!s.upload_maps[i].cpu);
+        /* After CM3 is released the failure path must attempt the bounded stop
+         * BEFORE quarantining; a poisoned session must report refusal instead. */
+        if(ceph_bringup_stage_cm3_maybe_live(s.failed_stage)) {
+            assert(s.stop_attempted);
+            if(mode==21) {
+                /* Post-HFI failure with a healthy session: the bounded stop must
+                 * actually run and complete before the backing is quarantined. */
+                assert(!s.stop_error && h.slumbered && h.parked && h.detached && !h.fault_held);
+            } else {
+                /* An already-poisoned session cannot stop the device; the
+                 * refusal must be recorded, never reported as quiescent. */
+                assert(s.stop_error && !h.detached);
+            }
+        } else assert(!s.stop_attempted);
         if(mode==9)assert(s.link.debug_error==CE_HFI_FW_ERROR && s.link.last_error[1]==0xc001 && s.fw_version==0);
-        if((mode>=3 && mode<=9) || mode==13 || mode==14 || mode==16 || mode==19) {
+        if((mode>=3 && mode<=9) || mode==13 || mode==14 || mode==16 || mode==19 || mode==20 || mode==21) {
             struct ceph_gpu_group_status status;
             assert(s.workspace.state==CE_WS_RETAINED && !s.workspace.table.words && !s.workspace.views[0].cpu);
             assert(!cepheus_gpu_memory_group_status(s.workspace.publication.group,&status));
@@ -253,6 +285,20 @@ int ceph_test_bringup(const char *path,unsigned mode)
         }
         if(mode==14)assert(s.failed_stage==CE_BR_UPLOAD && !s.cm3.effects && !h.commands);
         if(mode==15 || mode==17)assert(s.failed_stage==CE_BR_THERMAL && !s.power.effects && !s.workspace.publication.group && s.thermal.failure);
+        if(mode==13 || mode==14)assert(!s.thermal_refused);
+        /* Mode 16 fails the SMMU stage on a hot sensor: refusal must be marked. */
+        if(mode==16)assert(s.thermal_refused);
+        if(mode==20 || mode==21) {
+            assert(s.thermal.failure==CE_THERMAL_HOT && s.thermal_refused);
+            /* CE_THERMAL_HOT and CE_HFI_IO are both -3, so the flag, not the
+             * numeric error, must carry the thermal-vs-fault distinction. */
+            /* Raw error code is preserved; only the flag distinguishes cause. */
+            assert(s.error==s.io_error && s.error<0);
+        }
+        /* Mode 20 fails before any HFI exchange: no slumber session exists, so
+         * the stop must be refused and reported rather than assumed quiet. */
+        if(mode==20)assert(s.failed_stage==CE_BR_HFI && s.stop_error && !h.slumbered);
+        if(mode==21)assert(s.failed_stage==CE_BR_DCVS);
         if(mode==16)assert(s.failed_stage==CE_BR_SMMU && !b->upload.writes && !s.cm3.effects && s.thermal.failure);
         if(mode==19)assert(s.failed_stage==CE_BR_DCVS && !s.dcvs_acked && h.commands==6);
     }

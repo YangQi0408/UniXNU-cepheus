@@ -16,6 +16,11 @@
 enum ceph_bringup_stage {CE_BR_NEW,CE_BR_MEMORY,CE_BR_POWER,CE_BR_BOUND,CE_BR_SHARED,
     CE_BR_PDC,CE_BR_SMMU,CE_BR_UPLOAD,CE_BR_CM3,CE_BR_HFI,CE_BR_FAILED,CE_BR_RETIRED,
     CE_BR_THERMAL,CE_BR_RETIRING,CE_BR_DCVS};
+/* Enum order is not boot order (THERMAL/DCVS are appended), so never compare
+ * stages numerically. These are the stages where CM3 may already be running:
+ * the firmware could be executing and DMA-visible memory live. */
+static inline int ceph_bringup_stage_cm3_maybe_live(enum ceph_bringup_stage s)
+{return s==CE_BR_CM3 || s==CE_BR_HFI || s==CE_BR_DCVS || s==CE_BR_RETIRING;}
 struct ceph_gmu_bringup;
 struct ceph_gmu_bringup_backends {
     void *owner;
@@ -39,11 +44,18 @@ struct ceph_gmu_bringup_backends {
     struct ceph_pdc_input pdc_input;
     struct ceph_smmu_plan smmu_plan;
     struct ceph_gmu_upload upload;
+    /* Optional bounded stop used ONLY on the startup-failure path, after CM3
+     * has been released from reset. Without it a post-CM3 failure must retain
+     * and report, never assume the device is quiescent. Same session/plan
+     * identity rules as retirement apply. */
+    struct ceph_gpu_retire_ops *stop;
     void (*failed)(void *,enum ceph_bringup_stage,int); /* retain/dump, NO assumed safe rollback */
 };
 struct ceph_gmu_bringup {
     enum ceph_bringup_stage stage,failed_stage;
     int error;
+    int io_error,stop_error,abandon_error; /* raw transport vs thermal vs stop vs pool */
+    unsigned stop_attempted,device_visible,unpublished_retained,stopping,thermal_refused;
     unsigned retention_writes;
     uint64_t firmware;
     struct ceph_gmu_workspace workspace;
