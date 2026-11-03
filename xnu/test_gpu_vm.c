@@ -12,6 +12,13 @@ int main(void)
 	    {0x60000000,0x130000000ULL,0x5000,CE_VM_READ|CE_VM_WRITE|CE_VM_UNPRIV|CE_VM_NOCACHE}};
 	assert(!ceph_vm_build(&pool,regions,3) && pool.used==5);
 	assert(!ceph_vm_matches(&pool,regions,3));
+	/* Even a caller-supplied expected map cannot bless physical aliases. */
+	uint64_t *check_l2=ceph_vm_table(&pool,tables[0]);assert(check_l2);
+	uint64_t *check_l3=ceph_vm_table(&pool,check_l2[0]);assert(check_l3);
+	uint64_t saved_leaf=check_l3[4],saved_pa=regions[0].pa;
+	regions[0].pa=regions[1].pa;check_l3[4]=ceph_vm_leaf(regions[0].pa,regions[0].permissions);
+	assert(ceph_vm_matches(&pool,regions,3)<0);regions[0].pa=saved_pa;check_l3[4]=saved_leaf;
+	regions[0].pa=pool.pa;assert(ceph_vm_matches(&pool,regions,3)<0);regions[0].pa=saved_pa;
 	tables[63*512]=3;assert(ceph_vm_matches(&pool,regions,3)<0);tables[63*512]=0;
 	uint64_t pa,flags;
 	assert(!ceph_vm_lookup(&pool,0x4123,&pa,&flags) && pa==0x120000123ULL);

@@ -119,6 +119,10 @@ static inline int ceph_vm_matches_limit(struct ceph_vm_pool *p,const struct ceph
         if(r.va>=(1ULL<<va_bits) || r.bytes>(1ULL<<va_bits)-r.va || (r.va&4095u))return -1;
         /* Reuse PA/alignment/permission validation without widening GMU32. */
         r.va=0;if(!ceph_vm_valid(&r) || (va_bits==39 && r.bytes>256*1024))return -1;
+        if(r.pa<p->pa+(uint64_t)p->pages*4096 && p->pa<r.pa+r.bytes)return -1;
+        for(unsigned j=0;j<i;++j)
+            if((regions[i].va<regions[j].va+regions[j].bytes && regions[j].va<regions[i].va+regions[i].bytes) ||
+                (r.pa<regions[j].pa+regions[j].bytes && regions[j].pa<r.pa+r.bytes))return -1;
         wanted+=regions[i].bytes/4096;
     }
     for(unsigned l1=0;l1<512;++l1) {
