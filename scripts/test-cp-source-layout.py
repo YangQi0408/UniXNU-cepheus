@@ -33,8 +33,12 @@ def main():
 #include <stddef.h>
 #include <assert.h>
 #include "cepheus_cp_init.h"
+#include "cepheus_cp_ring_config.h"
 ''' + lock + '\nstatic const uint32_t offsets[]={' + ','.join(hex(v) for v in arrays) + '};\n' + \
-        'static const uint32_t spans[]={' + ','.join(hex(v) for v in expected_spans) + '};\n' + r'''
+        'static const uint32_t spans[]={' + ','.join(hex(v) for v in expected_spans) + '};\n' + \
+        'static const uint32_t ringregs[]={' + ','.join(hex(defs[k]) for k in (
+            'A6XX_CP_RB_RPTR_ADDR_LO','A6XX_CP_RB_RPTR_ADDR_HI','A6XX_CP_RB_CNTL',
+            'A6XX_CP_RB_BASE','A6XX_CP_RB_BASE_HI','A6XX_CP_SQE_INSTR_BASE_LO','A6XX_CP_SQE_INSTR_BASE_HI')) + '};\n' + r'''
 _Static_assert(sizeof(struct cpu_gpu_lock)==16,"lock size");
 _Static_assert(offsetof(struct cpu_gpu_lock,list_length)==12,"length offset");
 _Static_assert(offsetof(struct cpu_gpu_lock,list_offset)==14,"list offset");
@@ -44,6 +48,11 @@ int main(void) {
     uint32_t packet[12];assert(ceph_cp_me_init(packet,12,0x100004000ULL,4096)==12);
     const uint32_t expected[]={0x70c8000b,0x16f,3,0x20000000,0,0,0,2,0x4000,1,0,0};
     for(unsigned i=0;i<12;++i)assert(packet[i]==expected[i]);
+    struct ceph_cp_ring_input ri={0x100000000ULL,0x100010000ULL,0x100020000ULL,32768,4096,32768};
+    struct ceph_cp_ring_plan rp;assert(!ceph_cp_ring_plan(&ri,&rp));
+    for(unsigned i=0;i<7;++i)assert(rp.writes[i].word==ringregs[i]);
+    unsigned log=0;for(unsigned n=8192/2;n>1;n>>=1)++log;
+    assert(rp.writes[2].value==((1u<<27)|(2u<<8)|log));
 }
 '''
     # Fixed source mask is independently recomputed from declared bit positions.

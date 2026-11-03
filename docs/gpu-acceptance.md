@@ -223,6 +223,18 @@ bit3、sensor12/13 status0xd0/0xd4、valid bit21、signed12bit×100m°C。最多
 此适配器+RAM状态，不再直接返回伪温度struct；46组host与19场景ASan/UBSan通过。
 实际传感器所属/有效性仍需下一次只读真机采样确认。
 
+### CP ring/SQE预配置（不启动CP）
+
+`cepheus_cp_ring_config.h`按KGSL rb_start/microcode_load生成并执行7项地址/控制
+写入：RPTR地址、RB_CNTL0x0800020c、32KiB ring地址、SQE地址。要求外部持有
+GX/fence/OOB/SMMU/固件身份、SQE已halt、冷态ring/SQE/RPTR且无CP fault；不会
+自行halt继承引擎或覆盖旧地址。三缓冲VA/长度/40bit边界和不重叠必须满足。
+
+不写SQE_CNTL/WPTR/TRUST_CONTROL，不发送unsecure包，不绕过ZAP认证。此模块
+仍缺真实GX初始化、GPU专用地址空间与PAS认证/CP起动入口，所以不是GPU执行。
+47组host回归、7写入逐项源码寄存器对照、每lease失败以及保持halt测试通过。
+此前thermal+TSENS整合CI41576685181（c0d0a68）已完整成功；后续CP增量待CI。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

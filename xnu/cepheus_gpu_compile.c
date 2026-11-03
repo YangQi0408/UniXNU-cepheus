@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_cp_ring_configure(struct ceph_cp_ring_config *s)
+{ return ceph_cp_ring_configure_halted(s); }
 int cepheus_gpu_temperature_sample(struct ceph_gpu_tsens *s,struct ceph_gpu_temperature *out)
 { return ceph_gpu_tsens_sample(s,out); }
 #if defined(KERNEL)
