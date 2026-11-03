@@ -190,6 +190,10 @@ payload、不接管活动或半继承channel；未知mailbox layout不猜尺寸�
 live FDT profile未验证、ARC所有权UNKNOWN。此新诊断尚需构建/真机验收，
 不能凭打印了可编码配置就启用GPU。原有触摸enable-only电源功能不受改动。
 
+SMMU install与detach现统一要求本机ACTLR0x303；detach在任何撤销写入前比较
+ACTLR，属性变化即拒绝、不释放。原通用测试的0x10示例已替换为实际值并增加
+错ACTLR零副作用负例，所有stage/闭环/ASan回归通过。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

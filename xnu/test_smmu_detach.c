@@ -19,6 +19,7 @@ static void init(struct mock *m,const struct ceph_smmu_plan *p){memset(m,0,sizeo
     m->r[CE_SM_SMR]=p->smr;m->r[CE_SM_S2CR]=p->s2cr_translate;m->r[CE_SM_SCTLR]=p->sctlr;
     m->r[CE_SM_TTBR0]=p->ttbr0;m->r[CE_SM_TTBR1]=p->ttbr1;m->r[CE_SM_TCR]=p->tcr;m->r[CE_SM_TCR2]=p->tcr2;
     m->r[CE_SM_MAIR0]=p->mair0;m->r[CE_SM_MAIR1]=p->mair1;m->r[CE_SM_CBAR]=p->cbar;m->r[CE_SM_CBA2R]=p->cba2r;
+    m->r[CE_SM_ACTLR]=0x303;
 }
 int main(void)
 {
@@ -33,6 +34,8 @@ int main(void)
     init(&m,&p);m.timeout=1;s=(struct ceph_smmu_detach){0};assert(ceph_smmu_detach_context(&s,&b,&p)==-2 && m.delay==1000 && !m.detached);
     init(&m,&p);m.r[CE_SM_TTBR0]^=0x1000;s=(struct ceph_smmu_detach){0};
     assert(ceph_smmu_detach_context(&s,&b,&p)<0 && !s.effects);
+    init(&m,&p);m.r[CE_SM_ACTLR]=0x302;s=(struct ceph_smmu_detach){0};
+    assert(ceph_smmu_detach_context(&s,&b,&p)<0 && !s.effects && !m.detached);
     init(&m,&p);m.r[CE_SM_FSR]=2;s=(struct ceph_smmu_detach){0};
     assert(ceph_smmu_detach_context(&s,&b,&p)<0 && !m.detached);
     puts("SMMU detach: parked-before-FAULT, context identity, scoped sync, no free on failure PASS (fake registers)");

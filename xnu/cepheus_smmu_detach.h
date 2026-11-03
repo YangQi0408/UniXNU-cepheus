@@ -44,9 +44,9 @@ static inline int ceph_smmu_detach_context(struct ceph_smmu_detach *s,struct cep
     s->state=CE_DET_PARKED;
     /* Do not detach a changed/foreign context. Compare full immutable plan. */
     const enum ceph_smmu_reg regs[]={CE_SM_SMR,CE_SM_S2CR,CE_SM_SCTLR,CE_SM_TTBR0,CE_SM_TTBR1,
-        CE_SM_TCR,CE_SM_TCR2,CE_SM_MAIR0,CE_SM_MAIR1,CE_SM_CBAR,CE_SM_CBA2R};
+        CE_SM_TCR,CE_SM_TCR2,CE_SM_MAIR0,CE_SM_MAIR1,CE_SM_CBAR,CE_SM_CBA2R,CE_SM_ACTLR};
     const uint64_t values[]={p->smr,p->s2cr_translate,p->sctlr,p->ttbr0,p->ttbr1,
-        p->tcr,p->tcr2,p->mair0,p->mair1,p->cbar,p->cba2r};
+        p->tcr,p->tcr2,p->mair0,p->mair1,p->cbar,p->cba2r,0x303};
     for(unsigned i=0;i<sizeof(regs)/sizeof(regs[0]);++i) {
         uint64_t v;if(ceph_detach_read(b,regs[i],&v) || v!=values[i]){e=-1;goto failed;}
     }

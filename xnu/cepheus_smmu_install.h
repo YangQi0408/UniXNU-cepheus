@@ -56,7 +56,7 @@ static inline int ceph_smmu_install_context(struct ceph_smmu_install *s,struct c
     const struct ceph_smmu_plan *p,uint32_t actlr)
 {
     if(!s || s->state!=CE_SM_NEW || s->effects || !ceph_smmu_plan_canonical(p) ||
-        actlr==UINT32_MAX || !b || !b->begin || !b->validate || !b->read || !b->write ||
+        actlr!=0x303 || !b || !b->begin || !b->validate || !b->read || !b->write ||
         !b->publish_tables || !b->barrier || !b->delay_us || !b->finish)return -1;
     int e=b->begin(b->ctx,p,actlr);
     if(e) {s->state=CE_SM_REFUSED;s->error=e;return e;}

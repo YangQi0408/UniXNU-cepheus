@@ -78,9 +78,9 @@ int ceph_test_retire_path(unsigned mode)
     struct ceph_smmu_detach_ops dt={&f,dtbegin,okay,dtread,dtwrite,okay,delayus,dtend};
     smmu_fixture_init(&f.smmu_mmio,f.smmu,&plan,&f,okay);
     const enum ceph_smmu_reg regs[]={CE_SM_SMR,CE_SM_S2CR,CE_SM_SCTLR,CE_SM_TTBR0,CE_SM_TTBR1,
-        CE_SM_TCR,CE_SM_TCR2,CE_SM_MAIR0,CE_SM_MAIR1,CE_SM_CBAR,CE_SM_CBA2R};
+        CE_SM_TCR,CE_SM_TCR2,CE_SM_MAIR0,CE_SM_MAIR1,CE_SM_CBAR,CE_SM_CBA2R,CE_SM_ACTLR};
     const uint64_t values[]={plan.smr,plan.s2cr_translate,plan.sctlr,plan.ttbr0,plan.ttbr1,
-        plan.tcr,plan.tcr2,plan.mair0,plan.mair1,plan.cbar,plan.cba2r};
+        plan.tcr,plan.tcr2,plan.mair0,plan.mair1,plan.cbar,plan.cba2r,0x303};
     for(unsigned i=0;i<sizeof(regs)/sizeof(regs[0]);++i)smmu_fixture_set(&f.smmu_mmio,regs[i],values[i]);
     struct ceph_gpu_retire_ops ops={&sl,&pk,&dt,&link.session,&plan,3,1,12,8};
     assert(cepheus_gmu_workspace_retire(&w,NULL)<0 && w.state==CE_WS_SHARED && w.views[2].cpu && !f.phase);
