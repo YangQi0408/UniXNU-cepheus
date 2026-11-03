@@ -1,6 +1,13 @@
 #include "cepheus_gmu_bringup.h"
 #include "cepheus_gpu_compile.h"
 
+static void revoke_upload_aliases(struct ceph_gmu_bringup *s)
+{
+    for(unsigned i=0;i<3;++i)s->upload_maps[i]=(struct ceph_gmu_mapping){0};
+    struct ceph_gmu_upload *u=&s->backend.upload;
+    u->maps=NULL;u->map_count=0;u->itcm=u->dtcm=NULL;u->itcm_words=u->dtcm_words=0;
+}
+
 int cepheus_gmu_bringup_prepare(struct ceph_gmu_bringup *s,const uint8_t *firmware,size_t bytes)
 {
     if(!s || s->stage!=CE_BR_NEW || s->firmware || s->workspace.state!=CE_WS_NEW)return -1;
@@ -83,10 +90,26 @@ failed:
     /* The uploader has copies of workspace CPU VAs as well as TCM aliases.
      * Quarantine retains backing, not permission for a second upload attempt.
      * Leave accounting/error state intact but revoke all advertised aliases. */
-    for(unsigned i=0;i<3;++i)s->upload_maps[i]=(struct ceph_gmu_mapping){0};
-    b->upload.maps=NULL;b->upload.map_count=0;
-    b->upload.itcm=b->upload.dtcm=NULL;b->upload.itcm_words=b->upload.dtcm_words=0;
+    revoke_upload_aliases(s);
     b->upload.quarantined=1;
     b->failed(b->owner,s->failed_stage,e);
+    return e;
+}
+
+int cepheus_gmu_bringup_retire(struct ceph_gmu_bringup *s,struct ceph_gpu_retire_ops *b)
+{
+    if(!s || s->stage!=CE_BR_HFI || s->firmware || s->workspace.state!=CE_WS_SHARED ||
+        !s->link.bound || !b || b->hfi!=&s->link.session || b->plan!=&s->backend.smmu_plan ||
+        !s->backend.hfi.bw || b->bw_levels!=s->backend.hfi.bw->levels || b->gx_levels!=s->backend.hfi.ng)return -1;
+    int e=cepheus_gmu_workspace_retire(&s->workspace,b);
+    /* Invalid retirement input refused before admission leaves the session
+     * untouched. An attempted protocol failure instead quarantines the group. */
+    if(s->workspace.state==CE_WS_SHARED)return e?e:-1;
+    cepheus_gmu_hfi_invalidate(&s->link);revoke_upload_aliases(s);
+    s->error=e;
+    if(e) {
+        s->failed_stage=CE_BR_HFI;s->stage=CE_BR_FAILED;s->backend.upload.quarantined=1;
+        s->backend.failed(s->backend.owner,s->failed_stage,e);
+    } else s->stage=CE_BR_RETIRED;
     return e;
 }

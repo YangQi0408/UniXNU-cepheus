@@ -148,6 +148,13 @@ CPU清理，旧CPU buffer与整组发布也拒绝terminal。确定性mock hook�
 group_status不再读取正于锁外complete的ALLOCATING buffer字段，避免诊断竞态；
 RETIRING期间计数仅表示当前稳定槽，最终状态仍保留完整组身份。
 
+`cepheus_gmu_bringup_retire`是整链正式退休入口：要求同一HFI session/plan，
+调用生产workspace退休协议后撤销HFI/upload别名，成功状态为RETIRED，失败保留
+组身份并调用failed。非法输入且尚未进入退休时不破坏仍SHARED的工作区。
+本地固件12场景覆盖闭环成功、重复/异源退休拒绝和GBIF ACK超时（不得detach/
+释放，完整六缓冲保留）。退休成功仅表示内存安全撤销，**不表示**已降电源票、
+释放PDC/时钟或真实平台租约，后者仍需单独实现。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

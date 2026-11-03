@@ -28,7 +28,7 @@ struct hw {
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
 static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;
-    if(h->gpu[0x3c45]&2)h->gpu[0x3c46]|=2;
+    if(h->gpu[0x3c45]&2 && h->mode!=11)h->gpu[0x3c46]|=2;
     return 0;}
 static int delayus(void *p,unsigned n){struct hw *h=p;h->time+=n*1000;return 0;}
 static void end(void *p,int keep){struct hw *h=p;assert(h->s);(void)keep;}
@@ -158,7 +158,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     h.pdc_mmio=(struct ceph_pdc_mmio){.gmu=&h.gmu_mmio,.cfg=h.pdc_cfg,.seq=h.pdc_seq,
         .cfg_pa=0xb290000,.seq_pa=0xb490000,.cfg_bytes=sizeof(h.pdc_cfg),.seq_bytes=sizeof(h.pdc_seq),.owner=&h,.lease=guard,.finish=end};
     int e=cepheus_gmu_bringup_start(&s);
-    if(!mode || mode==8) {
+    if(!mode || mode==8 || mode==11) {
         assert(!e && !h.failed && s.stage==CE_BR_HFI && s.fw_version==0x20000042 && h.commands==(mode==8?8u:5u) && !s.firmware && h.qmp_notified==(mode==8));
         /* Full closed loop: no reset of SMMU/RAM/session between boot and
          * retirement. Actual installed context and same HFI sequence retire. */
@@ -169,11 +169,25 @@ int ceph_test_bringup(const char *path,unsigned mode)
         struct ceph_gpu_retire_ops retire={&sl,&pk,&dt,&s.link.session,&b->smmu_plan,
             config.initial_bw,config.initial_freq,config.bw.levels,config.policy.gx_levels};
         uint64_t group=s.workspace.publication.group;
-        assert(!cepheus_gmu_workspace_retire(&s.workspace,&retire));
+        struct ceph_hfi_session foreign=s.link.session;retire.hfi=&foreign;
+        assert(cepheus_gmu_bringup_retire(&s,&retire)<0 && s.stage==CE_BR_HFI && !h.retiring);
+        retire.hfi=&s.link.session;
+        e=cepheus_gmu_bringup_retire(&s,&retire);
+        if(mode==11) {
+            assert(e && h.failed && s.stage==CE_BR_FAILED && s.workspace.state==CE_WS_RETAINED);
+            assert(!s.link.bound && !b->upload.maps && !b->upload.itcm && b->upload.quarantined);
+            struct ceph_gpu_group_status status;assert(!cepheus_gpu_memory_group_status(group,&status));
+            assert(status.pool_terminal && status.state==CE_GPU_GROUP_UNCERTAIN && status.retained_buffers==6);
+            assert(!h.detached && !h.parked);
+            puts("Whole-session retire timeout: no detach/free, all aliases revoked, retained identity PASS (RAM)");
+            return e;
+        }
+        assert(!e);
         assert(s.workspace.state==CE_WS_RELEASED && h.slumbered && h.parked && h.detached);
         assert(s.link.session.sequence==h.commands+1);
+        assert(s.stage==CE_BR_RETIRED && !s.link.bound && !b->upload.maps && !b->upload.itcm);
         struct ceph_gpu_group_status status;assert(cepheus_gpu_memory_group_status(group,&status)<0);
-        cepheus_gmu_hfi_invalidate(&s.link);
+        assert(cepheus_gmu_bringup_retire(&s,&retire)<0);
         printf("Closed loop bin%u: same installed SMMU/HFI -> slumber -> park -> detach -> all buffers released PASS (RAM hardware)\n",config.policy.bin);
     }
     else {

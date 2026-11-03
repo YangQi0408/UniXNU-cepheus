@@ -83,6 +83,7 @@ int ceph_test_retire_path(unsigned mode)
         plan.tcr,plan.tcr2,plan.mair0,plan.mair1,plan.cbar,plan.cba2r};
     for(unsigned i=0;i<sizeof(regs)/sizeof(regs[0]);++i)smmu_fixture_set(&f.smmu_mmio,regs[i],values[i]);
     struct ceph_gpu_retire_ops ops={&sl,&pk,&dt,&link.session,&plan,3,1,12,8};
+    assert(cepheus_gmu_workspace_retire(&w,NULL)<0 && w.state==CE_WS_SHARED && w.views[2].cpu && !f.phase);
     struct ceph_gpu_publication forged=w.publication;forged.group^=0x100;
     assert(cepheus_gpu_memory_retire_workspace(&forged,&ops)<0 && !f.phase);
     forged=w.publication;forged.handles[1]=forged.handles[0];

@@ -13,7 +13,7 @@
 #include "cepheus_hfi_boot.h"
 #include "cepheus_qmp_acd.h"
 enum ceph_bringup_stage {CE_BR_NEW,CE_BR_MEMORY,CE_BR_POWER,CE_BR_BOUND,CE_BR_SHARED,
-    CE_BR_PDC,CE_BR_SMMU,CE_BR_UPLOAD,CE_BR_CM3,CE_BR_HFI,CE_BR_FAILED};
+    CE_BR_PDC,CE_BR_SMMU,CE_BR_UPLOAD,CE_BR_CM3,CE_BR_HFI,CE_BR_FAILED,CE_BR_RETIRED};
 struct ceph_gmu_bringup;
 struct ceph_gmu_bringup_backends {
     void *owner;
@@ -54,6 +54,9 @@ extern "C" {
 #endif
 int cepheus_gmu_bringup_prepare(struct ceph_gmu_bringup *,const uint8_t *firmware,size_t bytes);
 int cepheus_gmu_bringup_start(struct ceph_gmu_bringup *);
+/* Exact same HFI session/plan; successful return means workspace detached and
+ * released, NOT power votes dropped, PDC reset or platform leases surrendered. */
+int cepheus_gmu_bringup_retire(struct ceph_gmu_bringup *,struct ceph_gpu_retire_ops *);
 #ifdef __cplusplus
 }
 #endif

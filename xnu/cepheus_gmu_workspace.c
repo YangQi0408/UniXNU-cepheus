@@ -85,6 +85,11 @@ int cepheus_gmu_workspace_retire(struct ceph_gmu_workspace *w,struct ceph_gpu_re
 {
     if(!w || w->state!=CE_WS_SHARED)return -1;
     int e=cepheus_gpu_memory_retire_workspace(&w->publication,b);
+    if(e) {
+        struct ceph_gpu_group_status status;
+        if(!cepheus_gpu_memory_group_status(w->publication.group,&status) &&
+            status.state==CE_GPU_GROUP_SHARED && !status.pool_terminal)return e;
+    }
     /* Whether freed or quarantined, callers must cease CPU use. */
     w->table=(struct ceph_vm_pool){0};w->layout=(struct ceph_gpu_va_plan){0};w->leased=0;
     for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)w->views[i]=(struct ceph_gpu_memory_view){0};
