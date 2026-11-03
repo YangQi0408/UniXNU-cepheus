@@ -8,6 +8,7 @@
 #include "cepheus_bcm.h"
 #include "cepheus_hfi.h"
 #include "cepheus_gpu_va.h"
+#include "cepheus_gpu_vm39.h"
 static uint32_t rng=0x640a55;
 static uint32_t next(void){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;}
 struct bytes {uint8_t *data;size_t size;};
@@ -48,6 +49,16 @@ int main(void)
     memcpy(tables,baseline,sizeof(tables));
     struct ceph_vm_pool bad=pool;bad.used=65;assert(ceph_vm_matches(&bad,layout.regions,CE_BUF_COUNT)<0);
     bad=pool;bad.pa=(1ULL<<40)-4096;assert(ceph_vm_matches(&bad,layout.regions,CE_BUF_COUNT)<0);
+    struct ceph_vm_region gx[CE_BUF_COUNT];
+    for(unsigned i=0;i<CE_BUF_COUNT;++i){gx[i]=layout.regions[i];gx[i].va+=(1ULL<<32);}
+    pool.used=0;assert(!ceph_vm39_build(&pool,gx,CE_BUF_COUNT) && !ceph_vm39_matches(&pool,gx,CE_BUF_COUNT));
+    memcpy(baseline,tables,sizeof(tables));
+    for(unsigned run=0;run<10000;++run) {
+        memcpy(tables,baseline,sizeof(tables));
+        tables[next()%(8*512)]^=1ULL<<(next()%64);
+        assert(ceph_vm39_matches(&pool,gx,CE_BUF_COUNT)<0);
+    }
     puts("GPU deterministic mutation corpus: 20000 GMU/ARC/BCM/HFI cases PASS (bounded negative coverage)");
     puts("Materialized GMU page tables:10000 single-bit descriptor mutations rejected PASS (ASan/UBSan host coverage)");
+    puts("Materialized GX39 page tables:10000 single-bit descriptor mutations rejected PASS (ASan/UBSan host coverage)");
 }
