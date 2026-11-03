@@ -65,7 +65,8 @@ static inline int ceph_gpu_bw_table(const struct ceph_bw_route *cnoc,const struc
             if(i && (levels[i].ab<levels[i-1].ab || levels[i].ib<levels[i-1].ib ||
                 !(levels[i].ab||levels[i].ib)))return -1;
             struct ceph_bcm_command commands[8];uint32_t wait;
-            if(ceph_bw_level_commands(r,&levels[i],commands,&wait)!=(int)r->bcm_count)return -1;
+            int encoded=ceph_bw_level_commands(r,&levels[i],commands,&wait);
+            if(encoded<=0 || encoded>8 || (unsigned)encoded!=r->bcm_count)return -1;
             uint32_t *addresses=which?b.ddr_addr:b.cnoc_addr;
             uint32_t *data=which?b.ddr_data[i]:b.cnoc_data[i];
             uint32_t *wait_out=which?&b.ddr_wait:&b.cnoc_wait;

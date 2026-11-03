@@ -20,6 +20,7 @@ int main(void)
     assert(b.cnoc_data[1][0]==0x20000064 && b.cnoc_data[1][1]==0x60000064 && b.cnoc_data[1][2]==0x60000064);
     uint32_t wire[160];assert(ceph_hfi_bandwidth(wire,160,&b)==160 && wire[5]==6);
     struct ceph_hfi_bw saved=b;
+    d.bcm_count=UINT32_MAX;assert(ceph_gpu_bw_table(&c,cl,&d,dl,3,&b)<0 && !memcmp(&saved,&b,sizeof(b)));d.bcm_count=3;
     d.rsc_id=8001;assert(ceph_gpu_bw_table(&c,cl,&d,dl,3,&b)<0 && !memcmp(&saved,&b,sizeof(b)));d.rsc_id=8000;
     d.acv_index=3;assert(ceph_gpu_bw_table(&c,cl,&d,dl,3,&b)<0);d.acv_index=2;
     struct ceph_bw_level bad[]={{0,0},{0,1000},{0,500}};

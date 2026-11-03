@@ -335,6 +335,12 @@ SMMU geometry现在明确保留ID2的VA(UBS)、IPA(IAS)、PA(OAS)三种宽度；
 VA≥39。新增VA32/IPA36拒绝负例；GX mock ID2改为实际表示40VA的0x1222，
 而不是原来仅32VA的0x1022。真实ID仍需允许的只读采样确认。
 
+Clang静态分析覆盖6个生产C单元及真实内存池C++（host IOKit替身）；发现BW
+返回值仅与signed count比较的隐含条件，现先显式拒绝非正/大于8的编码返回，
+再比较数量，不用初始化wait为0掩盖错误路径。畸形UINT_MAX count保持输出不变
+测试通过。`scripts/analyze-gpu-host.py`把任何分析warning/error作为失败，
+修正后7单元无告警；静态分析仍不证明内核ABI、竞态或硬件安全。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
