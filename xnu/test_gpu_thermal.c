@@ -12,7 +12,7 @@ int main(void)
     t=(struct ceph_gpu_thermal){0};assert(!ceph_gpu_thermal_start(&t,1000,30000000000ULL));
     s=(struct ceph_gpu_temperature){60000,42000,1000,3};assert(ceph_gpu_thermal_check(&t,&s,1000)==CE_THERMAL_HOT);
     t=(struct ceph_gpu_thermal){0};assert(!ceph_gpu_thermal_start(&t,1000,30000000000ULL));
-    s.sensor12_mc=40000;s.valid_mask=1;assert(ceph_gpu_thermal_check(&t,&s,1000)==CE_THERMAL_INVALID);
+    s.gpuss0_mc=40000;s.valid_mask=1;assert(ceph_gpu_thermal_check(&t,&s,1000)==CE_THERMAL_INVALID);
     t=(struct ceph_gpu_thermal){0};assert(!ceph_gpu_thermal_start(&t,1000,1000000));
     s.valid_mask=3;assert(ceph_gpu_thermal_check(&t,&s,1001000)==CE_THERMAL_EXPIRED);
     t=(struct ceph_gpu_thermal){0};assert(!ceph_gpu_thermal_start(&t,1000,1000000));

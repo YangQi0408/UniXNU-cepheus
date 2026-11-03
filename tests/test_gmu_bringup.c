@@ -28,15 +28,16 @@ struct hw {
     struct ceph_gmu_upload_mmio upload_mmio;
     struct ceph_gpu_fault_mmio fault_mmio;
     unsigned fault_held;
-    uint32_t tsens_ram[1024];struct ceph_gpu_tsens tsens;
+    uint32_t tsens_ram[2][1024];struct ceph_gpu_tsens tsens;
     uint64_t smmu[0x10000/8],time;struct ceph_smmu_mmio smmu_mmio;
     uint32_t qmp[1024],qirq;unsigned qmp_notified;struct ceph_hfi_queue fw_rx,fw_tx;
 };
 static int guard(void *p){struct hw *h=p;assert(h->s);return 0;}
 static int temperature(void *p,struct ceph_gpu_temperature *sample){struct hw *h=p;
-    h->tsens_ram[0xe4/4]=8;h->tsens_ram[0xd0/4]=(1u<<21)|400;h->tsens_ram[0xd4/4]=(1u<<21)|420;
-    if(h->mode==15 || (h->mode==16 && h->s->stage==CE_BR_SMMU))h->tsens_ram[0xd4/4]=(1u<<21)|600;
-    if(h->mode==17)h->tsens_ram[0xd4/4]=420;
+    h->tsens_ram[0][0xe4/4]=h->tsens_ram[1][0xe4/4]=8;
+    h->tsens_ram[0][0xdc/4]=(1u<<21)|400;h->tsens_ram[1][0xcc/4]=(1u<<21)|420;
+    if(h->mode==15 || (h->mode==16 && h->s->stage==CE_BR_SMMU))h->tsens_ram[1][0xcc/4]=(1u<<21)|600;
+    if(h->mode==17)h->tsens_ram[1][0xcc/4]=420;
     return ceph_gpu_tsens_sample(&h->tsens,sample);}
 static uint32_t *gmu_reg(struct hw *h,enum ceph_gmu_reg r){uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return &h->gmu[off/4];}
 static int now(void *p,uint64_t *n){struct hw *h=p;h->time+=10000;*n=h->time;
@@ -158,7 +159,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     assert(!cepheus_gmu_bringup_prepare(&s,data,(size_t)size));free(data);
     struct ceph_gmu_bringup_backends *b=&s.backend;
     b->owner=&h;b->bind=bind;b->failed=failed;
-    h.tsens=(struct ceph_gpu_tsens){h.tsens_ram,sizeof(h.tsens_ram),0xc263000,&h,guard,now};
+    h.tsens=(struct ceph_gpu_tsens){{h.tsens_ram[0],h.tsens_ram[1]},{4096,4096},{0xc263000,0xc265000},&h,guard,now};
     b->temperature=temperature;b->now_ns=now;b->trial_ns=30000000000ULL;
     b->power=(struct ceph_power_ops){&h,power_prepare,guard,power_read,power_write,vote,delayus,end};
     b->pdc=(struct ceph_pdc_ops){&h,pdc_begin,pdc_validate,pdc_read,pdc_write,pdc_barrier,pdc_end};

@@ -264,13 +264,23 @@ def report(blob,speed_bin=None):
         raise ValueError('unexpected GMU mailbox controller')
     qmp={'path':qp,'registers':regs(qp),'descriptor_offset':scalar(qp,'mbox-desc-offset'),
          'irq_mask':scalar(qp,'qcom,irq-mask'),'channel':mailbox[1]}
+    thermal=[]
+    for name in strings(nodes[gpu]['tzone-names']):
+        zone='/soc/thermal-zones/'+name
+        spec=cells(nodes[zone]['thermal-sensors'])
+        if len(spec)!=2 or spec[0] not in handles or spec[1]>15:raise ValueError('invalid GPU thermal specifier')
+        controller=handles[spec[0]]
+        if 'qcom,tsens24xx' not in strings(nodes[controller]['compatible']):raise ValueError('unsupported GPU thermal controller')
+        thermal.append({'zone':name,'controller':controller,'sensor':spec[1],
+                        'tm':regs(controller)['tsens_tm_physical']})
+    if len(thermal)!=2:raise ValueError('expected two GPU thermal zones')
     return {'fdt_sha256':hashlib.sha256(blob).hexdigest(),'fdt_bytes':len(blob),
         'chipid':scalar(gpu,'qcom,chipid'),'gpu_path':gpu,'gmu_path':gmu,'opp_path':opppath,
         'gpu_registers':regs(gpu),'gmu_registers':regs(gmu),'gmu_hz':[n[1] for n in gmu_levels],
         'opp_levels':opps,'speed_bins':bins,
         'selected_bin':selected,'speed_bin_evidence':'caller-supplied; not checked by this tool' if selected else 'UNKNOWN; no eFuse read performed',
         'ddr_vectors':ddr,'cnoc_vectors':cnoc,'bus_routes':routes,'streams':streams,'smmu_path':smmu,
-        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,
+        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,'thermal':thermal,
         'limitations':['saved FDT only, no hardware execution','BCM cmd-db unit/width/VCD values still needed',
                         'not an ARC vote ownership proof','selected OPP phandle must replace generic sm8150 table']}
 

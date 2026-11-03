@@ -77,6 +77,8 @@ class ArcIntegrationTests(unittest.TestCase):
         self.assertIn('__atomic_load_n(&gpu_fuse_valid',sample)
         self.assertNotIn('ml_io_map(',sample)
         self.assertNotIn('sr(',sample)
+        self.assertIn('TSENS0:15 TSENS1:11',source)
+        self.assertIn('ml_io_map(0x0c265000,0x1000)',source)
 
     def test_generated_0084_does_not_depend_on_later_arc_include(self):
         with tempfile.TemporaryDirectory() as directory:

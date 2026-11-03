@@ -12,7 +12,7 @@ struct ceph_gpu_thermal {
     uint64_t start_ns,last_ns,limit_ns;
     unsigned active;int failure;
 };
-struct ceph_gpu_temperature {int sensor12_mc,sensor13_mc;uint64_t sampled_ns;unsigned valid_mask;};
+struct ceph_gpu_temperature {int gpuss0_mc,gpuss1_mc;uint64_t sampled_ns;unsigned valid_mask;};
 static inline int ceph_gpu_thermal_start(struct ceph_gpu_thermal *t,uint64_t now,uint64_t limit)
 {
     if(!t || t->active || t->failure || !limit || limit>30000000000ULL)return CE_THERMAL_INVALID;
@@ -25,10 +25,10 @@ static inline int ceph_gpu_thermal_check(struct ceph_gpu_thermal *t,const struct
     int e=0;
     if(now<t->last_ns || now<t->start_ns)e=CE_THERMAL_CLOCK;
     else if(now-t->start_ns>=t->limit_ns)e=CE_THERMAL_EXPIRED;
-    else if(!s || s->valid_mask!=3 || s->sensor12_mc < -40000 || s->sensor12_mc>125000 ||
-        s->sensor13_mc < -40000 || s->sensor13_mc>125000)e=CE_THERMAL_INVALID;
+    else if(!s || s->valid_mask!=3 || s->gpuss0_mc < -40000 || s->gpuss0_mc>125000 ||
+        s->gpuss1_mc < -40000 || s->gpuss1_mc>125000)e=CE_THERMAL_INVALID;
     else if(s->sampled_ns>now || now-s->sampled_ns>100000000ULL)e=CE_THERMAL_STALE;
-    else if(s->sensor12_mc>=60000 || s->sensor13_mc>=60000)e=CE_THERMAL_HOT;
+    else if(s->gpuss0_mc>=60000 || s->gpuss1_mc>=60000)e=CE_THERMAL_HOT;
     if(e)t->failure=e;else t->last_ns=now;
     return e;
 }

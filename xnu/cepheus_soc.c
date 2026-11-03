@@ -277,13 +277,13 @@ static void soc_thread(void *arg, wait_result_t wr)
 	osm_sample(0);
 	int temperature = 0, temperature_valid = cpu_temperature(&temperature);
 	printf("CEPHEUS TSENS: valid=%d CPU_max_mc=%d (no sensor configuration writes)\n", temperature_valid, temperature);
-	if(tsens && (sr(tsens,0xe4)&8u)) {
-		int t12=0,t13=0;
-		int v12=ceph_tsens_mc(sr(tsens,0xa0+12*4),&t12);
-		int v13=ceph_tsens_mc(sr(tsens,0xa0+13*4),&t13);
-		printf("CEPHEUS GPU TSENS: valid_mask=%u sensor12_mc=%d sensor13_mc=%d (sample only)\n",
-		    (unsigned)v12|((unsigned)v13<<1),t12,t13);
-	}
+	/* Resolve by GPU tzone-names in captured FDT, not legacy tsens-name. */
+	vm_offset_t tsens1=ml_io_map(0x0c265000,0x1000);
+	int gpuss0=0,gpuss1=0,v0=0,v1=0;
+	if(tsens && (sr(tsens,0xe4)&8u))v0=ceph_tsens_mc(sr(tsens,0xa0+15*4),&gpuss0);
+	if(tsens1 && (sr(tsens1,0xe4)&8u))v1=ceph_tsens_mc(sr(tsens1,0xa0+11*4),&gpuss1);
+	printf("CEPHEUS GPU TSENS: valid_mask=%u gpuss0_mc=%d gpuss1_mc=%d (TSENS0:15 TSENS1:11, sample only)\n",
+	    (unsigned)v0|((unsigned)v1<<1),gpuss0,gpuss1);
 	swait(60000); // let SpringBoard reach UI before an optional timed experiment
 	int mode = 0;
 	PE_parse_boot_argn("cephboost", &mode, sizeof(mode));

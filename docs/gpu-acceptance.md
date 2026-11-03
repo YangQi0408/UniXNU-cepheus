@@ -207,7 +207,7 @@ workspace原子发布现在从池内真实view重新核对各角色容量/PA、�
 新增交换ICACHE/DCACHE句柄、篡改中间PTE、洞中额外映射等负例；发布拒绝原子
 且不改原工作区，完整ASan/UBSan闭环通过。此防错不替代内核单一所有者约定。
 
-整合启动必需TSENS12/13采样与单调时间回调，先启动≤30秒thermal guard，在电源
+整合启动必需gpuss0/1采样与单调时间回调，先启动≤30秒thermal guard，在电源
 副作用之前、每阶段之后检查；HFI实际shared访问也包裹该检查。新增启动前过热/
 单传感器无效零电源副作用、中途过热不上传不启动，以及启动后期限到达仍可走
 正式RETIRING/slumber停止协议的测试，共19场景。温度锁存不能阻止必要的停止
@@ -216,8 +216,8 @@ workspace原子发布现在从池内真实view重新核对各角色容量/PA、�
 期限/温度监督，失败隔离也不会自动降电源票；实际停止/降电后端未完成前，
 禁止真机上电试验。
 
-`cepheus_gpu_tsens.h`增加实际只读TM aperture采样：0xc263000+4096、TRDY0xe4
-bit3、sensor12/13 status0xd0/0xd4、valid bit21、signed12bit×100m°C。最多各3读，
+`cepheus_gpu_tsens.h`增加实际只读TM aperture采样：后经FDT热区修正为TSENS0:15
+与TSENS1:11，status0xdc/0xcc、TRDY0xe4 bit3、valid bit21、signed12bit×100m°C。最多各3读，
 均需valid；不采用“三次无效但相等也算有效”的回退，不写恢复/阈值/校准。
 前后租约/ready与单调时间核对，采样耗时>100ms拒绝。整链温度回调已改走
 此适配器+RAM状态，不再直接返回伪温度struct；46组host与19场景ASan/UBSan通过。
@@ -255,6 +255,19 @@ snapshot+固定SHA校验，再逐字节核对目标；无效固件拒绝、slot�
 四种本地SQE场景通过ASan/UBSan，公开CI只编译该真实路径，缺固件fixture明确skip。
 该CP workspace只有CPU prepare/release，没有GPU VA、SMMU映射、DMA发布或退休
 接口；不会误用GMU SID5地址空间。尚需真正GX映射及安全认证后才能连接CP配置。
+
+### 重要纠错：GPU温度传感器归属
+
+重新解析保存FDT的`GPU/tzone-names`和`thermal-sensors`发现，实际GPU热区为
+`gpuss-0-usr → TSENS0 sensor15 → 0xc263000/status0xdc`，
+`gpuss-1-usr → TSENS1 sensor11 → 0xc265000/status0xcc`。
+`kgsl_pwrctrl_temp_show`按这两个热区读取，不能从遗留`qcom,tsens-name`或CPU
+传感器编号推断。此前TSENS0:12/13选错，相关host测试只验证算法，不能当GPU温度。
+现sampler、结构字段、整链fixture、soc只读日志均修正；FDT测试断言解析结果，
+两个控制器都要求ready/lease/valid。所有回归通过，但实际温度仍待真机采样。
+
+未启动的c0d0a68诊断候选含旧GPU温度来源，**不作为GPU热验证候选**；需要从
+本次修复后成功CI重新打包。没有手机实际运行错误热保护，GPU启动钩子始终禁用。
 
 ## 当前结论
 
@@ -573,7 +586,7 @@ FDT仅提供可选bin，不能凭表存在推断本机是0或1；当前尚未读
 两种握手命令序列均有测试。独立TSENS/运行时限等热安全仍是平台要求，不能
 把原驱动关闭某硬件特性的bin策略误解为无需温控。
 
-`cepheus_gpu_thermal.h`给试验后端提供不可静默恢复的热门槛：传感器12/13均须
+`cepheus_gpu_thermal.h`给试验后端提供不可静默恢复的热门槛：gpuss0/1均须
 有效且样本不老于100ms，任一>=60°C、时钟倒退或最多30秒试验期限到达时拒绝
 继续。停止不等于断电，真实后端还须安全停稳；没有把这个纯逻辑guard宣称为
 已运行的GPU温控。平台必须把真实TSENS采样接入，不得传恒定温度伪造就绪。
@@ -636,7 +649,7 @@ slumber部分现有直接HFI实现：命令ID33、payload顺序bw/freq，先由�
 
 默认关闭的`cephfuse=1`只映射QFPROM目标页0x784000，并两次读0x130的GPU
 speed-bin字段，不包含任何fuse写入；未知/不稳定值拒绝，且不触发GPU上电。
-`cephsoc`日志补传感器12/13独立样本，仍不写TSENS配置。
+`cephsoc`日志补gpuss0/1独立样本（修正后的TSENS0:15/TSENS1:11），仍不写TSENS配置。
 ARC只读探测新增按0x30010/0x30000/0x30090反查本次cmd-db名称和level表，
 解决PDC常量不能猜资源名的问题；重复地址/非ASCII名称/格式错误均拒绝。
 这些采样尚未在手机执行；用户离线期间不启动新镜像。

@@ -22,7 +22,7 @@ struct ceph_gmu_bringup_backends {
     /* Resolve exact mapped windows/reservations/plan/config from successful
      * power+CPU workspace. Must make no hardware writes and invent no metadata. */
     int (*bind)(void *,struct ceph_gmu_bringup *);
-    /* Required actual TSENS12/13 samples and monotonic time. Every hardware
+    /* Required actual gpuss-0/1 thermal-zone samples and monotonic time. Every hardware
      * lease validator must also call bringup_thermal_check during long stages.
      * Platform still supplies independent deadline/stop supervision at idle. */
     int (*temperature)(void *,struct ceph_gpu_temperature *);

@@ -58,6 +58,8 @@ class FdtTests(unittest.TestCase):
         self.assertEqual(r['qmp']['descriptor_offset'],0)
         self.assertEqual(r['qmp']['irq_mask'],1)
         self.assertEqual(r['qmp']['channel'],0)
+        self.assertEqual([(t['zone'],t['tm']['address'],t['sensor']) for t in r['thermal']],
+                         [('gpuss-0-usr',0xc263000,15),('gpuss-1-usr',0xc265000,11)])
         self.assertEqual(r['opp_levels'][0],{'hz':257000000,'raw_vlvl':64})
         self.assertEqual(r['streams']['gmu_kernel'],{'sid':5,'mask':0x400,'actlr':0x303})
         self.assertEqual([b['throttle_mask'] for b in r['speed_bins']],[0x80,0x40])
