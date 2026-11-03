@@ -7,11 +7,13 @@
 #include "cepheus_arc.h"
 #include "cepheus_bcm.h"
 #include "cepheus_hfi.h"
+#include "cepheus_gpu_va.h"
 static uint32_t rng=0x640a55;
 static uint32_t next(void){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;}
 struct bytes {uint8_t *data;size_t size;};
 static uint32_t rd(void *p,uint32_t off){struct bytes *b=p;assert(!(off&3) && off+4<=b->size);return ceph_gmu_le32(b->data+off);}
 static int okay(void *p){(void)p;return 0;}
+static uint64_t tables[8*512],baseline[8*512];
 int main(void)
 {
     uint8_t input[512];struct ceph_gmu_block blocks[32];
@@ -32,5 +34,20 @@ int main(void)
         struct ceph_hfi_queue q={words,&r,&w,16,2,{NULL,okay,okay,okay,okay},0};
         e=ceph_hfi_read(&q,out,16,&n);if(e)assert(!n);else assert(n<=16 && r<16);
     }
+    struct ceph_gpu_backing backing[]={{0x120000000ULL,0x3c000},{0x120040000ULL,0x3c000},
+        {0x120080000ULL,0x8000},{0x120090000ULL,0x4000},{0x1200a0000ULL,0x4000}};
+    struct ceph_gpu_va_plan layout;assert(!ceph_gpu_va_plan(backing,&layout));
+    struct ceph_vm_pool pool={tables,0x110000000ULL,8,0};
+    assert(!ceph_vm_build(&pool,layout.regions,CE_BUF_COUNT) && !ceph_vm_matches(&pool,layout.regions,CE_BUF_COUNT));
+    memcpy(baseline,tables,sizeof(tables));
+    for(unsigned run=0;run<10000;++run) {
+        memcpy(tables,baseline,sizeof(tables));
+        unsigned slot=next()%(8*512);tables[slot]^=1ULL<<(next()%64);
+        assert(ceph_vm_matches(&pool,layout.regions,CE_BUF_COUNT)<0);
+    }
+    memcpy(tables,baseline,sizeof(tables));
+    struct ceph_vm_pool bad=pool;bad.used=65;assert(ceph_vm_matches(&bad,layout.regions,CE_BUF_COUNT)<0);
+    bad=pool;bad.pa=(1ULL<<40)-4096;assert(ceph_vm_matches(&bad,layout.regions,CE_BUF_COUNT)<0);
     puts("GPU deterministic mutation corpus: 20000 GMU/ARC/BCM/HFI cases PASS (bounded negative coverage)");
+    puts("Materialized GMU page tables:10000 single-bit descriptor mutations rejected PASS (ASan/UBSan host coverage)");
 }
