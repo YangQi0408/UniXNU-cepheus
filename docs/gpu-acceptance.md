@@ -248,6 +248,14 @@ TRUST_CONTROL或安全认证状态；GX其余初始化/认证/执行仍未完成
 49组host测试通过；ring配置版CI41577933766（48d6199）已成功，新保护/快照
 增量仍待完整CI。尚未执行该CP_ME_INIT，不能称GPU命令提交成功。
 
+`cepheus_cp_workspace.c`加入真实XNU内存池CPU侧CP backing：ring32KiB、RPTR、
+SQE32KiB（剥首DWORD、32300字节有效payload）、restore与scratch。固件先私有
+snapshot+固定SHA校验，再逐字节核对目标；无效固件拒绝、slot不足清理、complete
+失败保留句柄。与六缓冲GMU workspace同时占用同一1MiB池仍通过，成功清理全零。
+四种本地SQE场景通过ASan/UBSan，公开CI只编译该真实路径，缺固件fixture明确skip。
+该CP workspace只有CPU prepare/release，没有GPU VA、SMMU映射、DMA发布或退休
+接口；不会误用GMU SID5地址空间。尚需真正GX映射及安全认证后才能连接CP配置。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
