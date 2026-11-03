@@ -17,6 +17,7 @@
 #include "cepheus_qmp_connect.h"
 #include "gpu_config_fixture.h"
 #include "gpu_smmu_fixture.h"
+int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 struct hw {
     struct ceph_gmu_bringup *s;unsigned mode,phase,votes,commands,failed;
     uint32_t power[CE_PWR_REG_COUNT],gmu[0x30000/4],pdc_cfg[0x10000/4],pdc_seq[0x10000/4];
@@ -154,6 +155,7 @@ int ceph_test_bringup(const char *path,unsigned mode)
     b->cm3=(struct ceph_gmu_start_ops){&h,cm3_begin,guard,cm3_read,cm3_write,guard,now,guard,end};
     b->transport=(struct ceph_gmu_hfi_transport){&h,guard,notify,now,guard,fault_health};
     config_fixture();struct ceph_arc_db db={config_db,sizeof(config_db),config_read};
+    if(mode==0){assert(!cepheus_gpu_config_probe(&db,0x06040001,0));assert(cepheus_gpu_config_probe(NULL,0x06040001,0)<0);}
     struct ceph_gpu_config config;
     assert(!ceph_gpu_config_build(&db,0x06040001,mode==8?0x20000000:0,&config));
     assert(!ceph_gpu_config_hfi(&config,0x20000001,&b->hfi));

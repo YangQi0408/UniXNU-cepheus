@@ -58,6 +58,12 @@ class ArcIntegrationTests(unittest.TestCase):
         self.assertIn("__atomic_store_n(&rh_lock, 0", probe)
         self.assertIn("current ARC vote UNKNOWN", probe)
         self.assertIn("ceph_arc_lookup_address", probe)
+        self.assertIn("cepheus_gpu_fuse_sample(&fuse)", probe)
+        self.assertIn("cepheus_gpu_config_probe(&db", probe)
+        dryrun=(ROOT / 'xnu/cepheus_gpu_compile.c').read_text().split('int cepheus_gpu_config_probe',1)[1].split('int cepheus_gpu_qmp_connect',1)[0]
+        for name in ('ceph_hfi_exchange','ceph_power_start','ceph_gmu_start_cold','ceph_qmp_send_acd'):
+            self.assertNotIn(name+'(',dryrun)
+        self.assertIn('NOT SENT',dryrun)
 
     def test_speed_bin_probe_is_optin_read_only(self):
         source = (ROOT / "xnu/cepheus_soc.c").read_text()
@@ -67,6 +73,10 @@ class ArcIntegrationTests(unittest.TestCase):
         self.assertNotIn('osm_request(', body)
         self.assertNotRegex(body, r'\*\s*\(volatile[^\n]+\)\s*=')
         self.assertIn('if(fuse==1) {gpu_fuse_probe();}', source)
+        sample=source.split('int cepheus_gpu_fuse_sample(uint32_t *value)',1)[1].split('void cepheus_cpu_activity',1)[0]
+        self.assertIn('__atomic_load_n(&gpu_fuse_valid',sample)
+        self.assertNotIn('ml_io_map(',sample)
+        self.assertNotIn('sr(',sample)
 
     def test_generated_0084_does_not_depend_on_later_arc_include(self):
         with tempfile.TemporaryDirectory() as directory:

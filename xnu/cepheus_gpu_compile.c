@@ -4,6 +4,28 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+#if defined(KERNEL)
+#include <sys/systm.h>
+#else
+#include <stdio.h>
+#endif
+int cepheus_gpu_config_probe(const struct ceph_arc_db *db,uint32_t chipid,uint32_t fuse)
+{
+    struct ceph_gpu_config c;
+    if(ceph_gpu_config_build(db,chipid,fuse,&c))return -1;
+    printf("CEPHEUS GPU CONFIG: fixed Cepheus FDT profile, observed bin=%u gx=%u bw=%u cnoc=%u ddr=%u initial=%u/%u (NOT SENT)\n",
+        c.policy.bin,c.policy.gx_levels,c.bw.levels,c.bw.cnoc_count,c.bw.ddr_count,c.initial_freq,c.initial_bw);
+    printf("CEPHEUS GPU CONFIG: profile_sha256=%s live FDT identity still unverified; ARC ownership UNKNOWN\n",CE_GPU_CONFIG_FDT_SHA256);
+    uint32_t perf[59];
+    if(ceph_hfi_perf(perf,59,ceph_config_gx,c.policy.gx_levels,ceph_config_cx,2,&c.gfx,&c.cx,&c.mx)!=59)return -1;
+    for(unsigned i=0;i<c.policy.gx_levels;++i)
+        printf("CEPHEUS GPU CONFIG: GX index=%u khz=%u packed_vote=%#x (NOT SENT)\n",i,perf[5+3*i],perf[3+3*i]);
+    for(unsigned i=0;i<c.bw.ddr_count;++i)
+        printf("CEPHEUS GPU CONFIG: DDR cmd%u addr=%#x off=%#x max=%#x wait=%u (NOT SENT)\n",i,c.bw.ddr_addr[i],c.bw.ddr_data[0][i],c.bw.ddr_data[c.bw.levels-1][i],(c.bw.ddr_wait>>i)&1u);
+    for(unsigned i=0;i<c.bw.cnoc_count;++i)
+        printf("CEPHEUS GPU CONFIG: CNOC cmd%u addr=%#x off=%#x active=%#x wait=%u (NOT SENT)\n",i,c.bw.cnoc_addr[i],c.bw.cnoc_data[0][i],c.bw.cnoc_data[1][i],(c.bw.cnoc_wait>>i)&1u);
+    return 0;
+}
 int cepheus_gpu_qmp_connect(struct ceph_qmp_connect *s,struct ceph_qmp_mmio *m)
 { return ceph_qmp_connect_cold(s,m); }
 int cepheus_gpu_upload_mmio_bind(struct ceph_gmu_upload_mmio *m,struct ceph_gmu_upload *out)

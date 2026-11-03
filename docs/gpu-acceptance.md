@@ -181,6 +181,15 @@ payload、不接管活动或半继承channel；未知mailbox layout不猜尺寸�
 →ACD→GMU启动→退休已覆盖，全部仅在RAM上。真实共享AOP客户端仲裁、启动时
 可用冷态及映射生命周期仍未取得，不能自动在手机上调用此流程。
 
+### 下一轮只读配置验收
+
+同时启用cephfuse=1/cepharc=1时，soc先完成两次一致的QFPROM读取，atomic公布
+结果；ARC探测复用rh_lock与本次cmd-db，调用纯配置dry-run输出选中bin、HFI
+索引/候选packed vote、DDR/CNOC地址与首末档数据。没有fuse样本则跳过，绝不
+默认bin0。dry-run不调用power/HFI/QMP/CM3写路径，所有值标记NOT SENT，明确
+live FDT profile未验证、ARC所有权UNKNOWN。此新诊断尚需构建/真机验收，
+不能凭打印了可编码配置就启用GPU。原有触摸enable-only电源功能不受改动。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

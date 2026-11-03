@@ -25,6 +25,16 @@ void cepheus_soc_init(void);
 void cepheus_cpu_activity(void);
 extern void cepheus_gpu_arc_probe(void);
 static uint64_t activity_ticks;
+static uint32_t gpu_fuse_value;
+static unsigned gpu_fuse_valid;
+int cepheus_gpu_fuse_sample(uint32_t *value);
+/* Only returns the completed opt-in read below; never touches hardware itself
+ * and never substitutes a default bin when sampling was disabled/failed. */
+int cepheus_gpu_fuse_sample(uint32_t *value)
+{
+	if(!value || !__atomic_load_n(&gpu_fuse_valid,__ATOMIC_ACQUIRE))return -1;
+	*value=gpu_fuse_value;return 0;
+}
 void cepheus_cpu_activity(void)
 {
 	__atomic_store_n(&activity_ticks, mach_absolute_time(), __ATOMIC_RELAXED);
@@ -244,6 +254,7 @@ static void gpu_fuse_probe(void)
 	if(first!=second || ceph_gpu_bin_policy(0x06040001,first,&policy)) {
 		printf("CEPHEUS GPU BIN: unreadable/unknown speed bin (no enable)\n");return;
 	}
+	gpu_fuse_value=first;__atomic_store_n(&gpu_fuse_valid,1u,__ATOMIC_RELEASE);
 	printf("CEPHEUS GPU BIN: bin=%u gx_levels=%u lm=%u acd=%u throttle=%#x (read-only, no GPU enable)\n",
 	    policy.bin,policy.gx_levels,policy.lm,policy.acd,policy.throttle_mask);
 }

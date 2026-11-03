@@ -32,6 +32,7 @@
 #include "cepheus_gmu_upload_mmio.h"
 #include "cepheus_qmp_connect.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
+int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);
 int cepheus_gpu_pdc_mmio_bind(struct ceph_pdc_mmio *,struct ceph_pdc_ops *);
 int cepheus_gpu_fault_mmio_read(struct ceph_gpu_fault_mmio *,struct ceph_gpu_fault_record *);

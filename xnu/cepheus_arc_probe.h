@@ -6,6 +6,8 @@
 #include "cepheus_arc.h"
 #include "cepheus_bcm.h"
 void cepheus_gpu_arc_probe(void);
+int cepheus_gpu_fuse_sample(uint32_t *);
+int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 
 static uint32_t
 ceph_arc_read_db(void *ctx __unused, uint32_t offset)
@@ -64,6 +66,13 @@ cepheus_gpu_arc_probe(void)
         if(result) {printf("CEPHEUS BCM: %s lookup error=%d; no votes\n",bcms[i],result);continue;}
         printf("CEPHEUS BCM: %s address=%#x unit=%u width=%u vcd=%u (no votes)\n",
             bcms[i],bcm.address,bcm.unit,(unsigned)bcm.width,(unsigned)bcm.vcd);
+    }
+    uint32_t fuse;
+    if(cepheus_gpu_fuse_sample(&fuse))
+        printf("CEPHEUS GPU CONFIG: skipped: no completed cephfuse sample; bin UNKNOWN\n");
+    else {
+        int result=cepheus_gpu_config_probe(&db,0x06040001,fuse);
+        printf("CEPHEUS GPU CONFIG: dry-run result=%d; no HFI, MMIO writes or ownership grant\n",result);
     }
     for (unsigned t=0; t<RH_NORMAL_N; ++t) {
         uint32_t base=t*RH_TCS_STRIDE;
