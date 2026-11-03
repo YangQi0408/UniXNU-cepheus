@@ -17,6 +17,8 @@ int cepheus_gpu_gx_va_partition(unsigned secured,uint64_t size,struct ceph_gx_va
 { return ceph_gx_va_partition(secured,size,out); }
 int cepheus_gpu_gx_hwcg_configure(struct ceph_gx_hwcg *s)
 { return ceph_gx_hwcg_configure(s); }
+int cepheus_gpu_cp_unhalt_check(const struct ceph_cp_unhalt_input *i)
+{ return (int)ceph_cp_unhalt_check(i); }
 int cepheus_gpu_vm39_build(struct ceph_vm_pool *p,const struct ceph_vm_region *r,unsigned n)
 { return ceph_vm39_build(p,r,n); }
 int cepheus_gpu_cp_snapshot_mmio(struct ceph_cp_snapshot_mmio *s,uint32_t *out,unsigned words)

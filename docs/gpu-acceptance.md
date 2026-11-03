@@ -847,6 +847,29 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### A640 HWCG 块（`a6xx_hwcg_set(true)`）
 
+### CP 解除 halt 的门禁：ZAP/PAS 是硬前置
+
+`a6xx_rb_start()` 的顺序是：写 `CP_SQE_INSTR_BASE_{LO,HI}` →
+`a6xx_microcode_load()` → `CP_SQE_CNTL=1`（清 SQE halt，CP 开始执行）→
+`CP_ME_INIT` → `adreno_set_unsecured_mode()`。
+
+其中 `a6xx_microcode_load()` 在 `device->mmu.secured` 为真时，**必须**通过
+`subsystem_get(zap_name)` 经 PIL 取到 ZAP，否则直接返回 `-ENODEV`/`-EPROBE`。
+本机 FDT 有 `gfx3d_secure`，所以这条路径是必经的。
+
+而 `adreno_set_unsecured_mode()` 在没有 ZAP 时会走
+`RBBM_SECVID_TRUST_CONTROL = 0` 的兜底分支——那是**关掉安全校验**，不是满足它。
+为了"让它能启动"而走这条分支，等于绕过安全固件，明确不做。
+
+`cepheus_cp_unsecure_gate.h` 因此把前置条件显式化并**无条件拒绝兜底分支**：
+`wants_trust_control_fallback` 无论其他条件如何都返回
+`CE_CP_UNHALT_FALLBACK_FORBIDDEN`；有安全 CB 但无 PAS 认证的 ZAP 时返回
+`CE_CP_UNHALT_ZAP_NOT_LOADED`；其余 `instr_base`/`ring`/`ME_INIT` 缺失各自有
+独立拒绝码。该模块不执行任何写操作，也不授予权限——它只保证"没有 ZAP/PAS
+就绝不清 SQE halt"这一条在代码里无法被绕过。
+
+结论：**ZAP/PAS 可信加载是本移植 GPU 执行的硬阻塞点**，不是可选的完善项。
+
 `a6xx_start` 在 GBIF 之后调用 `a6xx_hwcg_set(adreno_dev, true)`。A640 走默认分支
 （非 a612/a615），顺序为：
 
