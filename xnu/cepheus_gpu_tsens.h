@@ -4,6 +4,8 @@
  * and excludes TSENS reinitialization; no threshold/calibration/recovery writes.
  * Both valid bits are required: unlike downstream fallback, repeated invalid
  * readings are NOT accepted just because their numeric codes agree.
+ * sampled_ns timestamps CPU observation, not a hardware conversion counter.
+ * lease must guarantee ongoing conversion/clock health; valid alone can't.
  */
 #ifndef CEPHEUS_GPU_TSENS_H
 #define CEPHEUS_GPU_TSENS_H
@@ -51,6 +53,8 @@ static inline int ceph_gpu_tsens_sample(void *ctx,struct ceph_gpu_temperature *o
         if(enabled==UINT32_MAX || !(enabled&1) || !(enabled&(1u<<(sensor+3))))return -1;
         uint32_t ready=m->tm[i][0xe4/4];ceph_gpu_tsens_order();
         if(ready==UINT32_MAX || !(ready&8))return -1;
+        uint32_t faults=m->tm[i][0x14/4];ceph_gpu_tsens_order();
+        if(faults==UINT32_MAX || (faults&((1u<<31)|(1u<<sensor))))return -1;
         int value=0,valid=0;
         for(unsigned attempt=0;attempt<3 && !valid;++attempt) {
             if(m->lease(m->owner))return -1;
@@ -66,6 +70,8 @@ static inline int ceph_gpu_tsens_sample(void *ctx,struct ceph_gpu_temperature *o
         if(enabled==UINT32_MAX || !(enabled&1) || !(enabled&(1u<<((i?11:15)+3))))return -1;
         uint32_t ready=m->tm[i][0xe4/4];ceph_gpu_tsens_order();
         if(ready==UINT32_MAX || !(ready&8))return -1;
+        uint32_t faults=m->tm[i][0x14/4];ceph_gpu_tsens_order();
+        if(faults==UINT32_MAX || (faults&((1u<<31)|(1u<<(i?11:15)))))return -1;
     }
     if(m->lease(m->owner) || m->now_ns(m->owner,&end) ||
         end<start || end-start>100000000ULL)return -1;

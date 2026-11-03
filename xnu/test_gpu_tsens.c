@@ -17,6 +17,8 @@ int main(void)
     unsigned calls=h.calls;
     srot[1][1]=1;assert(ceph_gpu_tsens_sample(&m,&s)<0 && !s.valid_mask);srot[1][1]=1|(1u<<14);
     srot[0][1]=1u<<18;assert(ceph_gpu_tsens_sample(&m,&s)<0 && !s.valid_mask);srot[0][1]=1|(1u<<18);
+    ram[0][0x14/4]=1u<<31;assert(ceph_gpu_tsens_sample(&m,&s)<0 && !s.valid_mask && ram[0][0x14/4]==(1u<<31));ram[0][0x14/4]=0;
+    ram[1][0x14/4]=1u<<11;assert(ceph_gpu_tsens_sample(&m,&s)<0 && !s.valid_mask);ram[1][0x14/4]=0;
     for(unsigned fail=1;fail<=calls;++fail){h=(struct host){.step=1000,.fail=fail};assert(ceph_gpu_tsens_sample(&m,&s)<0 && !s.valid_mask);}
     h=(struct host){.step=1000};ram[0][0xdc/4]=400;assert(ceph_gpu_tsens_sample(&m,&s)<0 && !s.valid_mask);
     ram[0][0xdc/4]=(1u<<21)|0xf9c;assert(!ceph_gpu_tsens_sample(&m,&s) && s.gpuss0_mc==-10000);

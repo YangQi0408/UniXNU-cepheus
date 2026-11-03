@@ -302,6 +302,11 @@ TSENS采样补SROT+4的controller enable及对应sensor enable位，前后均检
 只读、不改变使能位。soc诊断仍只是单次温度样本而非完整热许可；实际热监督
 必须走完整sampler+lease。测试包括controller/sensor各自禁用的拒绝。
 
+TSENS24xx另检查TM0x14的watchdog bark(bit31)及所选sensor critical位，前后
+均拒绝且不清除中断。必须明确：sampled_ns是CPU观察时间，不是硬件转换计数；
+ready/valid无错误也不能独立证明转换器没冻结。真实平台lease须保证采样时钟/
+转换健康与独立超时监督，当前仍未具备这个真机证据。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
