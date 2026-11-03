@@ -14,6 +14,7 @@
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_upload_mmio.h"
 #include "cepheus_gpu_fault_mmio.h"
+#include "cepheus_qmp_connect.h"
 #include "gpu_config_fixture.h"
 #include "gpu_smmu_fixture.h"
 struct hw {
@@ -107,8 +108,14 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     return ceph_hfi_write(&h->fw_tx,ack,n);}
 static void failed(void *p,enum ceph_bringup_stage stage,int e){struct hw *h=p;assert(e && stage>=CE_BR_POWER);h->failed=1;}
 static int qnow(void *p,uint64_t *n){struct hw *h=p;
-    if(h->qirq){assert(h->qmp[32]==32 && !memcmp(h->qmp+33,"{class: gpu, res: acd, value: 1}",32));h->qmp[32]=0;h->qirq=0;h->qmp_notified=1;}
+    if(h->qirq && h->qmp[32]==32){assert(!memcmp(h->qmp+33,"{class: gpu, res: acd, value: 1}",32));h->qmp[32]=0;h->qirq=0;h->qmp_notified=1;}
     return now(p,n);}
+static int qpause(void *p){struct hw *h=p;
+    if(!h->qirq)return 0;
+    h->qirq=0;
+    if(h->qmp[9]==CE_QMP_UP)h->qmp[10]=CE_QMP_UP;
+    if(h->qmp[11]==CE_QMP_UP){h->qmp[5]=CE_QMP_UP;h->qmp[12]=CE_QMP_UP;}
+    return 0;}
 static int bind(void *p,struct ceph_gmu_bringup *s){struct hw *h=p;assert(h->s==s && s->power.state==CE_PWR_READY);if(h->mode==2)return -12;
     struct ceph_smmu_stream streams[16]={0};for(unsigned i=0;i<16;++i)streams[i].s2cr=2u<<16;
     assert(!ceph_smmu_gmu_plan(streams,16,2,3,8,5,4,s->workspace.table.pa,0,&s->backend.smmu_plan));
@@ -151,11 +158,14 @@ int ceph_test_bringup(const char *path,unsigned mode)
     assert(!ceph_gpu_config_build(&db,0x06040001,mode==8?0x20000000:0,&config));
     assert(!ceph_gpu_config_hfi(&config,0x20000001,&b->hfi));
     struct ceph_qmp_mmio qmp={.ram=h.qmp,.irq=&h.qirq,.ram_pa=0xc300000,.irq_pa=0x17c0000c,
-        .bytes=4096,.owner=&h,.lease=guard,.now_ns=qnow,.pause=guard,.release=end};
+        .bytes=4096,.owner=&h,.lease=guard,.now_ns=qnow,.pause=qpause,.release=end};
     if(mode==8) {
         h.qmp[0]=0x4d41494c;h.qmp[1]=1;
-        for(unsigned c=0;c<2;++c)for(unsigned i=0;i<4;++i)h.qmp[3+6*c+i]=0xffff;
+        for(unsigned c=0;c<2;++c)for(unsigned i=0;i<4;++i)h.qmp[3+6*c+i]=CE_QMP_DOWN;
+        h.qmp[3]=CE_QMP_UP;
         h.qmp[7]=64;h.qmp[8]=64;h.qmp[13]=128;h.qmp[14]=128;
+        struct ceph_qmp_connect connect={0};
+        assert(!ceph_qmp_connect_cold(&connect,&qmp) && connect.connected && connect.writes==4);
         assert(!ceph_qmp_mmio_bind(&qmp,1) && !ceph_qmp_mmio_ops(&qmp,&b->acd));
     }
     b->pdc_input=config.pdc;

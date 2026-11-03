@@ -8,13 +8,10 @@
 #include "cepheus_qmp_acd.h"
 struct ceph_qmp_descriptor {uint32_t words[16];};
 struct ceph_qmp_connection {struct ceph_qmp_layout tx,rx;};
-static inline int ceph_qmp_descriptor_decode(const struct ceph_qmp_descriptor *d,
+static inline int ceph_qmp_descriptor_layout(const struct ceph_qmp_descriptor *d,
     struct ceph_qmp_connection *out)
 {
     if(!d || !out || d->words[0]!=0x4d41494c || d->words[1]!=1 || d->words[2] || d->words[15])return -1;
-    /* ucore and mcore link_state/ack, ch_state/ack must ALL be connected. */
-    for(unsigned core=0;core<2;++core)for(unsigned i=0;i<4;++i)
-        if(d->words[3+6*core+i]!=0xffff)return -1;
     struct ceph_qmp_connection c={{d->words[14],d->words[13]},{d->words[8],d->words[7]}};
     const struct ceph_qmp_layout *layouts[]={&c.tx,&c.rx};
     for(unsigned i=0;i<2;++i) {
@@ -25,6 +22,15 @@ static inline int ceph_qmp_descriptor_decode(const struct ceph_qmp_descriptor *d
     if(c.tx.tx_bytes<36 || (c.tx.tx_offset<c.rx.tx_offset+c.rx.tx_bytes &&
         c.rx.tx_offset<c.tx.tx_offset+c.tx.tx_bytes))return -1;
     *out=c;return 0;
+}
+static inline int ceph_qmp_descriptor_decode(const struct ceph_qmp_descriptor *d,
+    struct ceph_qmp_connection *out)
+{
+    if(!d)return -1;
+    /* ucore and mcore link_state/ack, ch_state/ack must ALL be connected. */
+    for(unsigned core=0;core<2;++core)for(unsigned i=0;i<4;++i)
+        if(d->words[3+6*core+i]!=0xffff)return -1;
+    return ceph_qmp_descriptor_layout(d,out);
 }
 struct ceph_qmp_mmio {
     volatile uint32_t *ram,*irq;

@@ -33,6 +33,10 @@ _Static_assert(sizeof(struct mbox_desc)==64,"full descriptor");
 _Static_assert(offsetof(struct mbox_desc,ucore)==12,"ucore");
 _Static_assert(offsetof(struct mbox_desc,mcore)==36,"mcore");
 _Static_assert(offsetof(struct mbox_desc,reserved)==60,"reserved");
+_Static_assert(offsetof(struct mbox_desc,ucore)+offsetof(struct channel_desc,link_state_ack)==16,"host ucore link ACK");
+_Static_assert(offsetof(struct mbox_desc,ucore)+offsetof(struct channel_desc,ch_state_ack)==24,"host ucore channel ACK");
+_Static_assert(offsetof(struct mbox_desc,mcore)+offsetof(struct channel_desc,link_state)==36,"host mcore link");
+_Static_assert(offsetof(struct mbox_desc,mcore)+offsetof(struct channel_desc,ch_state)==44,"host mcore channel");
 int main(void) {
  struct mbox_desc d={.magic=0x4d41494c,.version=1,
   .ucore={0xffff,0xffff,0xffff,0xffff,64,64},.mcore={0xffff,0xffff,0xffff,0xffff,128,128}};

@@ -167,6 +167,20 @@ HFI整链的fault回调现通过真实只读适配器读取GMU+SMMU（required d
 运行，14场景通过ASan+UBSan；有意隔离保留backing所以关闭退出泄漏检查，
 这不构成“无保留分配”证明。新增MMIO地址源码对照也通过。
 
+### 受限QMP冷连接（离线实现，平台所有权仍缺）
+
+`cepheus_qmp_connect.h`补充原来仅支持已连接mailbox的缺口：只接收AOP已公布
+有效layout、remote link UP但所有local/两端channel与ACK为DOWN的冷态。
+仅写host拥有的ucore link ACK、mcore link、mcore channel、ucore channel ACK
+四字段，按link→channel等待remote ACK。不写远端ACK、不初始化/清除任何邮箱
+payload、不接管活动或半继承channel；未知mailbox layout不猜尺寸。
+
+总5秒+次数上限；peer先open再等本端ACK也能完成，不先等local ACK造成死锁。
+成功直接保留原外部租约给ACD发送器，失败后可能已有写入则terminal保留，
+不reset/断开重试。45组host回归、源码字段offsetof核对和bin1整链cold connect
+→ACD→GMU启动→退休已覆盖，全部仅在RAM上。真实共享AOP客户端仲裁、启动时
+可用冷态及映射生命周期仍未取得，不能自动在手机上调用此流程。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

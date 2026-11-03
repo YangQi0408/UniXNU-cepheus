@@ -4,6 +4,8 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_qmp_connect(struct ceph_qmp_connect *s,struct ceph_qmp_mmio *m)
+{ return ceph_qmp_connect_cold(s,m); }
 int cepheus_gpu_upload_mmio_bind(struct ceph_gmu_upload_mmio *m,struct ceph_gmu_upload *out)
 { return ceph_gmu_upload_mmio_bind(m,out); }
 int cepheus_gpu_fault_mmio_read(struct ceph_gpu_fault_mmio *m,struct ceph_gpu_fault_record *r)
