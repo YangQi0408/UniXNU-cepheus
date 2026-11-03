@@ -25,9 +25,8 @@ static inline int ceph_gpu_fault_mmio_validate(struct ceph_gpu_fault_mmio *m)
     if(m->domains&(CE_FAULT_DOMAIN_GMU|CE_FAULT_DOMAIN_GX)) {
         if(ceph_gmu_mmio_ready(m->gmu))return -1;
         if(m->domains&CE_FAULT_DOMAIN_GX) {
-            uint32_t gx;
             if(!m->gpu || ((uintptr_t)m->gpu&3u) || m->gpu_bytes!=0x40000 ||
-                ceph_gmu_mmio_load(m->gmu,0x1f8d0,&gx) || gx==UINT32_MAX || (gx&0xc0))return -1;
+                ceph_gmu_mmio_gx_access(m->gmu))return -1;
         }
     }
     if(m->domains&CE_FAULT_DOMAIN_SMMU) {

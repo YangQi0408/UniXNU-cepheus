@@ -107,4 +107,13 @@ static inline int ceph_gmu_mmio_fault(void *ctx)
         ao==UINT32_MAX || hfi==UINT32_MAX)return -1;
     return (ao&0x29u) || (hfi&(1u<<15))?-1:0;
 }
+/* GX register preflight under externally held keepalive: GX/SPTP power+clocks
+ * on and AHB fence ALLOW. Never force the fence open or wake GX here. */
+static inline int ceph_gmu_mmio_gx_access(struct ceph_gmu_mmio *m)
+{
+    uint32_t state,fence;
+    if(ceph_gmu_mmio_load(m,0x1f8d0,&state) || state==UINT32_MAX || (state&0xd4u) ||
+        ceph_gmu_mmio_load(m,0x23b10,&fence) || fence)return -1;
+    return 0;
+}
 #endif

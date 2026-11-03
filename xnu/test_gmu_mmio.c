@@ -19,6 +19,12 @@ int main(void)
     assert(ceph_gmu_mmio_oob_write(&m,CE_OOB_G2H_CLEAR,1)<0);
     assert(!ceph_gmu_mmio_hfi_notify(&m) && aperture[0x1f994-0x1a800]==1);
     assert(!ceph_gmu_mmio_fault(&m));aperture[0x23b05-0x1a800]=1;assert(ceph_gmu_mmio_fault(&m)<0);
+    assert(!ceph_gmu_mmio_gx_access(&m));
+    for(unsigned bit=2;bit<=7;++bit)if((1u<<bit)&0xd4u) {
+        aperture[0x1f8d0-0x1a800]=1u<<bit;assert(ceph_gmu_mmio_gx_access(&m)<0);
+    }
+    aperture[0x1f8d0-0x1a800]=0;aperture[0x23b10-0x1a800]=2;
+    assert(ceph_gmu_mmio_gx_access(&m)<0 && aperture[0x23b10-0x1a800]==2);
     blocked=1;assert(ceph_gmu_mmio_start_write(&m,CE_GMU_SYSRESET,0)<0);
     blocked=0;m.bytes=0x1000;assert(ceph_gmu_mmio_hfi_notify(&m)<0);
     puts("GMU MMIO: shared aperture offsets, exact boot/OOB/HFI values, status-write rejection and lease gates PASS (RAM)");

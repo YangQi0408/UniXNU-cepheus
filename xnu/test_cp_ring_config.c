@@ -31,6 +31,8 @@ int main(void)
     init(&h,&g,&s);gpu[0x842]=0;assert(ceph_cp_ring_configure_halted(&s)<0 && !s.writes);
     init(&h,&g,&s);gpu[0x860]^=1;assert(ceph_cp_ring_configure_halted(&s)<0 && !s.writes);
     init(&h,&g,&s);gmu[0x1f8d0-0x1a800]=0xc0;assert(ceph_cp_ring_configure_halted(&s)<0 && !s.writes);
+    init(&h,&g,&s);gmu[0x1f8d0-0x1a800]=4;assert(ceph_cp_ring_configure_halted(&s)<0 && !s.writes);
+    init(&h,&g,&s);gmu[0x23b10-0x1a800]=1;assert(ceph_cp_ring_configure_halted(&s)<0 && !s.writes && gmu[0x23b10-0x1a800]==1);
     init(&h,&g,&s);s.input.sqe_va=s.input.ring_va;assert(ceph_cp_ring_configure_halted(&s)<0 && !h.calls);
     init(&h,&g,&s);s.input.sqe_va=(1ULL<<40)-4096;assert(ceph_cp_ring_configure_halted(&s)<0);
     init(&h,&g,&s);s.input.rptr_bytes=1;assert(ceph_cp_ring_configure_halted(&s)<0);

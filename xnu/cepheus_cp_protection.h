@@ -13,8 +13,7 @@ static inline int ceph_cp_halted_window(struct ceph_gmu_mmio *gmu,volatile uint3
 {
     if(!gpu || ((uintptr_t)gpu&3u) || bytes!=0x40000 || !lease || lease(owner) ||
         ceph_gmu_mmio_ready(gmu) || ceph_gmu_mmio_fault(gmu))return -1;
-    uint32_t gx;
-    if(ceph_gmu_mmio_load(gmu,0x1f8d0,&gx) || gx==UINT32_MAX || (gx&0xc0))return -1;
+    if(ceph_gmu_mmio_gx_access(gmu))return -1;
     uint32_t halt=gpu[0x808],fault=gpu[0x823];ceph_gmu_mmio_barrier();
     return halt==UINT32_MAX || !(halt&2) || fault?-1:0;
 }

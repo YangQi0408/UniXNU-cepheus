@@ -40,8 +40,7 @@ static inline int ceph_cp_ring_config_ready(struct ceph_cp_ring_config *s)
 {
     if(!s || !s->gpu || ((uintptr_t)s->gpu&3u) || s->bytes!=0x40000 || !s->lease ||
         !s->publish || !s->finish || s->lease(s->owner) || ceph_gmu_mmio_ready(s->gmu) || ceph_gmu_mmio_fault(s->gmu))return -1;
-    uint32_t gx;
-    if(ceph_gmu_mmio_load(s->gmu,0x1f8d0,&gx) || gx==UINT32_MAX || (gx&0xc0))return -1;
+    if(ceph_gmu_mmio_gx_access(s->gmu))return -1;
     uint32_t halt=s->gpu[0x808],fault=s->gpu[0x823];ceph_gmu_mmio_barrier();
     return halt==UINT32_MAX || !(halt&2) || fault?-1:0;
 }

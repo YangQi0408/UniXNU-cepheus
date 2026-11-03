@@ -341,6 +341,11 @@ Clang静态分析覆盖6个生产C单元及真实内存池C++（host IOKit替身
 测试通过。`scripts/analyze-gpu-host.py`把任何分析warning/error作为失败，
 修正后7单元无告警；静态分析仍不证明内核ABI、竞态或硬件安全。
 
+GX寄存器访问预检新增实际SPTP power-off/clock-off位(bit2/4)以及GX bit6/7，
+并要求AO_AHB_FENCE_CTRL为ALLOW0。CP保护/核心子集/快照/ring配置与GX故障读取
+均复用它；任何阻塞均拒绝，不强制打开fence或唤醒GX。已有外部OOB/所有权仍
+不可省略；此预检不是新的资源租约。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，
