@@ -258,6 +258,65 @@ static void gpu_fuse_probe(void)
 	printf("CEPHEUS GPU BIN: bin=%u gx_levels=%u lm=%u acd=%u throttle=%#x (read-only, no GPU enable)\n",
 	    policy.bin,policy.gx_levels,policy.lm,policy.acd,policy.throttle_mask);
 }
+/* Read-only GX/CP halted-window snapshot. Never writes, never clears, never
+ * unhalts. Requires the same GMU-accessible precondition as the GMU dump, plus
+ * the GX power/clock and AHB-fence checks, so a powered-down GX reports
+ * "not readable" instead of returning reset-value garbage as fact. */
+static void gpu_gx_probe(void)
+{
+	vm_offset_t gcc = ml_io_map(0x00100000, 0x90000);
+	if (!gcc) { printf("CEPHEUS GPU GX: GCC map failed\n"); return; }
+	uint32_t ahb = sr(gcc, CE_GPU_GCC_CFG);
+	if (!ceph_gpu_branch_active(ahb)) {
+		printf("CEPHEUS GPU GX: CFG_AHB unavailable; GX not read\n"); return;
+	}
+	vm_offset_t cc = ml_io_map(0x02c90000, 0x9000);
+	if (!cc) { printf("CEPHEUS GPU GX: GPUCC map failed\n"); return; }
+	struct ceph_gpu_power_snapshot power = {
+	    .cx_gdscr = sr(cc, 0x106c), .cx_hw = sr(cc, CE_GPU_CX_HW_CTRL),
+	    .gx_gdscr = sr(cc, 0x100c), .cfg = ahb, .ahb = sr(cc, CE_GPU_AHB_CBCR),
+	    .gmu = sr(cc, 0x1098), .cxo = sr(cc, CE_GPU_CXO_CBCR),
+	    .rcg = sr(cc, CE_GPU_GMU_CMD), .ddr = sr(gcc, CE_GPU_GCC_DDR),
+	    .memnoc = sr(gcc, CE_GPU_GCC_MEMNOC), .dvm = sr(gcc, CE_GPU_GCC_DVM),
+	};
+	if (ceph_gpu_gmu_blockers(&power)) {
+		printf("CEPHEUS GPU GX: GMU not powered/clocked; GX not read\n"); return;
+	}
+	vm_offset_t gmu = ml_io_map(0x02c6a000, 0x30000);
+	if (!gmu) { printf("CEPHEUS GPU GX: GMU map failed\n"); return; }
+	/* Same gates the production GX window uses: GX/SPTP power+clock on
+	 * (status bits clear) and AHB fence in ALLOW (reads 0). */
+	uint32_t state = sr(gmu, 0x1f8d0 * 4 - 0x6a000);
+	uint32_t fence = sr(gmu, 0x23b10 * 4 - 0x6a000);
+	if (state == UINT32_MAX || fence == UINT32_MAX) {
+		printf("CEPHEUS GPU GX: GMU aperture unreadable\n"); return;
+	}
+	if (state & 0xd4u) {
+		printf("CEPHEUS GPU GX: SPTPRAC_PWR_CLK=%#x (GX not powered/clocked); GX not read\n", state);
+		return;
+	}
+	if (fence) {
+		printf("CEPHEUS GPU GX: AHB_FENCE=%#x (not ALLOW); GX not read\n", fence);
+		return;
+	}
+	vm_offset_t gx = ml_io_map(0x02c00000, 0x40000);
+	if (!gx) { printf("CEPHEUS GPU GX: GX aperture map failed\n"); return; }
+	/* Read-only: CP halt/fault, ring/SQE addresses, protection control and the
+	 * 64-bit address-mode words. Nothing here is a write or a clear. */
+	printf("CEPHEUS GPU GX: CP_HALT=%#x CP_FAULT=%#x PROTECT_CNTL=%#x RING=%#x/%#x SQE=%#x/%#x\n",
+	    sr(gx, 0x808), sr(gx, 0x823), sr(gx, 0x84f), sr(gx, 0x800), sr(gx, 0x801),
+	    sr(gx, 0x830), sr(gx, 0x831));
+	uint32_t modes = 0;
+	static const uint32_t mode_words[] = {0x842, 0xc01, 0x8601, 0x8e05, 0x9e01, 0xbe05,
+	    0xa601, 0x9601, 0xe00, 0xae01, 0xb601, 0xf810};
+	for (unsigned i = 0; i < 12; ++i) {
+		uint32_t v = sr(gx, mode_words[i]);
+		modes |= (v & 1u) ? (1u << i) : 0u;
+	}
+	printf("CEPHEUS GPU GX: addr_mode_mask=%#x (0xfff means all 64-bit) UCHE_TRAP=%#x/%#x GMEM=%#x/%#x\n",
+	    modes, sr(gx, 0xe09), sr(gx, 0xe0a), sr(gx, 0xe0b), sr(gx, 0xe0d));
+	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
+}
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
@@ -267,6 +326,9 @@ static void soc_thread(void *arg, wait_result_t wr)
 	int fuse=0;
 	PE_parse_boot_argn("cephfuse",&fuse,sizeof(fuse));
 	if(fuse==1) {gpu_fuse_probe();}
+	int gxprobe=0;
+	PE_parse_boot_argn("cephgx",&gxprobe,sizeof(gxprobe));
+	if(gxprobe==1) {gpu_gx_probe();}
 	int arc = 0;
 	PE_parse_boot_argn("cepharc", &arc, sizeof(arc));
 	if (arc == 1) { cepheus_gpu_arc_probe(); }

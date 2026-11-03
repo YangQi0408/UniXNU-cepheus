@@ -31,6 +31,19 @@ class LogTests(unittest.TestCase):
             self.assertEqual(diag.report(SAMPLE.replace(line,'',1))['result'],'INCOMPLETE')
 
     def test_fault_conflict_and_host_rejected(self):
+        # GX probe: an explicit request must yield either a read or a documented
+        # refusal; a refusal alone is a safe outcome and stays acceptable.
+        refused=SAMPLE+'cephgx=1\nCEPHEUS GPU GX: AHB_FENCE=0x1 (not ALLOW); GX not read\n'
+        self.assertEqual(diag.report(refused)['result'],'READONLY_EVIDENCE_COMPLETE')
+        read=SAMPLE+'cephgx=1\nCEPHEUS GPU GX: CP_HALT=0x3 CP_FAULT=0x0 PROTECT_CNTL=0xb RING=0xfc000000/0x0 SQE=0xfc020000/0x0\n'
+        self.assertEqual(diag.report(read)['result'],'READONLY_EVIDENCE_COMPLETE')
+        # Requested but silent, a faulted CP, and a read+refusal contradiction
+        # must never be accepted.
+        self.assertEqual(diag.report(SAMPLE+'cephgx=1\n')['result'],'INCOMPLETE')
+        faulted=SAMPLE+'cephgx=1\nCEPHEUS GPU GX: CP_HALT=0x3 CP_FAULT=0x1 PROTECT_CNTL=0xb RING=0x0/0x0 SQE=0x0/0x0\n'
+        self.assertEqual(diag.report(faulted)['result'],'REJECTED')
+        both=refused+'CEPHEUS GPU GX: CP_HALT=0x3 CP_FAULT=0x0 PROTECT_CNTL=0xb RING=0x0/0x0 SQE=0x0/0x0\n'
+        self.assertEqual(diag.report(both)['result'],'REJECTED')
         for bad in (SAMPLE.replace('release=0 state=3','release=-1 state=4'),
                     SAMPLE.replace('gpuss1_mc=41000','gpuss1_mc=60000'),
                     SAMPLE+'CEPHEUS GPU BIN: bin=0 gx_levels=8 lm=0 acd=0 throttle=0x80\n',

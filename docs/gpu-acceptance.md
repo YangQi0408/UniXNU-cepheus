@@ -839,6 +839,23 @@ OOB keepalive实现仅支持GPU请求0，按实际HFI version branch选择旧/�
 
 ### oob_gpu keepalive 与 H2F_MSG_START（A640 GX 启动前置）
 
+### 只读 GX halted-window 诊断开关（`cephgx=1`）
+
+真机目前没有任何手段在不写电源的前提下采集 GX 侧真实读数。新增
+`--gpu-gx-probe` / `cephgx=1`，严格只读：
+
+读前必须同时满足 `CFG_AHB` 有效、GMU 已供电/上时钟、`SPTPRAC_PWR_CLK` 的
+power/clock 位为 0、`AHB_FENCE` 为 ALLOW(0)；任一不满足就打印“GX not read”
+并停止，不把复位值当事实。满足后只读 `CP_HALT`/`CP_FAULT`/`PROTECT_CNTL`、
+ring/SQE 高低半、12 个 64 位地址模式位、UCHE trap/GMEM 范围。
+**没有写、没有清、没有解除 halt、没有提交。**
+
+日志检查器新增 `gx-halted-window` 项，四种结局互斥：未请求
+(`NOT_REQUESTED`，不算缺口)、安全拒绝、读到且 CP fault 为 0、以及
+“请求了却什么都没有”/“读到但 CP fault 非 0”/“拒绝与读到同时出现”分别记为
+MISSING/FAILED/CONFLICT。拒绝本身被视为安全结果，读取到的内容也**不是**写权限。
+读取门限另有独立单元测试（55 个 host 程序）。真机未验证。
+
 源码 `_adreno_start()` 的顺序是：`kgsl_mmu_start` → `oob_set(oob_gpu)` →
 `hfi_start_msg()` → 才写 GX 寄存器；A640/A680 的 `a6xx_gmu_hfi_start_msg()`
 实际发送 `H2F_MSG_START`(id10，4字节纯 header)。此前本移植只有 HFI boot 和
