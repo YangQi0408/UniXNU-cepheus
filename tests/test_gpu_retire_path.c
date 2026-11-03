@@ -8,34 +8,35 @@
 #include "cepheus_gmu_park.h"
 #include "cepheus_smmu_detach.h"
 #include "cepheus_gmu_hfi_link.h"
+#include "cepheus_gmu_retire_mmio.h"
 struct fake {
     struct ceph_hfi_queue tx,rx,fw_rx,fw_tx;
     uint32_t tr,tw,rr,rw;
-    uint32_t gx,state,reset,halt;
+    uint32_t gmu_ram[0x30000/4],gpu_ram[0x40000/4];
+    struct ceph_gmu_mmio gmu;
+    struct ceph_gmu_park_mmio park;
     uint64_t smmu[CE_SM_REG_COUNT],time;
     unsigned phase,mode,notifies,detached;
 };
 static int okay(void *p){(void)p;return 0;}
-static int now(void *p,uint64_t *t){struct fake *f=p;f->time+=10000;*t=f->time;return 0;}
+static int now(void *p,uint64_t *t){struct fake *f=p;f->time+=10000;*t=f->time;
+    if(f->gpu_ram[0x3c45]&2)f->gpu_ram[0x3c46]|=2;
+    return 0;}
 static int notify(void *p){struct fake *f=p;uint32_t cmd[3];unsigned n;
     assert(!ceph_hfi_read(&f->fw_rx,cmd,3,&n));
     if((cmd[0]&255)==1){uint32_t version[]={ceph_hfi_header(1,4,1,0),cmd[0],0,0x20000042};assert(!ceph_hfi_write(&f->fw_tx,version,4));return 0;}
     assert(n==3 && (cmd[0]&255)==33);++f->notifies;
     uint32_t ack[]={ceph_hfi_header(33,3,1,0),cmd[0],f->mode==2?1u:0u};
-    assert(!ceph_hfi_write(&f->fw_tx,ack,3));f->state=15;f->gx=0xc0;return 0;}
+    assert(!ceph_hfi_write(&f->fw_tx,ack,3));f->gmu_ram[0x1f8ec-0x1a800]=15;f->gmu_ram[0x1f8d0-0x1a800]=0xc0;return 0;}
 static int slbegin(void *p){struct fake *f=p;f->phase=1;return f->mode==1?-1:0;}
-static int slread(void *p,enum ceph_slumber_reg r,uint32_t *v){struct fake *f=p;
-    *v=r==CE_SL_RPMH_POWER_STATE?f->state:r==CE_SL_GX_STATUS?f->gx:0;return 0;}
-static int slwrite(void *p,enum ceph_slumber_reg r,uint32_t v){(void)p;assert(r==CE_SL_POWER_COUNTER_ENABLE && !v);return 0;}
+static int slread(void *p,enum ceph_slumber_reg r,uint32_t *v){return ceph_gmu_mmio_slumber_read(&((struct fake *)p)->gmu,r,v);}
+static int slwrite(void *p,enum ceph_slumber_reg r,uint32_t v){return ceph_gmu_mmio_slumber_write(&((struct fake *)p)->gmu,r,v);}
 static void slend(void *p,int done){struct fake *f=p;if(done)f->phase=2;}
 static int pkbegin(void *p){struct fake *f=p;assert(f->phase==2);return f->mode==3?-1:0;}
-static int pkread(void *p,enum ceph_gmu_park_reg r,uint32_t *v){struct fake *f=p;
-    *v=r==CE_PARK_GX_STATUS?f->gx:r==CE_PARK_SYSRESET?f->reset:
-        (r==CE_PARK_GBIF_ACK||r==CE_PARK_GBIF_HALT)?f->halt:1;return 0;}
-static int pkwrite(void *p,enum ceph_gmu_park_reg r,uint32_t v){struct fake *f=p;
-    if(r==CE_PARK_SYSRESET)f->reset=v;else if(r==CE_PARK_GBIF_HALT)f->halt=v;else assert(0);return 0;}
+static int pkread(void *p,enum ceph_gmu_park_reg r,uint32_t *v){return ceph_gmu_mmio_park_read(&((struct fake *)p)->park,r,v);}
+static int pkwrite(void *p,enum ceph_gmu_park_reg r,uint32_t v){return ceph_gmu_mmio_park_write(&((struct fake *)p)->park,r,v);}
 static void pkend(void *p,int done){struct fake *f=p;if(done)f->phase=3;}
-static int dtbegin(void *p,const struct ceph_smmu_plan *plan){struct fake *f=p;assert(f->phase==3 && f->reset==1 && f->halt==2 && plan->cb==3);return 0;}
+static int dtbegin(void *p,const struct ceph_smmu_plan *plan){struct fake *f=p;assert(f->phase==3 && f->gmu_ram[0x1f800-0x1a800]==1 && f->gpu_ram[0x3c45]==2 && plan->cb==3);return 0;}
 static int dtread(void *p,enum ceph_smmu_reg r,uint64_t *v){struct fake *f=p;*v=f->smmu[r];return 0;}
 static int dtwrite(void *p,enum ceph_smmu_reg r,uint64_t v){struct fake *f=p;f->smmu[r]=v;return f->mode==4?-1:0;}
 static int delayus(void *p,unsigned u){(void)p;assert(u==1);return 0;}
@@ -55,7 +56,11 @@ int ceph_test_retire_path(unsigned mode)
     assert(!cepheus_gmu_workspace_share(&w,&plan) && w.state==CE_WS_SHARED && w.leased==CE_GPU_WORKSPACE_VIEWS);
     assert(cepheus_gpu_memory_release_cpu(w.handles[0])<0 && cepheus_gpu_memory_view_put(w.handles[0])<0);
     assert(cepheus_gpu_memory_view_get(w.handles[0],&extra)<0);
-    struct fake f={.mode=mode};struct ceph_gmu_hfi_link link={0};
+    static struct fake f;f.mode=mode;struct ceph_gmu_hfi_link link={0};
+    f.gmu=(struct ceph_gmu_mmio){(volatile uint8_t *)f.gmu_ram,sizeof(f.gmu_ram),w.layout.start,0x20000001,&f,okay};
+    f.park=(struct ceph_gmu_park_mmio){&f.gmu,f.gpu_ram,sizeof(f.gpu_ram),&f,okay};
+    const uint32_t tcs[]={0x23746,0x237ee,0x23896,0x2393e};
+    for(unsigned i=0;i<4;++i)f.gmu_ram[tcs[i]-0x1a800]=1;
     struct ceph_gmu_hfi_transport transport={&f,okay,notify,now,okay,okay};
     assert(!cepheus_gmu_hfi_bind(&link,&w,&transport));
     f.fw_rx=link.tx;f.fw_rx.io=(struct ceph_hfi_ops){&f,okay,okay,okay,okay};

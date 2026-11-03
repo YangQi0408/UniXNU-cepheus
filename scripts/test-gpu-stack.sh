@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-for name in fts_events i2c_bitbang soc cpu_policy a640_pm4 gmu_firmware gpu_config qmp_mmio \
+for name in fts_events i2c_bitbang soc cpu_policy a640_pm4 gmu_firmware gpu_config qmp_mmio gmu_retire_mmio \
     gpu_power gpu_power_txn gpu_memory_state gpu_firmware gpu_fault gpu_pdc gpu_thermal gmu_loader gmu_upload gmu_start gmu_park gmu_slumber gmu_oob gmu_mmio hfi hfi_messages hfi_session gpu_vm gpu_va smmu_plan smmu_geometry smmu_mmio smmu_install smmu_detach gpu_submit gpu_ring cp_init qmp_acd sqe arc bcm gpu_bw; do
     libs=()
     if [[ "$name" == gpu_firmware && $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
@@ -12,4 +12,4 @@ for name in fts_events i2c_bitbang soc cpu_policy a640_pm4 gmu_firmware gpu_conf
         "$root/xnu/test_${name}.c" -o "$tmp/$name" "${libs[@]}"
     "$tmp/$name"
 done
-echo '40 host test programs passed; no hardware backend or GPU execution validated'
+echo '41 host test programs passed; no hardware backend or GPU execution validated'

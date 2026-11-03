@@ -4,6 +4,14 @@
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+int cepheus_gpu_park_read(void *m,enum ceph_gmu_park_reg r,uint32_t *v)
+{ return ceph_gmu_mmio_park_read(m,r,v); }
+int cepheus_gpu_park_write(void *m,enum ceph_gmu_park_reg r,uint32_t v)
+{ return ceph_gmu_mmio_park_write(m,r,v); }
+int cepheus_gpu_slumber_read(void *m,enum ceph_slumber_reg r,uint32_t *v)
+{ return ceph_gmu_mmio_slumber_read(m,r,v); }
+int cepheus_gpu_slumber_write(void *m,enum ceph_slumber_reg r,uint32_t v)
+{ return ceph_gmu_mmio_slumber_write(m,r,v); }
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *m,unsigned enable,struct ceph_qmp_ops *out)
 { if(!out || ceph_qmp_mmio_bind(m,enable))return -1;return ceph_qmp_mmio_ops(m,out); }
 int cepheus_gpu_config_build(const struct ceph_arc_db *db,uint32_t chipid,uint32_t fuse,struct ceph_gpu_config *out)

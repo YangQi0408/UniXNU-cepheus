@@ -11,6 +11,7 @@ install -m 0644 "$here/cepheus_gpu_retire.c" "$here/cepheus_gpu_retire.h" "$here
 install -m 0644 "$here/cepheus_gmu_hfi_link.c" "$here/cepheus_gmu_hfi_link.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_mmio.h" "$here/cepheus_gpu_config.h" bsd/dev/
 install -m 0644 "$here/cepheus_qmp_mmio.h" bsd/dev/
+install -m 0644 "$here/cepheus_gmu_retire_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_bringup.c" "$here/cepheus_gmu_bringup.h" bsd/dev/
 for header in cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
     cepheus_arc.h cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h \

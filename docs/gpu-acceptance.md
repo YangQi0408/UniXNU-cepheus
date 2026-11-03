@@ -78,6 +78,20 @@ FDT的GMU `mboxes` phandle解析到AOP，MSG RAM=`0xc300000+0x1000`、通知寄�
 实际共享客户端仲裁和映射生命周期仍需真实XNU平台实现；descriptor稳定不能
 证明跨重启ABA或独占所有权，消费ACK也不等于AOP应用层ACD生效。
 
+### 退休路径具体寄存器接入
+
+`cepheus_gmu_retire_mmio.h`将slumber状态/故障和park四TCS/CM3 reset/GBIF
+连接到具名volatile读取/受限写入。GBIF位于独立GPU aperture的word0x3c45/46，
+不能用GMU aperture相对偏移访问。每次park操作检查真实RPMh状态15；reset还
+检查GX off与TCS全部排空，halt只允许保留其他位后OR2且reset必须已保持。
+真实协议完成仍由已有retire orchestrator保证，单独寄存器状态不是HFI ACK。
+
+原生产workspace退休host测试现在通过此具体适配器访问两块RAM，而非枚举到
+假状态值的快捷回调；全部成功/失败保留场景通过。41组host测试通过。平台的
+实际映射、资源持有和禁止新提交仍未实现，不会据此自动退电或释放未知DMA。
+配置版63adbf1的完整CI41561755541通过（kernel364448bd...）；权限修正版
+11f9ec1的CI41562697282通过（kernel4580d810...）。QMP/退休接入待后续CI。
+
 ## 当前结论
 
 目标是Mi 9/SM8150上的iOS16.7.16图形加速。**尚不能证明“理论完全可行”，

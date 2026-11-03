@@ -26,8 +26,13 @@
 #include "cepheus_smmu_mmio.h"
 #include "cepheus_gmu_oob.h"
 #include "cepheus_gmu_mmio.h"
+#include "cepheus_gmu_retire_mmio.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);
+int cepheus_gpu_park_read(void *,enum ceph_gmu_park_reg,uint32_t *);
+int cepheus_gpu_park_write(void *,enum ceph_gmu_park_reg,uint32_t);
+int cepheus_gpu_slumber_read(void *,enum ceph_slumber_reg,uint32_t *);
+int cepheus_gpu_slumber_write(void *,enum ceph_slumber_reg,uint32_t);
 int cepheus_gpu_hfi_boot(struct ceph_hfi_session *,const struct ceph_hfi_boot_config *,uint32_t *);
 int cepheus_gpu_upload(struct ceph_gmu_upload *,const uint8_t *,size_t,struct ceph_gmu_block *,unsigned);
 int cepheus_gpu_smmu_install(struct ceph_smmu_install *,struct ceph_smmu_ops *,const struct ceph_smmu_plan *,uint32_t);
