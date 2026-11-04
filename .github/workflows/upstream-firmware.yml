@@ -1,6 +1,16 @@
 name: upstream-firmware-candidate
 on:
   workflow_dispatch:
+  # New workflows cannot be dispatched until present on the default branch.
+  # Keep the candidate isolated there too: only this development branch and
+  # firmware integration edits trigger the build, never a phone operation.
+  push:
+    branches: [feat/adreno640]
+    paths:
+      - .github/workflows/upstream-firmware.yml
+      - upstream-lock.json
+      - scripts/prepare-upstream-firmware.py
+      - scripts/build-firmware.py
 permissions:
   contents: read
 jobs:
