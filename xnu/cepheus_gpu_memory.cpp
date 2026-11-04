@@ -18,7 +18,17 @@ extern "C" {
 /* IOKitServer.h hides this bridge behind MACH_KERNEL_PRIVATE. Same ABI as
  * osfmk/device/iokit_rpc.c, which calls pmap_cache_attributes(pa>>PAGE_SHIFT). */
 unsigned int IODefaultCacheBits(addr64_t pa);
+/* Real pmap bounds: pa_valid() is exactly the window phystokv() accepts.
+ * Without this check a mask-derived allocation may land below gPhysBase and
+ * panic inside ml_static_vtop/phystokv_range. */
+extern pmap_paddr_t vm_first_phys;
+extern pmap_paddr_t vm_last_phys;
 }
+static inline bool ceph_pa_is_managed(uint64_t pa)
+{ return pa >= vm_first_phys && pa < vm_last_phys; }
+#else
+static inline bool ceph_pa_is_managed(uint64_t)
+{ return true; }
 #endif
 #include <sys/systm.h>
 #include "cepheus_gpu_memory.h"
@@ -104,10 +114,29 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     /* Mask encodes 40-bit host PA and 4KiB alignment. MapperNone prevents the
      * platform mapper silently returning someone else's IOVA as a CPU PA.
      * WriteCombine is Normal-NC on arm64; InhibitCache is Device memory and is
-     * deliberately NOT used for DRAM/shared HFI buffers. */
+     * deliberately NOT used for DRAM/shared HFI buffers.
+     *
+     * The mask must be derived from the ACTUAL pmap window, not a fixed
+     * constant. initWithPhysicalMask() takes alignment from the low zero run of
+     * the mask and treats the remaining set bits as an upper bound, so the old
+     * 0x000000fffffff000 only guaranteed 4KiB alignment plus "below 1TiB". On
+     * this platform gPhysBase sits above 4GiB, so an allocation could land below
+     * it and make phystokv()/ml_static_vtop() panic. Deriving the mask from
+     * vm_first_phys/vm_last_phys confines the allocator to the window the kernel
+     * can actually translate; the per-page check below stays as an independent
+     * second gate. */
+    uint64_t window_mask=0x000000fffffff000ULL;
+#if defined(KERNEL)
+    if(vm_last_phys>vm_first_phys) {
+        uint64_t highest=(vm_last_phys-1)&~(uint64_t)4095u;
+        uint64_t m=0x1000u;
+        while(m<=highest/2 && m<(1ULL<<52))m<<=1;
+        window_mask=(m-1u)&~(uint64_t)4095u;
+    }
+#endif
     b->memory=IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
         kIODirectionInOut|kIOMemoryHostPhysicallyContiguous|kIOMemoryMapperNone|
-        kIOMapWriteCombineCache,bytes,0x000000fffffff000ULL);
+        kIOMapWriteCombineCache,bytes,window_mask);
     if (!b->memory) {ceph_gpu_buffer_dispose_cpu(b);return -1;}
     if (b->memory->prepare(kIODirectionInOut)!=kIOReturnSuccess) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
@@ -130,6 +159,17 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
 #if defined(KERNEL)
+    /* Every 4KiB page of this buffer must live in the pmap-managed window, or a
+     * later cache/attribute operation would panic in phystokv(). Refuse rather
+     * than hand out a buffer the kernel cannot translate. */
+    for(size_t offset=0;offset<bytes;offset+=4096) {
+        if(!ceph_pa_is_managed(b->pa+offset)) {
+            printf("CEPHEUS GPU MEM: PA %#llx outside managed [%#llx,%#llx); allocation refused\n",
+                (unsigned long long)(b->pa+offset),(unsigned long long)vm_first_phys,
+                (unsigned long long)vm_last_phys);
+            ceph_gpu_buffer_dispose_cpu(b);return -1;
+        }
+    }
     /* Attribute options describe the request; independently verify pmap's
      * effective host-page cache attributes before exposing any shared view.
      * Never repair this by forcing attributes on an unowned physical page. */
