@@ -139,8 +139,9 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
      * express this lower bound, so the check has to be here. */
     if(!b->pa || (b->pa&(host_page-1)) || length<bytes || b->memory->getLength()!=bytes ||
         !cepheus_gpu_pa_range_managed(b->pa,bytes,vm_first_phys,vm_last_phys)) {
-        printf("CEPHEUS GPU MEM: PA %#llx+%#lx outside managed [%#llx,%#llx); refused before mapping\n",
+        printf("CEPHEUS GPU MEM: backing invalid pa=%#llx bytes=%#lx segment=%#lx host_page=%#lx managed=[%#llx,%#llx); refused before mapping\n",
             (unsigned long long)b->pa,(unsigned long)bytes,
+            (unsigned long)length,(unsigned long)host_page,
             (unsigned long long)vm_first_phys,(unsigned long long)vm_last_phys);
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }

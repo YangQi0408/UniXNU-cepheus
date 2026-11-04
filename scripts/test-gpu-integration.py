@@ -77,6 +77,16 @@ class Integration(unittest.TestCase):
         self.assertIn('IODefaultCacheBits(b->pa+offset)&VM_WIMG_MASK', source)
         self.assertIn('if(attrs!=VM_WIMG_WCOMB)', source)
 
+    def test_pa_validation_precedes_cache_transition(self):
+        source = (ROOT / 'xnu/cepheus_gpu_memory.cpp').read_text()
+        source = re.sub(r'/\*.*?\*/|//[^\n]*', '', source, flags=re.S)
+        allocation = source.split('b->memory=IOBufferMemoryDescriptor::inTaskWithPhysicalMask', 1)[1].split(';', 1)[0]
+        self.assertNotIn('kIOMapWriteCombineCache', allocation)
+        self.assertNotIn('kIOMemoryPersistent', allocation)
+        self.assertLess(source.index('cepheus_gpu_pa_window_mask('), source.index('inTaskWithPhysicalMask('))
+        self.assertLess(source.index('cepheus_gpu_pa_range_managed('), source.index('createMappingInTask('))
+        self.assertNotIn('0x000000fffffff000', source)
+
     def test_wrappers_compile_without_runtime_backend(self):
         with tempfile.TemporaryDirectory() as directory:
             subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-c',

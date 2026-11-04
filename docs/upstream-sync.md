@@ -55,3 +55,29 @@
 已执行：所有候选 patch 无拒绝适配、DarwinBoot 生产解析器 host 测试、
 tree refresh 回归和 Python语法检查。内核和固件各有独立 CI；以运行记录为准，
 不能把排队、源码检查或 FD生成写成手机启动成功。升级基线仍需真机授权验收。
+
+### 本轮构建证据
+
+- 固件 CI `41865748773` @`723adcd`：**success**，全部构建与上传步骤完成。
+  FD为3145728字节，SHA256
+  `2cbd61c65e3e9b52b749f03f8264cdebbc99431ac533b8677875941ccf812ce0`。
+  下载到 `../inputs/upstream-firmware-41865748773/`，SHA256SUMS验证成功；
+  日志在 `../logs/upstream-firmware-41865748773/`。
+- 本地同版本候选在 `cepheus-build:latest`、`--network none` 容器构建成功，
+  FD同为3MiB，SHA256
+  `ed10dc68dd8983467f1e71e746e04f6aa7b6b611939e58b007fa95afb1a7907b`。
+  产物在 `../upstream-sync/uefi/Build/SurfaceDuo1Pkg/RELEASE_CLANGPDB/FV/`。
+  两个不同环境的FD摘要不同，不作bit-reproducible声明；均未启动。
+- Mu CryptoBin v1.1.3 zip实取SHA256
+  `2136c410dc44135830e2e33062243563d642e0be868d6affc2930c6b0854f5cf`，
+  新候选workflow在解包前检查。并非下载一个不同版本的crypto实现。
+- 本地构建含既有SMBIOS initializer和LibraryClass警告，且沿用旧的
+  `relax_clang.py` 标志；不能将构建成功描述为无警告或运行安全审查通过。
+- 两个只读子代理在30分钟上限超时，无改动，也无完整报告。本轮不能声称
+  独立审查通过。父会话已直接复核相关代码与实际构建。
+- 内核CI `41864232115`：runner未分配，注释
+  `The job was not acquired by Runner of type hosted even after multiple attempts`。
+  这不是新补丁编译错误；后续 `41868192751` 是单次重试，不无限派队列。
+- 离线receipt：`../logs/gpu-offline-20261105-sync/receipt.json` @`723adcd`，
+  **19项PASS、零SKIP**，包含60个host程序、23个真实固件fixture模拟场景、
+  ASan/UBSan和7生产单元静态分析。私有fixture仅本地，未进公共CI。
