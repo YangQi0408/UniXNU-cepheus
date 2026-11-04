@@ -20,9 +20,12 @@ extern "C" {
 unsigned int IODefaultCacheBits(addr64_t pa);
 /* Real pmap bounds: pa_valid() is exactly the window phystokv() accepts.
  * Without this check a mask-derived allocation may land below gPhysBase and
- * panic inside ml_static_vtop/phystokv_range. */
-extern pmap_paddr_t vm_first_phys;
-extern pmap_paddr_t vm_last_phys;
+ * panic inside ml_static_vtop/phystokv_range.
+ * Declared with the underlying 64-bit integer type: pmap_paddr_t is not visible
+ * in this translation unit (it lives in the pmap-private headers, which this
+ * file must not pull in), and the symbols really are 64-bit addresses. */
+extern uint64_t vm_first_phys;
+extern uint64_t vm_last_phys;
 }
 static inline bool ceph_pa_is_managed(uint64_t pa)
 { return pa >= vm_first_phys && pa < vm_last_phys; }
