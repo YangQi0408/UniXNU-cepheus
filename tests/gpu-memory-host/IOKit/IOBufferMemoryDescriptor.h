@@ -5,15 +5,27 @@
 #include <cstdlib>
 #include <cstring>
 #include <mach/vm_param.h>
+#include <vm/memory_types.h>
+#include "cepheus_gpu_memory.h"
 /* Test double for the IOKit allocator ONLY. Actual production .cpp is compiled
  * and linked into this host executable, not reimplemented. No GPU simulated. */
 namespace mock_io {
 inline std::atomic<unsigned> live{0},prepared{0},released{0};
 inline std::atomic<unsigned> maps{0},raw_views{0};
+inline std::atomic<unsigned> map_calls{0},cache_queries{0},alloc_calls{0};
 inline std::atomic<uint64_t> next_pa{0x120000000ULL};
 inline std::atomic<int> fail_alloc{0},fail_prepare{0},fail_complete{0},bad_segment{0};
 inline std::atomic<int> fail_map{0},bad_cache{0};
+inline std::atomic<int> bad_pmap_cache{0};
 inline void (*after_allocate)()=nullptr; /* deterministic outside-pool-lock fault injection */
+}
+extern "C" {
+inline uint64_t vm_first_phys=0x101004000ULL,vm_last_phys=0x1c1004000ULL;
+inline unsigned int IODefaultCacheBits(addr64_t pa) {
+    assert(cepheus_gpu_pa_range_managed(pa,page_size,vm_first_phys,vm_last_phys));
+    ++mock_io::cache_queries;
+    return mock_io::bad_pmap_cache?0:VM_WIMG_WCOMB;
+}
 }
 class IOMemoryMap {
     void *mapped;size_t length;unsigned options;
@@ -30,8 +42,10 @@ class IOBufferMemoryDescriptor {
     void *memory=nullptr;size_t length=0;bool wired=false;uint64_t pa=0;
 public:
     static IOBufferMemoryDescriptor *inTaskWithPhysicalMask(void *,unsigned options,size_t bytes,uint64_t mask){
-        assert(options==(kIODirectionInOut|kIOMemoryHostPhysicallyContiguous|kIOMemoryMapperNone|kIOMapWriteCombineCache));
-        assert(mask==0x000000fffffff000ULL);
+        /* Cache flags here would change attributes BEFORE production checks. */
+        assert(options==(kIODirectionInOut|kIOMemoryHostPhysicallyContiguous|kIOMemoryMapperNone));
+        assert(mask && mask==cepheus_gpu_pa_window_mask(vm_first_phys,vm_last_phys,page_size));
+        ++mock_io::alloc_calls;
         if(mock_io::fail_alloc)return nullptr;
         auto *p=new IOBufferMemoryDescriptor;
         assert(!(bytes&(page_size-1)));
@@ -48,6 +62,8 @@ public:
     }
     void *getBytesNoCopy(){++mock_io::raw_views;return memory;}
     IOMemoryMap *createMappingInTask(void *,uint64_t address,unsigned flags,size_t offset,size_t bytes){
+        ++mock_io::map_calls;
+        assert(cepheus_gpu_pa_range_managed(pa,bytes,vm_first_phys,vm_last_phys));
         assert(wired && !address && !offset && bytes==length && flags==(kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache));
         return mock_io::fail_map?nullptr:new IOMemoryMap(bytes,flags);
     }

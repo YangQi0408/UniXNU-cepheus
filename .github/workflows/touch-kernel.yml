@@ -99,6 +99,7 @@ jobs:
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_firmware.c -o /tmp/gmu-test
           /tmp/gmu-test
           bash cepheus/scripts/test-gpu-sanitizers.sh
+          bash cepheus/scripts/test-gpu-stack.sh
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_config.c -o /tmp/ceph-config
           /tmp/ceph-config
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_qmp_mmio.c -o /tmp/ceph-qmp-mmio

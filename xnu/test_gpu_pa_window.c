@@ -26,5 +26,18 @@ int main(void)
     assert(!cepheus_gpu_pa_range_managed(UINT64_MAX-0x1000,0x2000,first,last));
     /* A zero-width window can never contain anything. */
     assert(!cepheus_gpu_pa_range_managed(0x1000,0x1000,0,0));
+    /* Decode exactly as IOBMD does; top must not expand past last and the
+     * requested alignment must not silently turn into a multi-MiB allocation. */
+    for(uint64_t top=first+0x8000;top<first+0x100000;top+=0x1000) {
+        uint64_t mask=cepheus_gpu_pa_window_mask(first,top,4096);
+        assert(mask);
+        uint64_t zeros=(~mask)&(mask-1);
+        assert(zeros+1==4096 && (mask|zeros)<top);
+    }
+    assert(cepheus_gpu_pa_window_mask(first,last,16384)==0x1c1003000ULL);
+    assert(!cepheus_gpu_pa_window_mask(first,last+1,16384));
+    assert(!cepheus_gpu_pa_window_mask(first,first,16384));
+    assert(!cepheus_gpu_pa_window_mask(first,last,8192));
+    assert(!cepheus_gpu_pa_window_mask(first,(1ULL<<40)+0x4000,16384));
     puts("GPU PA window: real gPhysBase>4GiB layout, panicking PAs rejected, no truncation PASS");
 }

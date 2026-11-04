@@ -13,6 +13,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="${1:?usage: build-kernel-patches.sh /path/to/ios-sweet}"
 [ -d "$DEST/xnu/patches" ] || { echo "ERROR: $DEST/xnu/patches not found" >&2; exit 1; }
 
+# Official git endpoint intermittently returns 502. Use the exact same Git
+# object from a verified public mirror, keeping both commit and tree checks.
+python3 "$ROOT/scripts/test-bearssl-source.py"
+python3 "$ROOT/scripts/prepare-bearssl-source.py" "$DEST/xnu/patches"
+
 install -m 644 "$ROOT/xnu/0082-cepheus-touch.patch" "$DEST/xnu/patches/0082-cepheus-touch.patch"
 install -m 644 "$ROOT/xnu/0082-stage-cepheus-touch.sh" "$DEST/xnu/patches/0082-stage-cepheus-touch.sh"
 install -m 644 "$ROOT/xnu/cepheus_touch.c" "$ROOT/xnu/cepheus_fts_events.h" "$DEST/xnu/patches/"

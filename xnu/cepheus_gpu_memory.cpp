@@ -12,13 +12,13 @@
 #include <IOKit/IOLocks.h>
 #include <mach/mach_types.h>
 #include <mach/vm_param.h>
-#if defined(KERNEL)
+#if defined(KERNEL) || defined(CEPHEUS_GPU_MEMORY_HOST_TEST)
 extern "C" {
 #include <vm/memory_types.h>
 /* IOKitServer.h hides this bridge behind MACH_KERNEL_PRIVATE. Same ABI as
  * osfmk/device/iokit_rpc.c, which calls pmap_cache_attributes(pa>>PAGE_SHIFT). */
 unsigned int IODefaultCacheBits(addr64_t pa);
-/* Real pmap bounds: pa_valid() is exactly the window phystokv() accepts.
+/* Real pmap bounds used by pa_valid().
  * Without this check a mask-derived allocation may land below gPhysBase and
  * panic inside ml_static_vtop/phystokv_range.
  * Declared with the underlying 64-bit integer type: pmap_paddr_t is not visible
@@ -27,11 +27,8 @@ unsigned int IODefaultCacheBits(addr64_t pa);
 extern uint64_t vm_first_phys;
 extern uint64_t vm_last_phys;
 }
-static inline bool ceph_pa_is_managed(uint64_t pa)
-{ return pa >= vm_first_phys && pa < vm_last_phys; }
 #else
-static inline bool ceph_pa_is_managed(uint64_t)
-{ return true; }
+#error "GPU memory requires XNU bounds or the explicit host IOKit test double"
 #endif
 #include <sys/systm.h>
 #include "cepheus_gpu_memory.h"
@@ -106,6 +103,8 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     size_t host_page=(size_t)page_size;
     if(host_page!=4096 && host_page!=16384)return -1;
     bytes=(bytes+host_page-1)&~(host_page-1);
+    uint64_t window_mask=cepheus_gpu_pa_window_mask(vm_first_phys,vm_last_phys,host_page);
+    if(!window_mask)return -1; /* no fixed-mask fallback for invalid bounds */
     unsigned pages=(unsigned)(bytes/4096),used=__atomic_load_n(&ceph_memory_pages,__ATOMIC_ACQUIRE);
     do {
         /* ICACHE+DCACHE alone need480KiB; include HFI/log/page tables and
@@ -114,38 +113,14 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     } while (!__atomic_compare_exchange_n(&ceph_memory_pages,&used,used+pages,false,
         __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
     b->bytes=bytes;
-    /* Mask encodes 40-bit host PA and 4KiB alignment. MapperNone prevents the
-     * platform mapper silently returning someone else's IOVA as a CPU PA.
-     * WriteCombine is Normal-NC on arm64; InhibitCache is Device memory and is
-     * deliberately NOT used for DRAM/shared HFI buffers.
-     *
-     * The mask must be derived from the ACTUAL pmap window, not a fixed
-     * constant. initWithPhysicalMask() takes alignment from the low zero run of
-     * the mask and treats the remaining set bits as an upper bound, so the old
-     * 0x000000fffffff000 only guaranteed 4KiB alignment plus "below 1TiB". On
-     * this platform gPhysBase sits above 4GiB, so an allocation could land below
-     * it and make phystokv()/ml_static_vtop() panic. Deriving the mask from
-     * vm_first_phys/vm_last_phys confines the allocator to the window the kernel
-     * can actually translate; the per-page check below stays as an independent
-     * second gate. */
-    /* maxPhys is an UPPER bound only; kmem_alloc_contig() cannot express a
-     * lower bound. So the mask alone can never stop the allocator returning a
-     * page below vm_first_phys. It is still tightened to the real top of DRAM
-     * (rather than a fixed 40-bit ceiling) so the contiguity search cannot be
-     * handed an unreachable ceiling, and the per-page check below is the
-     * authoritative gate for the low end. */
-    uint64_t window_mask=0x000000fffffff000ULL;
-#if defined(KERNEL)
-    if(vm_last_phys>vm_first_phys) {
-        /* Round the ceiling DOWN to a whole page; kmem_alloc_contig takes
-         * atop(maxPhys), so an unaligned value would silently extend it. */
-        uint64_t ceiling=(vm_last_phys-1)&~(uint64_t)4095u;
-        if(ceiling>=0x1000u)window_mask=ceiling;
-    }
-#endif
+    /* Default-cache allocation ONLY. Non-default cache flags cause IOBMD's
+     * constructor to create a persistent memory entry and change attributes
+     * before it returns, too early for our PA check. Request Normal-NC only in
+     * the explicit map after validation. MapperNone prevents an IOVA being
+     * mistaken for a CPU PA. maxPhys is an upper bound, never a lower bound. */
     b->memory=IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
-        kIODirectionInOut|kIOMemoryHostPhysicallyContiguous|kIOMemoryMapperNone|
-        kIOMapWriteCombineCache,bytes,window_mask);
+        kIODirectionInOut|kIOMemoryHostPhysicallyContiguous|kIOMemoryMapperNone,
+        bytes,window_mask);
     if (!b->memory) {ceph_gpu_buffer_dispose_cpu(b);return -1;}
     if (b->memory->prepare(kIODirectionInOut)!=kIOReturnSuccess) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
@@ -153,7 +128,6 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     b->prepared=true;
     IOByteCount length=0;
     b->pa=b->memory->getPhysicalSegment(0,&length,kIOMemoryMapperNone);
-#if defined(KERNEL)
     /* This check MUST run before createMappingInTask(). Remapping the buffer
      * with a different cache mode makes pmap change the page's attributes,
      * which goes pmap_sync_wimg -> pmap_sync_page_attributes_phys ->
@@ -163,14 +137,13 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
      * kernel down during the mapping call itself -- after this point is far too
      * late. maxPhys in the allocation mask is only an upper bound and cannot
      * express this lower bound, so the check has to be here. */
-    if(!b->pa || length<bytes ||
+    if(!b->pa || (b->pa&(host_page-1)) || length<bytes || b->memory->getLength()!=bytes ||
         !cepheus_gpu_pa_range_managed(b->pa,bytes,vm_first_phys,vm_last_phys)) {
         printf("CEPHEUS GPU MEM: PA %#llx+%#lx outside managed [%#llx,%#llx); refused before mapping\n",
             (unsigned long long)b->pa,(unsigned long)bytes,
             (unsigned long long)vm_first_phys,(unsigned long long)vm_last_phys);
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
-#endif
     /* Allocation cache flags alone do not establish the attributes of the
      * original getBytesNoCopy VA. Request an explicit NC kernel map and use
      * ONLY its VA; XNU performs cache-mode/alias transitions while mapping. */
@@ -185,7 +158,6 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
         b->pa>=(1ULL<<40) || bytes>(1ULL<<40)-b->pa || b->memory->getLength()!=bytes) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
-#if defined(KERNEL)
     /* Attribute options describe the request; independently verify pmap's
      * effective host-page cache attributes before exposing any shared view.
      * Never repair this by forcing attributes on an unowned physical page. */
@@ -196,7 +168,6 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
             ceph_gpu_buffer_dispose_cpu(b);return -1;
         }
     }
-#endif
     bzero(b->cpu,bytes);
     ceph_gpu_memory_barrier();
     return 0;

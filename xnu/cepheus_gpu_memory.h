@@ -14,6 +14,19 @@ static inline int cepheus_gpu_pa_range_managed(uint64_t pa,size_t bytes,uint64_t
     if(pa>UINT64_MAX-bytes)return 0;
     return pa+bytes<=last;
 }
+/* Encode a conservative upper bound with EXACTLY 12 trailing zero bits.
+ * IOBMD decodes the trailing zero run as alignment and fills it with ones for
+ * maxPhys. An arbitrary rounded PA can silently increase both. Round the top
+ * down to 8KiB so mask bit12 is always set; at most one 4KiB page is excluded.
+ * This cannot express a lower bound: validate the returned PA before remapping. */
+static inline uint64_t cepheus_gpu_pa_window_mask(uint64_t first,uint64_t last,size_t host_page)
+{
+    if((host_page!=4096 && host_page!=16384) || !first || last<=first ||
+        last>(1ULL<<40) || ((first|last)&(host_page-1)))return 0;
+    uint64_t top=last&~8191ULL;
+    if(top<=first || top-first<host_page)return 0;
+    return top-4096;
+}
 /* Thread context, opt-in only. Allocates/tests/frees private DRAM, no GPU DMA. */
 void cepheus_gpu_memory_selftest(void);
 /* Internal kernel API, not an IOUserClient dispatch. Views are CPU leases;

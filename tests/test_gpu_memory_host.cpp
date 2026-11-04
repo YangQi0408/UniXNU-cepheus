@@ -11,11 +11,26 @@
 int main(int argc,char **argv)
 {
     uint64_t h=0;assert(cepheus_gpu_memory_alloc(1,&h)<0 && !mock_io::live);
+    /* Run the production pre-map gate, not just the standalone predicate. */
+    const uint64_t first=vm_first_phys,last=vm_last_phys;
+    for(uint64_t invalid_last : std::initializer_list<uint64_t>{first,first-0x4000,last+1,(1ULL<<40)+0x4000}) {
+        vm_last_phys=invalid_last;unsigned calls=mock_io::alloc_calls;
+        assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && mock_io::alloc_calls==calls);
+    }
+    vm_last_phys=last;
+    for(uint64_t invalid_pa : std::initializer_list<uint64_t>{0ULL,0x843e4000ULL,0x843b4000ULL,first+0x1000,last,last-0x4000,UINT64_MAX-0x3fff}) {
+        mock_io::next_pa=invalid_pa;unsigned calls=mock_io::map_calls;
+        assert(cepheus_gpu_memory_alloc(32768,&h)<0 && !h);
+        assert(mock_io::map_calls==calls && !mock_io::live && !mock_io::prepared);
+    }
+    mock_io::next_pa=0x120000000ULL;
     mock_io::fail_alloc=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && !mock_io::live);mock_io::fail_alloc=0;
     mock_io::fail_prepare=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !h && !mock_io::live);mock_io::fail_prepare=0;
     mock_io::bad_segment=1;assert(cepheus_gpu_memory_alloc(8192,&h)<0 && !h && !mock_io::live && !mock_io::prepared);mock_io::bad_segment=0;
     mock_io::fail_map=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !mock_io::live && !mock_io::maps);mock_io::fail_map=0;
     mock_io::bad_cache=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !mock_io::live && !mock_io::maps);mock_io::bad_cache=0;
+    mock_io::bad_pmap_cache=1;assert(cepheus_gpu_memory_alloc(4096,&h)<0 && !mock_io::live && !mock_io::maps);mock_io::bad_pmap_cache=0;
+    assert(mock_io::cache_queries); /* effective pmap check is not compiled out */
     assert(!cepheus_gpu_memory_alloc(8192,&h));struct ceph_gpu_memory_view view={};
     assert(!cepheus_gpu_memory_view_get(h,&view) && view.bytes==16384 && view.pa>=0x120000000ULL && !(view.pa&0x3fff));
     assert(cepheus_gpu_memory_publish(h)<0 && cepheus_gpu_memory_release_cpu(h)<0);

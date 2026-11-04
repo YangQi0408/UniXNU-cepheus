@@ -1,5 +1,41 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-04：cephmem panic 与构建结论纠正（未复测手机）
+
+用户本轮禁止启动镜像/刷写；以下仅源码、host 和 CI 工作。
+
+- 真机二分：无 cephmem 正常；cephmem=1/2 都曾 panic，非法 PA 为
+  `0x843b4000`/`0x843e4000`，低于 `gPhysBase=0x101004000`。
+  一个日志给出的 size 为 `0xc0000000`，窗口终点 `0x1c1004000`。
+  此前 d336276 preflight 没有启用 cephmem，不是内存测试通过证据。
+- `87c9791`/`0cd11d4` 的 physicalMask 修复**不完整**：mask 只能给
+  maxPhys 上界，不能给分配器下界；检查即使移到显式 createMappingInTask
+  前，也可能晚于 IOBMD 构造期间的 cache transition。
+  `IOBufferMemoryDescriptor.cpp:394–419` 对 cache flags 设置 persistent，
+  `IOMemoryDescriptor.cpp:2332` 调 memoryReferenceCreate；后者携带指定
+  cache mode 调 mach_make_memory_entry_internal。不能断言 panic 一定只在
+  外层 mapping 发生。现在分配时不传 cache flag，仅在检查后显式请求 NC。
+- 每页所属范围以整个连续 segment + host-page 对齐校验，检查先于 NC map；
+  无效/空/超过40位的窗口在分配前拒绝，无固定40位 mask 兜底。
+  任意“向下取整到页”的 mask 仍可能因低位连续零被 IOBMD 解成过大对齐和
+  扩大上界；现在固定12位低零、保守向下收紧终点并测试真实解码式。
+- 保留 `IODefaultCacheBits` 的每 host page 实际 WCOMB 检查，不接受只看
+  map options，不强改未拥有页属性。host 双替身现提供真实布局的 bounds
+  和 cache query，执行同一检查代码；两次 panic PA 均断言**零次 map 调用**。
+  这些 mock 仍不能证明 XNU 分配器会返回可用 PA，或真机 panic 已消失。
+- `41845027677` 真编译错误是 `pmap_paddr_t` 对 IOKit TU 不可见；修正提交
+  实际是 `197fb57`（此前答复误写 `4c3f5cb`）。其余 BearSSL 502 是传输故障，
+  不是编译成功/失败的代码证据。
+- “没有同 SHA 镜像”结论错误：用 gh search commits 找到多个同对象镜像。
+  AmanoTeam/BearSSL 已实际 fetch、fsckObjects 校验并核对原 commit
+  `7bea48e5e850ab4cafbe68d3765cdaba13a86d6f` 与 tree
+  `a8f933a27b14eaf3a348fe9b294bf4262dbb216c`，另一镜像 API 一致。
+  新 prepare 脚本只换传输源并追加 tree 检查，不换加密实现、不变版本。
+  之前“2018版附近”的判断也不成立，该提交元数据为 2026-04-06。
+
+原始日志保留在 `../logs/gpu-gxprobe-3e41cb8/boot.log` 和
+`../logs/panic-cephmem2/`。新补丁的硬件效果仍待用户回来后另行授权验证。
+
 **后续独立审查修正优先于本文早期阶段描述。** 首版内存池未显式创建NC映射、
 workspace持有view却无法发布；这两点不是可用GPU链路。下方“独立审查修复”
 记录后续显式IOMemoryMap、批量共享和真实协议退休实现。所有硬件结论仍待验收。
