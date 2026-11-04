@@ -5,6 +5,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/* True when every 4KiB page of [pa, pa+bytes) lies inside the pmap-managed
+ * window [first, last). phystokv()/ml_static_vtop() panic outside it, so GPU
+ * backing must never be handed such a range. Pure predicate, no MMIO. */
+static inline int cepheus_gpu_pa_range_managed(uint64_t pa,size_t bytes,uint64_t first,uint64_t last)
+{
+    if(!bytes || (pa&4095u) || (bytes&4095u) || last<=first || pa<first)return 0;
+    if(pa>UINT64_MAX-bytes)return 0;
+    return pa+bytes<=last;
+}
 /* Thread context, opt-in only. Allocates/tests/frees private DRAM, no GPU DMA. */
 void cepheus_gpu_memory_selftest(void);
 /* Internal kernel API, not an IOUserClient dispatch. Views are CPU leases;

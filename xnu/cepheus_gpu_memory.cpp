@@ -125,13 +125,19 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
      * vm_first_phys/vm_last_phys confines the allocator to the window the kernel
      * can actually translate; the per-page check below stays as an independent
      * second gate. */
+    /* maxPhys is an UPPER bound only; kmem_alloc_contig() cannot express a
+     * lower bound. So the mask alone can never stop the allocator returning a
+     * page below vm_first_phys. It is still tightened to the real top of DRAM
+     * (rather than a fixed 40-bit ceiling) so the contiguity search cannot be
+     * handed an unreachable ceiling, and the per-page check below is the
+     * authoritative gate for the low end. */
     uint64_t window_mask=0x000000fffffff000ULL;
 #if defined(KERNEL)
     if(vm_last_phys>vm_first_phys) {
-        uint64_t highest=(vm_last_phys-1)&~(uint64_t)4095u;
-        uint64_t m=0x1000u;
-        while(m<=highest/2 && m<(1ULL<<52))m<<=1;
-        window_mask=(m-1u)&~(uint64_t)4095u;
+        /* Round the ceiling DOWN to a whole page; kmem_alloc_contig takes
+         * atop(maxPhys), so an unaligned value would silently extend it. */
+        uint64_t ceiling=(vm_last_phys-1)&~(uint64_t)4095u;
+        if(ceiling>=0x1000u)window_mask=ceiling;
     }
 #endif
     b->memory=IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
@@ -144,6 +150,24 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     b->prepared=true;
     IOByteCount length=0;
     b->pa=b->memory->getPhysicalSegment(0,&length,kIOMemoryMapperNone);
+#if defined(KERNEL)
+    /* This check MUST run before createMappingInTask(). Remapping the buffer
+     * with a different cache mode makes pmap change the page's attributes,
+     * which goes pmap_sync_wimg -> pmap_sync_page_attributes_phys ->
+     * flush_dcache(pa, PAGE_SIZE, TRUE) -> phystokv_range(pa). phystokv_range()
+     * panics for any PA outside [gPhysBase, gPhysBase+real_phys_size), so a
+     * buffer the allocator placed below the managed window would take the
+     * kernel down during the mapping call itself -- after this point is far too
+     * late. maxPhys in the allocation mask is only an upper bound and cannot
+     * express this lower bound, so the check has to be here. */
+    if(!b->pa || length<bytes ||
+        !cepheus_gpu_pa_range_managed(b->pa,bytes,vm_first_phys,vm_last_phys)) {
+        printf("CEPHEUS GPU MEM: PA %#llx+%#lx outside managed [%#llx,%#llx); refused before mapping\n",
+            (unsigned long long)b->pa,(unsigned long)bytes,
+            (unsigned long long)vm_first_phys,(unsigned long long)vm_last_phys);
+        ceph_gpu_buffer_dispose_cpu(b);return -1;
+    }
+#endif
     /* Allocation cache flags alone do not establish the attributes of the
      * original getBytesNoCopy VA. Request an explicit NC kernel map and use
      * ONLY its VA; XNU performs cache-mode/alias transitions while mapping. */
@@ -159,17 +183,6 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
 #if defined(KERNEL)
-    /* Every 4KiB page of this buffer must live in the pmap-managed window, or a
-     * later cache/attribute operation would panic in phystokv(). Refuse rather
-     * than hand out a buffer the kernel cannot translate. */
-    for(size_t offset=0;offset<bytes;offset+=4096) {
-        if(!ceph_pa_is_managed(b->pa+offset)) {
-            printf("CEPHEUS GPU MEM: PA %#llx outside managed [%#llx,%#llx); allocation refused\n",
-                (unsigned long long)(b->pa+offset),(unsigned long long)vm_first_phys,
-                (unsigned long long)vm_last_phys);
-            ceph_gpu_buffer_dispose_cpu(b);return -1;
-        }
-    }
     /* Attribute options describe the request; independently verify pmap's
      * effective host-page cache attributes before exposing any shared view.
      * Never repair this by forcing attributes on an unowned physical page. */
