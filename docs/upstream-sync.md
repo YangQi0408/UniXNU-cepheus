@@ -81,3 +81,7 @@ tree refresh 回归和 Python语法检查。内核和固件各有独立 CI；以
 - 离线receipt：`../logs/gpu-offline-20261105-sync/receipt.json` @`723adcd`，
   **19项PASS、零SKIP**，包含60个host程序、23个真实固件fixture模拟场景、
   ASan/UBSan和7生产单元静态分析。私有fixture仅本地，未进公共CI。
+- 重试 `41868192751` 同样未获runner（无编译步骤）。通过gh读取
+  actions/runner-images确认：当前macos-15已指向arm64主机，Intel明确标签为
+  macos-15-intel，仍含Xcode16.2/macOS15.2 SDK。touch-kernel改成明确Intel
+  标签，目标ARCHS继续arm64；这只是主机选择纠正，不改变目标内核ABI。

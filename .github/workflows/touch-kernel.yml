@@ -5,8 +5,9 @@ permissions:
   contents: read
 jobs:
   kernel:
-    # GPU continuation: macos-14 is retired; no USB control feature is staged.
-    runs-on: macos-15
+    # macos-15 now aliases arm64 hosts; explicitly retain the Intel build host
+    # and Xcode16.2. Target ARCHS remains arm64, not the runner architecture.
+    runs-on: macos-15-intel
     timeout-minutes: 150
     env:
       MACOS_VERSION: "13.5"
