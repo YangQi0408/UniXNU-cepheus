@@ -85,3 +85,14 @@ tree refresh 回归和 Python语法检查。内核和固件各有独立 CI；以
   actions/runner-images确认：当前macos-15已指向arm64主机，Intel明确标签为
   macos-15-intel，仍含Xcode16.2/macOS15.2 SDK。touch-kernel改成明确Intel
   标签，目标ARCHS继续arm64；这只是主机选择纠正，不改变目标内核ABI。
+- Intel内核构建 `41875375125` @`9dc6e6e`：XNU编译/链接、patch/symbol
+  gate、artifact上传全部success，下载内核SHA256
+  `1ddd182f99a2934870cb3870140db41eef2cc8cde6ccf138a2841143daf62958`。
+  记录时整体run API仍in_progress，不假称平台状态已经结束。
+- 加zip hash检查后的固件CI `41873397100` @`439aa6f` 再次success，FD摘要
+  与41865748773完全相同。本地和CI间的摘要差异仍不推定为已解释。
+- CI固件FVMAIN_COMPACT使用2967072字节、剩178656字节（94%），没有扩大
+  FD覆盖SEC/页表区域。日志的DarwinBoot `Error 1 (ignored)` 是复制不存在的
+  可选`*.pdb`调试文件；其EFI/FFS生成继续成功，不是被忽略的链接错误。
+- 触摸回退镜像重新校验SHA256仍为
+  `c8eae5a0abd8dd9f8cd58f954497c0510c576b941b09bc0ef1efb2648718ea88`。

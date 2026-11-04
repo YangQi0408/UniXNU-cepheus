@@ -36,6 +36,18 @@
 原始日志保留在 `../logs/gpu-gxprobe-3e41cb8/boot.log` 和
 `../logs/panic-cephmem2/`。新补丁的硬件效果仍待用户回来后另行授权验证。
 
+构建补证：`41875375125` @`9dc6e6e` 的 Build XNU、必要补丁/符号检查、
+上传步骤均为success；实际下载的内核SHA256为
+`1ddd182f99a2934870cb3870140db41eef2cc8cde6ccf138a2841143daf62958`，
+`verify-touch-kernel.py` 再次通过。日志明确stage了原BearSSL `7bea48e5`。
+内核和日志分别保存于 `../inputs/ci-41875375125/`、`../logs/ci-41875375125/`。
+记录时 GitHub run/job整体API仍in_progress，尽管Complete job步骤也为success；
+不将步骤结果冒称整体平台状态已经收尾。
+
+最终源码离线receipt `../logs/gpu-offline-9dc6e6e/receipt.json` 为干净提交，
+19项PASS零SKIP。两个独立review子代理均超时，无完整审查报告，未算审查通过。
+本轮未生成/启动新的boot.img，未改任何手机分区。
+
 **后续独立审查修正优先于本文早期阶段描述。** 首版内存池未显式创建NC映射、
 workspace持有view却无法发布；这两点不是可用GPU链路。下方“独立审查修复”
 记录后续显式IOMemoryMap、批量共享和真实协议退休实现。所有硬件结论仍待验收。
