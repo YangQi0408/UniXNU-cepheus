@@ -77,6 +77,7 @@ ctx = types.SimpleNamespace(
     jobs=8,
     args=types.SimpleNamespace(skip_preflight=False),
     uefi=UEFI,
+    device=ROOT,  # newer UniXNU preflight passes UNIXNU_DEVICE to its scripts
 )
 # RELEASE is required, not just preferred: the cepheus FV only fits inside the
 # 3 MiB the memory map reserves when built RELEASE (DEBUG comes out at
