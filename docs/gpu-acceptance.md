@@ -48,6 +48,13 @@
 19项PASS零SKIP。两个独立review子代理均超时，无完整审查报告，未算审查通过。
 本轮未生成/启动新的boot.img，未改任何手机分区。
 
+随后用户要求提供启动镜像：生成 `boot-cepheus-ready-9dc6e6e.img`，SHA256
+`2e1e7e2c8e04cd243e62de090898fd8234c1d8b14755ba6504f64d6243ab5621`。
+这是修复版内核配旧的已验证UEFI/DTB/ADT的启动候选，**不启用cephmem**，
+不运行CPU boost/GPU上电；不是physicalMask真机回归通过证据。触摸/电源和
+只读诊断保留。全部其他payload文件与触摸基线相同，receipt在dist同名json。
+CI41875375125整体状态现已completed/success。本次仍未在手机上启动。
+
 **后续独立审查修正优先于本文早期阶段描述。** 首版内存池未显式创建NC映射、
 workspace持有view却无法发布；这两点不是可用GPU链路。下方“独立审查修复”
 记录后续显式IOMemoryMap、批量共享和真实协议退休实现。所有硬件结论仍待验收。
