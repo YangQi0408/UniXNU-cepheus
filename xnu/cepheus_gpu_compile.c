@@ -15,6 +15,8 @@ int cepheus_gpu_gx_gbif_configure(struct ceph_gx_gbif *s)
 { return ceph_gx_gbif_configure(s); }
 int cepheus_gpu_gx_llc_configure(struct ceph_gx_llc *s)
 { return ceph_gx_llc_configure(s); }
+int cepheus_gpu_scm_discover(struct ceph_scm_discovery *s,struct ceph_scm_discovery_ops *b)
+{ return ceph_scm_discover_pas13(s,b); }
 int cepheus_gpu_gx_va_partition(unsigned secured,uint64_t size,struct ceph_gx_va_partition *out)
 { return ceph_gx_va_partition(secured,size,out); }
 int cepheus_gpu_gx_hwcg_configure(struct ceph_gx_hwcg *s)
@@ -33,6 +35,52 @@ int cepheus_gpu_temperature_sample(struct ceph_gpu_tsens *s,struct ceph_gpu_temp
 { return ceph_gpu_tsens_sample(s,out); }
 #if defined(KERNEL)
 #include <sys/systm.h>
+#include <pexpert/arm64/board_config.h>
+#include <kern/locks.h>
+#include <machine/machine_routines.h>
+#if defined(SWEET) && (defined(__arm64__) || defined(__aarch64__))
+extern int get_preemption_level(void);
+static LCK_GRP_DECLARE(ceph_scm_info_group,"ceph_scm_info");
+static LCK_MTX_DECLARE(ceph_scm_info_lock,&ceph_scm_info_group);
+static unsigned ceph_scm_info_attempted;
+static int ceph_scm_info_context(void *unused)
+{
+    (void)unused;
+    return ml_get_interrupts_enabled() && !ml_at_interrupt_context() &&
+        get_preemption_level()==0?0:-1;
+}
+static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
+{
+    (void)unused;
+    if(!r || ceph_scm_info_context(NULL))return -1;
+    /* No indirect UEFI pointers and no shared-buffer address. This callback
+     * is static/private and its sole caller is the fixed discovery engine. */
+    register uint64_t x0 __asm__("x0")=r->x[0],x1 __asm__("x1")=r->x[1];
+    register uint64_t x2 __asm__("x2")=r->x[2],x3 __asm__("x3")=r->x[3];
+    register uint64_t x4 __asm__("x4")=r->x[4],x5 __asm__("x5")=r->x[5];
+    register uint64_t x6 __asm__("x6")=r->x[6],x7 __asm__("x7")=r->x[7];
+    __asm__ volatile("smc #0" : "+r"(x0),"+r"(x1),"+r"(x2),"+r"(x3),
+        "+r"(x4),"+r"(x5),"+r"(x6),"+r"(x7) : :
+        "x8","x9","x10","x11","x12","x13","x14","x15","x16","x17","cc","memory");
+    *r=(struct ceph_scm_regs){{x0,x1,x2,x3,x4,x5,x6,x7}};
+    return 0;
+}
+int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)
+{
+    if(!out || ceph_scm_info_context(NULL))return -1;
+    *out=(struct ceph_scm_discovery){0};
+    lck_mtx_lock(&ceph_scm_info_lock);
+    if(ceph_scm_info_attempted){lck_mtx_unlock(&ceph_scm_info_lock);return -1;}
+    ceph_scm_info_attempted=1; /* also latches errors; no blind repeated SMC */
+    struct ceph_scm_discovery_ops b={NULL,ceph_scm_info_context,ceph_scm_info_invoke};
+    int e=ceph_scm_discover_pas13(out,&b);
+    lck_mtx_unlock(&ceph_scm_info_lock);
+    printf("CEPHEUS SCM INFO: e=%d convention=%u available=%#x supported=%u calls=%u transport=%#llx secure=%#llx; no PAS mutations\n",
+        e,(unsigned)out->convention,out->available_mask,out->supported,out->calls,
+        (unsigned long long)out->transport,(unsigned long long)out->secure);
+    return e;
+}
+#endif
 #else
 #include <stdio.h>
 #endif

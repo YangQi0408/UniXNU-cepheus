@@ -57,3 +57,18 @@ hash segment=6860B。实际load段1968B，重定位逻辑mem_setup跨度4KiB，�
 
 因此当前继续停在离线材料/源代码可证明范围，不增加伪成功PAS后端、不在手机上
 试SMC、不把纯planner或public CI通过视为认证可行性已确认。
+
+## 2026-11-06补充：真实传输候选不是可信加载完成
+
+`cepheus_scm_discovery.h`现在有受限的call-availability/PAS13-supported编码与
+one-shot引擎；`cepheus_gpu_compile.c`有线程上下文、mutex、完整x0..x7输入输出
+的原生SMC callback。`test-scm-codegen.py`提取**该生产函数本体**编译为AArch64
+汇编/对象（不执行），源码测试核对info6/pil2/支持查询7及64->32约定。
+
+只读查询后端**没有接入startup**，更没有提供PAS init/mem_setup/auth_reset/
+shutdown或MDT共享内存。若将来人工批准使用它，成功也只能表示查询可用；
+不能把supported=1作为ZAP实例已认证，不能给`zap_loaded`填true。
+任何SMC单次调用都可能不返回，本地最多16次的引擎不提供secure-world watchdog。
+
+本机UEFI的SCM二进制静态证据见`scm-static-evidence.md`。PSCI CPU_ON实测成功
+说明PSCI conduit存在，不代表SIP PAS通道/共享crypto带宽/XPU区域也已验证。

@@ -42,6 +42,7 @@ def main():
              'scope':'OFFLINE ONLY: no actual IOKit, GPU execution, PAS or device acceptance',
              'fixtures':{name:identity(getattr(a,name)) for name in ('gmu','sqe','fdt','zap')},'checks':[]}
     checks=[('host',['bash','scripts/test-gpu-stack.sh'],{}),
+            ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('sanitizers',['bash','scripts/test-gpu-sanitizers.sh'],{}),
             ('static',['python3','scripts/analyze-gpu-host.py'],{}),
@@ -62,6 +63,7 @@ def main():
             ('hfi-source','test-hfi-source-layout.py',[kgsl/'kgsl_hfi.h']),
             ('cp-source','test-cp-source-layout.py',[kgsl]),
             ('llc-source','test-llc-source.py',[a.kernel_reference]),
+            ('scm-source','test-scm-source.py',[a.kernel_reference]),
             ('cp-permissions-source','test-cp-permissions-source.py',[a.kernel_reference]),
             ('gmu-mmio-source','test-gmu-mmio-source.py',[kgsl/'a6xx_reg.h']),
             ('gmu-permissions-source','test-gmu-permissions-source.py',[a.kernel_reference]),

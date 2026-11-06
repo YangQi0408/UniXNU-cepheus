@@ -95,7 +95,7 @@ class Integration(unittest.TestCase):
     def test_boot_sources_do_not_invoke_gpu_engines(self):
         # A build can accidentally retain all symbols AND introduce a startup
         # call. Keep this separate check on actual boot-facing source bodies.
-        dangerous=('cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
+        dangerous=('cepheus_gpu_scm_probe_once','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
                    'cepheus_gpu_submit','ceph_smmu_install_context')

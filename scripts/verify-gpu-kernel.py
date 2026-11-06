@@ -30,6 +30,7 @@ HEADERS += ('cepheus_gpu_vm39.h',)
 HEADERS += ('cepheus_gx_core.h',)
 HEADERS += ('cepheus_gx_perfcounter.h',)
 HEADERS += ('cepheus_gx_llc.h',)
+HEADERS += ('cepheus_scm_discovery.h',)
 HEADERS += ('cepheus_cp_preinit.h',)
 HEADERS += ('cepheus_gx_va_layout.h','cepheus_gx_gbif.h','cepheus_gx_hwcg.h','cepheus_cp_unsecure_gate.h')
 HEADERS += ('cepheus_gx_smmu_plan.h',)
@@ -110,6 +111,7 @@ def main():
     required |= {'_cepheus_gpu_gx_perfcounter_configure'}
     required |= {'_cepheus_gpu_gx_gbif_configure','_cepheus_gpu_gx_va_partition'}
     required |= {'_cepheus_gpu_gx_llc_configure'}
+    required |= {'_cepheus_gpu_scm_discover','_cepheus_gpu_scm_probe_once'}
     required |= {'_cepheus_gpu_gx_hwcg_configure'}
     required |= {'_cepheus_gpu_cp_unhalt_check'}
     required |= {'_cepheus_gpu_gx_smmu_plan'}

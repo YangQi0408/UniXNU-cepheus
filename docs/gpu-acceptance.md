@@ -24,6 +24,15 @@
 
 新增61个host程序通过与7生产单元静态分析；仍无GPU实际命令退休/Metal证明。
 
+进一步新增受限SCM discovery引擎（62个host程序）：仅INFO call-available和
+PAS13 supported查询，不发PAS init/mem/auth/shutdown，不传共享buffer。
+64->32 convention只在明确不支持/无可用值时回退，transport错误/busy不重试；
+INTERRUPTED保留返回寄存器含x6继续，整个引擎最多16次调用。
+`cepheus_gpu_scm_probe_once`提供真实XNU线程上下文SMC桥和序列mutex，
+**未接入任何启动钩子/boot参数/用户态接口，未在手机执行**。
+它不使用DXE函数指针，也不能证明secure call会及时返回。调用次数有界不等于
+墙钟超时可中断，不能据此启动ZAP或清CP halt。真实PAS13支持仍是未知。
+
 ## 2026-11-06：ready 镜像基本启动验收
 
 用户自行启动 `boot-cepheus-ready-9dc6e6e.img`，随后确认主屏幕、触摸、
