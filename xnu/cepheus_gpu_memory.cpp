@@ -113,6 +113,9 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     } while (!__atomic_compare_exchange_n(&ceph_memory_pages,&used,used+pages,false,
         __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
     b->bytes=bytes;
+    printf("CEPHEUS GPU MEM: phase=allocate bytes=%#lx host_page=%#lx managed=[%#llx,%#llx) mask=%#llx\n",
+        (unsigned long)bytes,(unsigned long)host_page,(unsigned long long)vm_first_phys,
+        (unsigned long long)vm_last_phys,(unsigned long long)window_mask);
     /* Default-cache allocation ONLY. Non-default cache flags cause IOBMD's
      * constructor to create a persistent memory entry and change attributes
      * before it returns, too early for our PA check. Request Normal-NC only in
@@ -122,6 +125,7 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
         kIODirectionInOut|kIOMemoryHostPhysicallyContiguous|kIOMemoryMapperNone,
         bytes,window_mask);
     if (!b->memory) {ceph_gpu_buffer_dispose_cpu(b);return -1;}
+    printf("CEPHEUS GPU MEM: phase=prepare\n");
     if (b->memory->prepare(kIODirectionInOut)!=kIOReturnSuccess) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
@@ -148,6 +152,7 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
     /* Allocation cache flags alone do not establish the attributes of the
      * original getBytesNoCopy VA. Request an explicit NC kernel map and use
      * ONLY its VA; XNU performs cache-mode/alias transitions while mapping. */
+    printf("CEPHEUS GPU MEM: phase=map_nc pa=%#llx bytes=%#lx\n",(unsigned long long)b->pa,(unsigned long)bytes);
     b->mapping=b->memory->createMappingInTask(kernel_task,0,
         kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache,0,bytes);
     if(!b->mapping || b->mapping->getLength()!=bytes ||

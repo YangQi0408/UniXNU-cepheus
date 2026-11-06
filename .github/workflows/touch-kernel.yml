@@ -70,6 +70,8 @@ jobs:
           python3 cepheus/scripts/test-touch-power.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-integration.py
+          python3 cepheus/scripts/test-pmap-cache-pa.py
+          python3 cepheus/scripts/test-pmap-cache-verifier.py
           python3 cepheus/scripts/test-tree.py
           python3 cepheus/scripts/test-gpu-fdt.py
           python3 cepheus/scripts/test-gpu-diagnostic-log.py
@@ -149,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'Applying patch:' dxb/build.log | grep -F '0082-cepheus-touch.patch'
-          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-|0084-|0085-|0086-|0087-)'; then
+          if grep 'Skipping patch' dxb/build.log | grep -E '(0003-|0018-|0028-|0038-|0046-|0058-|0064-|0065-|0067-|0075-|0077-|0078-|0082-|0083-|0084-|0085-|0086-|0087-|0088-)'; then
             echo 'critical patch skipped' >&2; exit 1
           fi
           grep -E '^bsd/dev/cepheus_touch.c[[:space:]]+standard$' dxb/xnu/bsd/conf/files
@@ -171,6 +173,9 @@ jobs:
           grep -F '#include "cepheus_arc_probe.h"' dxb/xnu/bsd/dev/sweet_rpmh.c
           python3 -c 'from pathlib import Path; d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes(); assert b"CEPHEUS ARC:" in d and b"cepharc" in d'
           python3 cepheus/scripts/verify-gpu-kernel.py dxb/xnu "$K"
+          grep -F 'Applying patch:' dxb/build.log | grep -F '0088-cepheus-pmap-cache-pa.patch'
+          python3 -c 'from pathlib import Path; s=Path("dxb/xnu/osfmk/arm/pmap/pmap.c").read_text(); assert "flush_dcache((vm_offset_t) ptoa(pp), PAGE_SIZE, TRUE);" in s; assert "(pp << PAGE_SHIFT)" not in s'
+          python3 cepheus/scripts/verify-pmap-cache-kernel.py "$K"
           python3 -c 'from pathlib import Path; d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes(); assert b"CX_HW_CTRL=" in d; assert all(s not in d for s in (b"SWEET FASTBOOT:", b"sweetfastboot"))'
           python3 -c 'from pathlib import Path;d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes();assert all(s in d for s in (b"SWEET BLANK:",b"one-shot Home complete",b"SWEET GPI: SMMU"))'
           cp "$K" out/kernel.macho

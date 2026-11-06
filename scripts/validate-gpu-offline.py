@@ -42,6 +42,9 @@ def main():
              'scope':'OFFLINE ONLY: no actual IOKit, GPU execution, PAS or device acceptance',
              'fixtures':{name:identity(getattr(a,name)) for name in ('gmu','sqe','fdt','zap')},'checks':[]}
     checks=[('host',['bash','scripts/test-gpu-stack.sh'],{}),
+            ('pmap-cache-pa',['python3','scripts/test-pmap-cache-pa.py'] +
+             (['--xnu',str(a.xnu_reference)] if a.xnu_reference else []),{}),
+            ('pmap-cache-verifier',['python3','scripts/test-pmap-cache-verifier.py'],{}),
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('sanitizers',['bash','scripts/test-gpu-sanitizers.sh'],{}),

@@ -1,5 +1,35 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-06：memcheck再次panic，纠正physicalMask根因
+
+`boot-cepheus-memcheck-9dc6e6e.img` 真机失败。用户照片为CPU7，非法PA
+`0x8439c000`，gPhysBase=`0x101004000`、real_phys_size=`0xc0000000`。
+此镜像不再推荐。UDP捕获94780字节含cephmem=1参数，但**没有CEPHEUS阶段
+或panic尾部**，不能声称它提供了完整backtrace。照片转录/身份在
+`../logs/panic-memcheck-9dc6e6e/panic-transcription.txt`，原日志SHA256
+`bbb42393b07fca90ec08f6b4080bb797ca75ef51071591d1d5ba935a7da4a3ac`。
+
+源码与实际内核机器码揭示此前漏查的根因：
+`pmap_sync_page_attributes_phys(ppnum_t pp)` 使用
+`(vm_offset_t)(pp << PAGE_SHIFT)`；pp是uint32_t，转换发生在32位左移之后。
+已部署内核该函数0xfffffe0007475328首指令为`lsl w0,w0,#14`，确实截断PA。
+合法窗口内的`0x18439c000`经过该转换恰好变为照片中的`0x8439c000`，而前两次
+`0x843e4000`/`0x843b4000`也有同样高地址截断解释。**此前把这些低PA视为
+分配器真的返回窗口外内存，是未成立的根因推断**；不能仅凭panic证明allocator
+越界。保留allocation bounds与NC有效属性门禁，但它们修不了底层cache callback。
+
+caller0xfffffe0007afc1c8是`phystokv_range.cold.1`中BL panic的下一地址，
+恰好又是nm的`ml_static_vtop.cold.1`起点；按最近符号归属曾误归因。
+这是return-PC边界，不是cold合并证据。一次REA内核分析超时，未算分析成功；
+实际llvm-objdump与源码才是本次定位证据。
+
+新0088补丁改为`flush_dcache((vm_offset_t)ptoa(pp),...)`，ptoa先扩展为
+vm_address_t再移位。**Pong的Darwin24补丁也已修了同一处**；此前参考调查只看
+GPU目录，没有追到内核pmap通用补丁，本轮补足。未改cache策略，不删检查，
+不映射低PA、不强制override。回归直接应用production patch并编译该函数，
+4/16KiB两种host页均重现旧低32值并确认新64位正确；linked gate拒绝已panic内核。
+新内存phase日志仅帮助定位，不能代替底层修复。仍需完整CI与再一次真机回归。
+
 ## 2026-11-06：多次真机回归准备（尚未启动）
 
 用户取消单次机会限制，要求可测试时直接告知。现生成
