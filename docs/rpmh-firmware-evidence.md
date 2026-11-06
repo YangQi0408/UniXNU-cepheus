@@ -41,3 +41,31 @@ REA/Ghidra12.1.2分析，不执行/修改固件。完整证据在cepheus-port的
 REA bundle中unknowns=0仅表示工具记录格式，不表示硬件语义没有未知项。
 
 因此GPU电源写入仍需可靠当前投票/所有权证据，不能因发现缓存就取消门槛。
+
+## 2026-11-06：READ response 路径补证（仍不是 current-vote 证据）
+
+复用同SHA的REA snapshot；本轮导出
+`../logs/rpmh-read-static-20261106/evidence.json`。没有读取活RAM或执行固件。
+
+- 字符串RscHalReadResponseData交叉引用指向`0x7578`：按DRV/TCS/CMD做
+  geometry验证，然后读MMIO `base+0xd40+tcs*0x2a0+cmd*0x14`，另一DRV
+  模式为`base+0x20d40+...`。这是HAL response寄存器，不是软件投票缓存。
+  `ev_5698e6b71c0bf22fdf73b7d7ce700f69da6a6154839aa083152784c857a7e8bf`。
+- `0x590c`按DRV/TCS映射调用HAL，返回response值；`0x4784`在完成请求队列中
+  针对类型2的命令读response，再由`0x3e48`写入每client请求记录（valid=1、
+  value在+4）。其他类型才走`0x4d60`完成缓存。
+  `ev_bdac4a1f967dc9cfa60f49a36438c8550654149a0b028943b1ab82fb9ddbfc85`、
+  `ev_668dbfadee54cb109d6991d680d97d839bfe61e9d7420750846afebda7d645fd`、
+  `ev_1f62b0890bc0600d886cdc7b9e7a077edb85d59c2691b0f14710caf5086e8728`。
+- `0x3174`只是初始化全局单命令请求，`0x30fc`再走`0x2cdc`命令set机制。
+  当前观察的协议wrapper `0x1850`设置回调，`0x18ac`进入sleep，
+  `0x18c4`退出sleep；不是三种“返回当前投票”的接口。
+  `ev_db8f2a65ed10c303853aa93dcbe2934ae8f7c451073888f96479df0f2a40b6b3`、
+  `ev_7d2c529f56e8c7cab38319474515bb42298635625e321069cad3284a78bf8920`。
+
+推论：READ的返回值来自硬件response，不可与resource/DRV/set影子投票混为一谈。
+尚无RPMh硬件规范或本机证据证明ARC READ response是本DRV旧request，而非
+聚合/当前输出。因此不使用它填写power.prepare的current_cx/current_mx。
+这轮调查缩小了未知范围，**没有解除投票继承或共享所有权阻塞**。
+协议多个wrapper仍未被Ghidra定义为函数，其原始字节已读取留证，不能据此宣称
+穷举所有公开接口；没有按image-relative地址扫描活RAM。
