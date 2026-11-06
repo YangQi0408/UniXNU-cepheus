@@ -43,3 +43,16 @@
 因此**现在不具备可承诺一次启动就GPU可用的镜像**。继续源码工作可减少缺口，
 但不能诚实地保证未测试的电源、PAS和用户态ABI在唯一启动中全部成功。
 基线镜像仍是已验证UI正常的`boot-cepheus-ready-9dc6e6e.img`，不覆盖它。
+
+## 本轮完整构建证据
+
+- `42168758490` @`007a683` completed/success，内核SHA256
+  `bfc7be6482503d0f806d92fdb2258c85aef3ab1b02fbe72eb222ca9bba86d6cf`。
+- `42169779972` @`637bc7a` completed/success，**包含真实XNU的SMC callback
+  编译/链接与符号检查**，内核SHA256
+  `2d3ed01858fd85eaab794ef2d2e04bfdbc9591fcfbdcd037e99c47308ea31d9e`。
+  产物和日志在`../inputs/ci-42169779972/`、`../logs/ci-42169779972/`。
+- 后续`1d24457`修改为discovery初始字段与布尔返回检查，host/source/codegen
+  回归通过；它不在上述@637bc7a构建内，不能用该内核冒充最终HEAD。
+- 两个新内核均未生成要在设备启动的GPU-execution镜像，未做任何手机命令。
+  真实PAS13支持、内存自检、电源与命令执行仍没有新增真机结果。

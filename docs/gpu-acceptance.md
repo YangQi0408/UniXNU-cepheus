@@ -33,6 +33,12 @@ INTERRUPTED保留返回寄存器含x6继续，整个引擎最多16次调用。
 它不使用DXE函数指针，也不能证明secure call会及时返回。调用次数有界不等于
 墙钟超时可中断，不能据此启动ZAP或清CP halt。真实PAS13支持仍是未知。
 
+完整CI `42168758490` @007a683、`42169779972` @637bc7a均success。
+后一项真实XNU编译了未hook的SMC线程桥，内核SHA256
+`2d3ed01858fd85eaab794ef2d2e04bfdbc9591fcfbdcd037e99c47308ea31d9e`。
+后续1d24457的拒绝字段修正只经host/source/codegen验证，未包含在该CI内核。
+未启动手机，唯一验证机会仍未使用；完整证据与硬阻塞详见`gpu-one-shot.md`。
+
 ## 2026-11-06：ready 镜像基本启动验收
 
 用户自行启动 `boot-cepheus-ready-9dc6e6e.img`，随后确认主屏幕、触摸、
