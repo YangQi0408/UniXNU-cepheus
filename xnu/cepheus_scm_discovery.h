@@ -59,7 +59,8 @@ static inline int ceph_scm_query_run(struct ceph_scm_discovery *s,struct ceph_sc
 }
 static inline int ceph_scm_discover_pas13(struct ceph_scm_discovery *s,struct ceph_scm_discovery_ops *b)
 {
-    if(!s || s->terminal || s->calls || s->convention!=CE_SCM_UNKNOWN || !b || !b->lease || !b->invoke)return -1;
+    if(!s || s->terminal || s->calls || s->available_mask || s->supported ||
+        s->convention!=CE_SCM_UNKNOWN || !b || !b->lease || !b->invoke)return -1;
     s->terminal=1;uint64_t v=0;
     int e=ceph_scm_query_run(s,b,CE_SCM_ARMV8_64,CE_SCM_SELF,&v);
     if(e<0 || (!e && v>1))goto failed;
@@ -67,7 +68,7 @@ static inline int ceph_scm_discover_pas13(struct ceph_scm_discovery *s,struct ce
     if(e || !v) {
         s->convention=CE_SCM_UNKNOWN;
         e=ceph_scm_query_run(s,b,CE_SCM_ARMV8_32,CE_SCM_SELF,&v);
-        if(e || !v)goto failed;
+        if(e || v!=1)goto failed;
         s->convention=CE_SCM_ARMV8_32;
     }
     for(unsigned q=CE_SCM_PAS_INIT_AVAILABLE;q<=CE_SCM_PAS_STOP_AVAILABLE;++q) {
