@@ -1,5 +1,32 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：六缓冲GMU CPU工作区真机回归通过
+
+用户授权继续操作，确认手机在fastboot serial67eea163。使用已通过单缓冲
+真机回归的6f93116内核，生成`boot-cepheus-workspace-6f93116.img`，SHA256
+`108be7a468172c552d732c5c04e5ea79ee2da3d90c69c082d937e77805c1f149`。
+打包主机缺mcopy的第一次尝试未生成镜像；随后在已有cepheus-build:latest
+容器（network none，实际mtools）完成打包/核验。相对ready-9dc6e6e只改
+核文件与参数，UEFI/DTB/ADT/其他payload不变，cephmem=2，无GPU启动。
+
+先启动UDP接收器，再fastboot boot，Sending/Booting均OKAY。200秒有界
+日志129276B，SHA256 `0fcb2caf8de8f3bb8918b4d264525e4a8eaacb47f8a98a6343f0a29a4935c176`，
+记录在`../logs/workspace-6f93116-live-20261107/{boot.log,fastboot.log,result.json}`。
+六个NC buffer PA依次0x1843d4000/0x184494000/0x1844d0000/0x1844d8000/
+0x1844dc000/0x1844e4000；实际size为0x3c000/0x3c000/0x8000/0x4000/
+0x4000/0x8000（16KiB host页上取整，原设备页4KiB）。窗口为
+[0x181004000,0x241004000)，全部PA超过4GiB，映射未触发旧截断panic。
+
+CPU workspace table_pages=6、HFI VA0x60100000、log VA0x60200000，
+release=0/state3。**没有安装SMMU、发布DMA、运行GMU或提交CP命令**。
+此内核没有单独的retained_handles日志，不伪造计数；成功release只说明该
+CPU清理函数返回成功。后续active scan err0、ST-FTS选择、one-shot Home与
+帧呈现继续，捕获未见panic。日志含blank clear793us，但当前UI/电源体验仍
+等待用户确认。手机留在运行状态，只停止HOST接收器，未flash或自动重启。
+
+旧内核仍有no exact pair/ACV lookup=-1/config=-1；不把它当作新修订验证。
+ARC/ACV修订b04b259的CI42249859913已完成前置测试，当前Build XNU进行中。
+
 ## 2026-11-07：用户确认内存回归UI正常；ARC/ACV拒绝定位续作
 
 用户确认memcheck-6f93116主屏幕、触摸、电源正常，允许继续逐阶段验证。
