@@ -68,6 +68,7 @@ jobs:
           python3 cepheus/scripts/test-performance.py
           python3 cepheus/scripts/prepare-touch-power-patch.py ios-sweet/xnu/patches dxb/patches/0084-cepheus-touch-power.patch
           python3 cepheus/scripts/test-touch-power.py ios-sweet/xnu/patches
+          python3 cepheus/scripts/test-touch-fifo.py
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-integration.py
           python3 cepheus/scripts/test-pmap-cache-pa.py

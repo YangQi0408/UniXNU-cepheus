@@ -1,5 +1,37 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：单缓冲对照同样触摸失败，补齐FTS扩展事件协议
+
+用户确认对照memcheck-6f93116「未恢复」。因此两次UI均失败，单次历史
+成功仍是历史证据，但当前不能称稳定输入基线。workspace=2并非现已证明
+的触摸根因；跟进时设备再次在fastboot，代理未重启、未再盲目boot。
+
+原厂fts_521/fts.c两个FIFO事件循环在EVT_ID_USER_REPORT=0x53/subtype02/
+code18之后跳过下一slot，static pre_id跨批次保存。当前解析器漏了这一
+语义，补齐skip_next状态（pending payload在NOEVENT判断前消费），测试
+覆盖看似enter/reset/invalid的payload和仅跳过一条。不是丢弃真实失败证据，
+也不能据源码修正声称故障已解决；旧捕获没有原始事件可重放确认。
+
+新增默认关闭`sweettouchdiag=1`：128条非空FIFO原始字节、最多30次轮询
+health，含空读、I2C错误、ready/fault、continuation、原始越界坐标和HID
+bridge调用计数、IRQ/SDA/SCL。仅观察已有读取，诊断不发新的scan/reset/
+firmware/power恢复命令。ready/error现仍只释放contacts、不自动恢复扫描，
+后续须按原始日志决定，不凭猜测改变供电。当前改动尚未新CI/真机测试。
+
+新增`test-touch-fifo.py`直接抽取生产touch_fts循环编译执行，不另写替代
+算法。覆盖跨read continuation、同batch三slot、NOEVENT payload、invalid
+payload、读失败保留prefix状态、限量诊断不改解析结果；显式对照原厂
+static pre_id条件。初次source assertion因注释文本不一致失败，改为只
+断言宏值0x53后通过，不修改原厂源。完整离线receipt
+`../logs/gpu-offline-touch-fifo-20261107/receipt.json`26项PASS零SKIP，
+标明67adfb5 dirty工作树，不把host fake FIFO当作真机触摸修复完成。
+
+上一轮ARC/ACV内核CI42249859913 @b04b259 completed/success已下载到
+`../inputs/ci-42249859913/`，SHA256
+`a5ac4c6984ef5e068cf3c3281c43729e811e6313792cea1e9908d6e8b436c399`，
+linked pmap64bit门禁通过。该核没有本次触摸RAW/continuation修订，未boot，
+不会混用它冒称新触摸诊断。原已验证/失败镜像均保留不覆盖。
+
 ## 2026-11-07：工作区启动触摸验收失败，暂停后续GPU硬件阶段
 
 用户随后明确反馈workspace-6f93116「无法触摸，电源键正常」。因此上轮

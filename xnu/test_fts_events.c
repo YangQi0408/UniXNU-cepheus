@@ -27,7 +27,25 @@ int main(void)
 	assert(cepheus_fts_event(&s, clamp) == 0 && s.x[4] == 1080 && s.y[4] == 2340);
 	const uint8_t reset[] = {0x03, 0, 0, 0, 0, 0, 0, 0};
 	assert(cepheus_fts_event(&s, reset) == 0 && s.active == 0);
+	/* Original Xiaomi FIFO handler skips precisely ONE continuation, even
+	 * across two FIFO batches. The payload is allowed to look like a touch. */
+	const uint8_t extended[] = {0x53, 0x02, 0x18, 0, 0, 0, 0, 0};
+	assert(!cepheus_fts_event(&s, enter) && s.active == 4);
+	assert(!cepheus_fts_event(&s, extended) && s.skip_next == 1 && s.active == 4);
+	struct cepheus_fts_state next_batch = s;
+	assert(!cepheus_fts_event(&next_batch, other) && !next_batch.skip_next && next_batch.active == 4);
+	assert(!cepheus_fts_event(&next_batch, other) && next_batch.active == 6);
+	assert(!cepheus_fts_event(&next_batch, extended) && next_batch.skip_next);
+	assert(!cepheus_fts_event(&next_batch, reset) && next_batch.active == 6 && !next_batch.skip_next);
+	assert(!cepheus_fts_event(&next_batch, reset) && !next_batch.active);
+	const uint8_t unrelated[] = {0x53, 0x02, 0x17, 0, 0, 0, 0, 0};
+	assert(!cepheus_fts_event(&next_batch, unrelated) && !next_batch.skip_next);
+	assert(!cepheus_fts_event(&next_batch, enter) && next_batch.active == 4);
+	assert(!cepheus_fts_event(&next_batch, extended));
+	assert(!cepheus_fts_event(&next_batch, invalid) && !next_batch.skip_next && next_batch.active == 4);
+	assert(cepheus_fts_event(&next_batch, invalid) == -1);
 	puts("FTS enter/motion/leave, retained contacts, limits and reset: PASS");
+	puts("Xiaomi 53:02:18 continuation: one-slot skip across batches, no fake touch/reset dispatch PASS (synthetic FIFO)");
 	assert(cepheus_branch_enabled(0x4220u, 0));
 	assert(cepheus_branch_enabled(0x80000002u, 1));
 	assert(!cepheus_branch_enabled(0x80000002u, 0));

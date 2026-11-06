@@ -7,6 +7,7 @@
 struct cepheus_fts_state {
 	uint32_t active;
 	int x[10], y[10];
+	unsigned skip_next; /* Xiaomi 53:02:18 continuation, persists across reads */
 };
 
 static int
@@ -14,6 +15,17 @@ cepheus_fts_event(struct cepheus_fts_state *state, const uint8_t e[8])
 {
 	unsigned type = e[0];
 	unsigned finger = e[1] >> 4;
+	/* The next FIFO slot after this vendor user report is payload, not an
+	 * independent event (fts_event_handler's static pre_id in fts_521/fts.c).
+	 * It may resemble enter/motion/reset; consume it before dispatch. */
+	if (state->skip_next) {
+		state->skip_next = 0;
+		return 0;
+	}
+	if (type == 0x53 && e[1] == 0x02 && e[2] == 0x18) {
+		state->skip_next = 1;
+		return 0;
+	}
 	if (type == 0x03 || type == 0xf3) {
 		state->active = 0; /* controller reset/error: release stale contacts */
 		return 0;

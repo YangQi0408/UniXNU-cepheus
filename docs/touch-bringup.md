@@ -1,5 +1,24 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：当前启动触摸回归，历史成功不代表现状
+
+用户确认workspace-6f93116无法触摸（电源正常）；随后同内核memcheck-6f93116
+对照也未恢复。两版内存CPU自检成功但UI触摸验收失败，暂停后续GPU硬件
+阶段。两次日志有一组多指右边缘触点与释放；没有原始FIFO，原因未知。
+不能仅凭active scan0/ID36:39/HID注册判触摸可用，也不能凭workspace模式
+归因。旧基线镜像保留，未覆盖或刷写，不自动触发触摸reset/固件更新。
+
+源码核对发现原厂fts_521事件循环在53:02:18用户报告后跳过下一slot，
+并用static pre_id跨FIFO批次保留。本实现此前遗漏该协议。现在补齐单slot
+continuation抑制及跨批次测试；这是真实源码修正，尚未证明与本次失败
+有因果关系。I2C的DUMMY_FIFO=0仍保持，不错套SPI的dummy=1。
+
+新`sweettouchdiag=1`限量记录原始128个非空事件、最多30次轮询统计，
+含empty/error/ready/fault/skipped/outside/hid_calls以及IRQ/SDA/SCL。
+hid_calls是送入桥函数的次数，**不是用户态收件或手势成功**。诊断默认
+关闭，不加总线恢复、scan重发、reset、触摸firmware或电源试写。
+当前修订尚未CI/真机验证；详细日志身份见`docs/gpu-acceptance.md`。
+
 ## 已验证与未验证
 
 主屏幕、电源键和单次写黑熄屏已由用户确认。**物理触摸现在也已由用户确认可用**，

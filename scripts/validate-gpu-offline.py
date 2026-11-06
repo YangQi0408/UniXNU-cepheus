@@ -47,6 +47,8 @@ def main():
             ('pmap-cache-verifier',['python3','scripts/test-pmap-cache-verifier.py'],{}),
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
+            ('touch-fifo',['python3','scripts/test-touch-fifo.py'] +
+             ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('sanitizers',['bash','scripts/test-gpu-sanitizers.sh'],{}),
             ('static',['python3','scripts/analyze-gpu-host.py'],{}),
             ('integration',['python3','scripts/test-gpu-integration.py'],

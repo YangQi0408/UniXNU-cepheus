@@ -132,10 +132,15 @@ static struct {
 	bool started, dead;
 	int irq_hint;
 	int gpio_i2c;
+	int diag;
 	bool pins_claimed;
 	uint32_t saved_cfg[2], saved_io[2], bb_cfg[2];
 	uint32_t irq_status, active;
 	int x[TOUCH_MAX], y[TOUCH_MAX];
+	unsigned skip_next;
+	unsigned diag_polls, diag_reads, diag_empty, diag_events, diag_errors;
+	unsigned diag_ready, diag_faults, diag_skipped, diag_outside, diag_sent;
+	unsigned diag_raw, diag_summaries;
 } st;
 static int touch_sleep_chan;
 static struct cepheus_bb touch_bb;
@@ -477,6 +482,7 @@ touch_report(uint32_t mask, const int *x, const int *y)
 				int hx = x[id] >= 1080 ? 1079 : x[id];
 				int hy = y[id] >= 2340 ? 2399 : (int)((int64_t)y[id] * 2399 / 2339);
 				sweet_hid_touch((int)id, 1, hx, hy);
+				if (st.diag) { ++st.diag_sent; }
 			}
 			st.x[id] = x[id];
 			st.y[id] = y[id];
@@ -484,6 +490,7 @@ touch_report(uint32_t mask, const int *x, const int *y)
 			int hx = st.x[id] >= 1080 ? 1079 : st.x[id];
 			int hy = st.y[id] >= 2340 ? 2399 : (int)((int64_t)st.y[id] * 2399 / 2339);
 			sweet_hid_touch((int)id, 0, hx, hy);
+			if (st.diag) { ++st.diag_sent; }
 		}
 	}
 	st.active = mask;
@@ -498,12 +505,16 @@ static int
 touch_fts(void)
 {
 	uint8_t buf[FTS_FIFO_EVENT_SIZE * FTS_FIFO_DEPTH];
-	struct cepheus_fts_state frame = {.active = st.active};
+	struct cepheus_fts_state frame = {.active = st.active, .skip_next = st.skip_next};
 	memcpy(frame.x, st.x, sizeof(frame.x));
 	memcpy(frame.y, st.y, sizeof(frame.y));
 	int err = fts_read_cmd(FTS_CMD_READ_ALL_EVENTS, buf, FTS_FIFO_EVENT_SIZE);
 	if (err) { return err; }
 	unsigned remaining = buf[7] & 0x1fu;
+	if (st.diag) {
+		++st.diag_reads;
+		if (!buf[0]) { ++st.diag_empty; }
+	}
 	/* Preserve the first popped event; read only the remaining events into
 	 * buf+8, matching Linux fts_event_handler. Do not overwrite the enter.
 	 */
@@ -514,8 +525,32 @@ touch_fts(void)
 	}
 	for (unsigned i = 0; i <= remaining; ++i) {
 		const uint8_t *e = buf + i * FTS_FIFO_EVENT_SIZE;
+		if (st.diag && e[0]) {
+			++st.diag_events;
+			if (frame.skip_next) { ++st.diag_skipped; }
+			else if (e[0] == 0x03) { ++st.diag_ready; }
+			else if (e[0] == 0xf3) { ++st.diag_faults; }
+			else if (e[0] == 0x13 || e[0] == 0x23) {
+				unsigned x = ((unsigned)(e[3] & 0x0f) << 8) | e[2];
+				unsigned y = ((unsigned)e[4] << 4) | (e[3] >> 4);
+				if (x > TOUCH_X_MAX || y > TOUCH_Y_MAX) { ++st.diag_outside; }
+			}
+			if (st.diag_raw < 128) {
+				++st.diag_raw;
+				printf("SWEET TOUCH RAW: n=%u slot=%u remaining=%u skip=%u bytes=%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+				    st.diag_raw,i,remaining,frame.skip_next,e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[7]);
+			}
+		}
+		/* Xiaomi consumes a pending continuation BEFORE testing NOEVENT. */
+		if (frame.skip_next) {
+			(void)cepheus_fts_event(&frame, e);
+			st.skip_next = frame.skip_next;
+			continue;
+		}
 		if (e[0] == 0) { break; }
-		if (cepheus_fts_event(&frame, e)) { return EIO; }
+		int parsed = cepheus_fts_event(&frame, e);
+		st.skip_next = frame.skip_next; /* FIFO popped; retain prefix state */
+		if (parsed) { return EIO; }
 	}
 	touch_report(frame.active, frame.x, frame.y);
 	return 0;
@@ -749,6 +784,7 @@ touch_thread(void *arg, wait_result_t result)
 	printf("SWEET TOUCH (cepheus): selected ST-FTS, %dx%d, poll=10ms irq-hint=%d\n",
 	    TOUCH_X_MAX, TOUCH_Y_MAX, st.irq_hint);
 	unsigned errors = 0, ticks = 0;
+	if (st.diag) { printf("SWEET TOUCH DIAG: enabled raw_limit=128 summary_limit=30; no automatic reset/power recovery\n"); }
 	while (!st.dead) {
 		/* Optional IRQ hint still reads every 100 ms, and always while down. */
 		if (!st.irq_hint || st.active ||
@@ -756,6 +792,7 @@ touch_thread(void *arg, wait_result_t result)
 		    (++ticks % 10u) == 0) {
 			int err = touch_fts();
 			if (err) {
+				if (st.diag) { ++st.diag_errors; }
 				if (st.gpio_i2c && (err == EAGAIN || err == ETIMEDOUT || err == EBUSY)) {
 					printf("SWEET TOUCH (cepheus): GPIO bus err=%d; restoring pins and stopping\n", err);
 					st.dead = true;
@@ -771,10 +808,20 @@ touch_thread(void *arg, wait_result_t result)
 				errors = 0;
 			}
 		}
+		if (st.diag && ++st.diag_polls % 1000u == 0 && st.diag_summaries < 30) {
+			++st.diag_summaries;
+			printf("SWEET TOUCH HEALTH: polls=%u reads=%u empty=%u events=%u errors=%u ready=%u faults=%u skipped=%u outside=%u hid_calls=%u active=%#x skip_next=%u irq=%u sda=%u scl=%u\n",
+			    st.diag_polls,st.diag_reads,st.diag_empty,st.diag_events,st.diag_errors,
+			    st.diag_ready,st.diag_faults,st.diag_skipped,st.diag_outside,st.diag_sent,
+			    st.active,st.skip_next,touch_rd(st.south,TOUCH_GPIO_IO(TOUCH_PIN_IRQ))&1u,
+			    touch_rd(st.south,TOUCH_GPIO_IO(TOUCH_PIN_SDA))&1u,
+			    touch_rd(st.south,TOUCH_GPIO_IO(TOUCH_PIN_SCL))&1u);
+		}
 		touch_wait(10);
 	}
 	touch_report(0, st.x, st.y);
 out:
+	if (st.diag) { printf("SWEET TOUCH DIAG: thread exit dead=%u active=%#x reads=%u errors=%u\n",st.dead,st.active,st.diag_reads,st.diag_errors); }
 	touch_bb_restore();
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);
@@ -793,6 +840,7 @@ sweet_touch_init(void)
 	(void)PE_parse_boot_argn("sweettouch", &enabled, sizeof(enabled));
 	(void)PE_parse_boot_argn("sweettouchirq", &st.irq_hint, sizeof(st.irq_hint));
 	(void)PE_parse_boot_argn("sweettouchgpio", &st.gpio_i2c, sizeof(st.gpio_i2c));
+	(void)PE_parse_boot_argn("sweettouchdiag", &st.diag, sizeof(st.diag));
 	if (!enabled) {
 		printf("SWEET TOUCH (cepheus): disabled (sweettouch=0)\n");
 		return;
