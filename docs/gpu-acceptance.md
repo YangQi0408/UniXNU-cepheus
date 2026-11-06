@@ -30,6 +30,15 @@ GPU目录，没有追到内核pmap通用补丁，本轮补足。未改cache策�
 4/16KiB两种host页均重现旧低32值并确认新64位正确；linked gate拒绝已panic内核。
 新内存phase日志仅帮助定位，不能代替底层修复。仍需完整CI与再一次真机回归。
 
+CI补证：42210687545 @6f93116 completed/success，实际内核callback首指令
+验证为64bit PA UBFIZ（16KiB host page），内核SHA256
+`bb9f547dd8eadf46d3e587c96cdbf0ab2f3f4c47288cf83a5421f3af9d3e7ec1`。
+新镜像 `boot-cepheus-memcheck-6f93116.img` SHA256
+`38e28ba3cd34142985a50dcf79c1f4c2ef1feefe9f8e7dc2f25c06f151a3e003`，
+包核验通过，未在手机启动。保留原UEFI/ADT/触摸与cephmem=1，不加自动reset。
+离线receipt ../logs/gpu-offline-513a44d/receipt.json为24项PASS零SKIP，
+范围包括patch应用、回归codegen、linked gate parser、原固件fixture与静态分析。
+
 ## 2026-11-06：多次真机回归准备（尚未启动）
 
 用户取消单次机会限制，要求可测试时直接告知。现生成
