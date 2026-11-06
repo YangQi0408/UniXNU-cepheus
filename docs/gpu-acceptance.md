@@ -11,7 +11,15 @@ memcheck=1的用户反馈正常，应先做相同内核对照并检查继承控�
 
 跟进时设备已枚举为fastboot67eea163，主机ECM消失；代理没有发重启命令，
 无法继续读取先前运行态。计划临时启动已验证memcheck-6f93116做对照，
-不开GPU、不改触摸重置/电源行为、不flash。尚无新对照验收结果。
+不开GPU、不改触摸重置/电源行为、不flash。尚无新对照用户验收结果。
+
+对照已临时启动memcheck-6f93116（38e28ba3...），Sending/Booting OKAY。
+170秒捕获124986B，日志SHA256
+`00f53069248b49fe06a9d145847cecb3568db5b695506a75a94153b749a4db32`，
+证据在`../logs/touch-control-memcheck-6f93116-20261107/`。单缓冲pattern PASS/
+release0/retained_pages0；ST-FTS初始化成功，但同样记录6个x=1079触点再
+释放。右边缘模式不局限于workspace=2，不能直接归因新内存工作区；原始
+FIFO仍缺、当前对照是否可交互等待用户。捕获无panic，手机留在运行态。
 另外ARC/ACV修订b04b259的CI42249859913已completed/success；构建通过
 不修复或验证本次触摸故障，先暂停其硬件阶段。
 
