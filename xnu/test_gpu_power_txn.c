@@ -75,6 +75,14 @@ int main(void)
     m=fixture();m.in.current_cx=3;struct ceph_power_plan plan;
     assert(!ceph_power_plan(&m.in,&plan) && plan.cx_index==3 && plan.mx_index==3);
     m.in.mx.count=3;assert(ceph_power_plan(&m.in,&plan)==CE_PWR_INVALID);
+    /* Real phone rail layout from memcheck capture: no48 inCX; MX rounds64
+     * to128. A request48 must use CXindex2/MXindex2, not fabricated values. */
+    m=fixture();m.in.cx=(struct ceph_arc_resource){.address=0x30000,.levels={0,16,64,128,192,256,384,416},.count=8};
+    m.in.mx=(struct ceph_arc_resource){.address=0x30010,.levels={0,16,128,192,256,320,384,416},.count=8};
+    assert(!ceph_power_plan(&m.in,&plan) && plan.cx_index==2 && plan.mx_index==2);
+    m.in.current_cx=5;assert(!ceph_power_plan(&m.in,&plan) && plan.cx_index==5 && plan.mx_index==4);
+    m.in.current_mx=7;assert(!ceph_power_plan(&m.in,&plan) && plan.mx_index==7);
+    m.in.mx.count=2;assert(ceph_power_plan(&m.in,&plan)==CE_PWR_INVALID);
     m=fixture();m.in.parent_hz=0;b=ops(&m);t=(struct ceph_power_txn){0};
     assert(ceph_power_start(&t,&b)!=0 && !t.effects && !m.kept);
     m=fixture();m.timeout=1;b=ops(&m);t=(struct ceph_power_txn){0};

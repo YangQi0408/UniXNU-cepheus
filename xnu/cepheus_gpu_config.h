@@ -36,6 +36,8 @@ struct ceph_gpu_config {
     struct ceph_pdc_input pdc;
     unsigned initial_freq,initial_bw; /* ascending HFI indices, NOT a vote */
 };
+enum {CE_CONFIG_RAILS=-20,CE_CONFIG_DDR_BCM=-21,CE_CONFIG_CNOC_BCM=-22,
+    CE_CONFIG_ROUTES=-23,CE_CONFIG_PDC_RESOURCE=-24,CE_CONFIG_WIRE=-25};
 static inline int ceph_gpu_config_build(const struct ceph_arc_db *db,uint32_t chipid,
     uint32_t qfprom,struct ceph_gpu_config *out)
 {
@@ -44,27 +46,28 @@ static inline int ceph_gpu_config_build(const struct ceph_arc_db *db,uint32_t ch
     if(ceph_gpu_bin_policy(chipid,qfprom,&c.policy) ||
         ceph_arc_lookup(db,"gfx.lvl",&c.gfx) || ceph_arc_lookup(db,"cx.lvl",&c.cx) ||
         ceph_arc_lookup(db,"mx.lvl",&c.mx) || c.gfx.address==c.cx.address ||
-        c.gfx.address==c.mx.address || c.cx.address==c.mx.address)return -1;
+        c.gfx.address==c.mx.address || c.cx.address==c.mx.address)return CE_CONFIG_RAILS;
     struct ceph_bcm_resource ddr[3],cnoc[3];
-    for(unsigned i=0;i<3;++i)
-        if(ceph_bcm_lookup(db,ceph_config_ddr_names[i],&ddr[i]) ||
-            ceph_bcm_lookup(db,ceph_config_cnoc_names[i],&cnoc[i]))return -1;
+    for(unsigned i=0;i<3;++i) {
+        if(i==2?ceph_bcm_lookup_acv(db,&ddr[i]):ceph_bcm_lookup(db,ceph_config_ddr_names[i],&ddr[i]))return CE_CONFIG_DDR_BCM;
+        if(ceph_bcm_lookup(db,ceph_config_cnoc_names[i],&cnoc[i]))return CE_CONFIG_CNOC_BCM;
+    }
     for(unsigned i=0;i<3;++i)for(unsigned j=0;j<3;++j)
-        if(ddr[i].address==cnoc[j].address)return -1;
+        if(ddr[i].address==cnoc[j].address)return CE_CONFIG_ROUTES;
     struct ceph_bw_route dr={ddr,3,ceph_config_ddr_nodes,3,2,8000};
     struct ceph_bw_route cr={cnoc,3,ceph_config_cnoc_nodes,3,-1,8000};
-    if(ceph_gpu_bw_table(&cr,ceph_config_cnoc,&dr,ceph_config_ddr,12,&c.bw))return -1;
+    if(ceph_gpu_bw_table(&cr,ceph_config_cnoc,&dr,ceph_config_ddr,12,&c.bw))return CE_CONFIG_ROUTES;
     c.pdc.chipid=chipid;c.pdc.cfg_pa=0xb290000;c.pdc.seq_pa=0xb490000;
     static const uint32_t addresses[]={0x30010,0x30000,0x30090};
     for(unsigned i=0;i<3;++i) {
         char name[9];
-        if(ceph_arc_lookup_address(db,addresses[i],name,&c.pdc.resources[i]))return -1;
+        if(ceph_arc_lookup_address(db,addresses[i],name,&c.pdc.resources[i]))return CE_CONFIG_PDC_RESOURCE;
     }
     struct ceph_pdc_plan pdc;
     uint32_t perf[59],acd[17];
     if(ceph_pdc_plan_a640v2(&c.pdc,&pdc) ||
         ceph_hfi_perf(perf,59,ceph_config_gx,c.policy.gx_levels,ceph_config_cx,2,&c.gfx,&c.cx,&c.mx)!=59 ||
-        (c.policy.acd && ceph_hfi_acd_table(acd,17,&ceph_config_acd)!=17))return -1;
+        (c.policy.acd && ceph_hfi_acd_table(acd,17,&ceph_config_acd)!=17))return CE_CONFIG_WIRE;
     /* Both FDT bins start at257MHz (ascending index1), BW index3. */
     c.initial_freq=1;c.initial_bw=3;*out=c;return 0;
 }

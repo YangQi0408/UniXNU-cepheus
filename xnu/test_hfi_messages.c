@@ -13,6 +13,11 @@ int main(void)
     assert(out[9]==0x00800404 && out[11]==309110 && out[12]==0);
     assert(out[51]==0 && out[52]==0 && out[53]==0x00300202 && out[54]==200000);
     assert(out[55]==0 && out[58]==0 && out[59]==0xdeadbeef);
+    struct ceph_arc_resource actual_cx={.levels={0,16,64,128,192,256,384,416},.count=8};
+    struct ceph_arc_resource actual_mx={.levels={0,16,128,192,256,320,384,416},.count=8};
+    uint32_t rounded=0;assert(!ceph_hfi_vote(&actual_cx,&actual_mx,48,&rounded) && rounded==0x00400202);
+    actual_mx.count=2;rounded=0xdeadbeef;
+    assert(ceph_hfi_vote(&actual_cx,&actual_mx,48,&rounded)==CE_HFI_INVALID && rounded==0xdeadbeef);
     uint32_t old[59];memcpy(old,out,sizeof(old));
     gx[2].hz=215000000;assert(ceph_hfi_perf(out,59,gx,3,cx,2,&rail,&rail,&rail)==CE_HFI_INVALID);
     assert(!memcmp(old,out,sizeof(old)));gx[2].hz=309110000;

@@ -42,13 +42,14 @@ cepheus_gpu_arc_probe(void)
             printf("CEPHEUS ARC: %s hlvl=%u raw_vlvl=%u\n", names[i], j, rails[i].levels[j]);
     }
     unsigned cx=0, mx=0;
-    /* 200MHz GPUCC GMU entry uses VDD_MIN: raw MIN_SVS=48, not mV.
-     * Require exact minimum for this diagnostic proposal, no silent overvote. */
-    error = ceph_arc_pair(&rails[0], &rails[1], 48, 48, &cx, &mx);
+    /* Source minimum is48; cmd-db need not contain it exactly. Apply KGSL's
+     * primary ceil and MX ceil of the ROUNDED primary. Proposal only. */
+    error = ceph_arc_pair(&rails[0], &rails[1], 48, UINT16_MAX, &cx, &mx);
     if (!error)
-        printf("CEPHEUS ARC: 200MHz minimum candidate cx_hlvl=%u mx_hlvl=%u (NOT SENT)\n", cx, mx);
+        printf("CEPHEUS ARC: 200MHz minimum=48 rounded candidate cx_hlvl=%u raw=%u mx_hlvl=%u raw=%u (NOT SENT)\n",
+            cx,rails[0].levels[cx],mx,rails[1].levels[mx]);
     else
-        printf("CEPHEUS ARC: no exact MIN_SVS pair error=%d (NOT SENT)\n", error);
+        printf("CEPHEUS ARC: no covering MIN_SVS pair error=%d (NOT SENT)\n", error);
     const uint32_t pdc_resources[]={0x30010,0x30000,0x30090};
     for(unsigned i=0;i<3;++i) {
         char resource[9];struct ceph_arc_resource rail;
@@ -62,7 +63,11 @@ cepheus_gpu_arc_probe(void)
     const char *bcms[]={"SH0","MC0","ACV","SH2","SN15","SN3"};
     for(unsigned i=0;i<sizeof(bcms)/sizeof(bcms[0]);++i) {
         struct ceph_bcm_resource bcm;
-        int result=ceph_bcm_lookup(&db,bcms[i],&bcm);
+        struct ceph_bcm_metadata metadata;
+        int result=ceph_bcm_inspect(&db,bcms[i],&bcm,i==2,&metadata);
+        if(i==2)printf("CEPHEUS BCM META: ACV address=%#x aux_version=%#x aux_offset=%#x aux_bytes=%u bounded_aux_read=%u raw_unit=%#x raw_info=%#x result=%d (evidence only; no votes)\n",
+            metadata.address,metadata.aux_version,metadata.aux_offset,metadata.aux_bytes,
+            metadata.bounded_aux_read,metadata.unit,metadata.info,result);
         if(result) {printf("CEPHEUS BCM: %s lookup error=%d; no votes\n",bcms[i],result);continue;}
         printf("CEPHEUS BCM: %s address=%#x unit=%u width=%u vcd=%u (no votes)\n",
             bcms[i],bcm.address,bcm.unit,(unsigned)bcm.width,(unsigned)bcm.vcd);

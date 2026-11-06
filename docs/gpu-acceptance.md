@@ -1,5 +1,39 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：用户确认内存回归UI正常；ARC/ACV拒绝定位续作
+
+用户确认memcheck-6f93116主屏幕、触摸、电源正常，允许继续逐阶段验证。
+这补足下方先前记录的UI确认缺口，但仍只证明基本启动与单缓冲NC回归。
+
+纠正：旧日志的`no exact MIN_SVS pair`来自诊断入口；HFI编码器原本已经
+向上选档。不能把同时发生的config=-1完全归因于CX无48：同一日志还报告
+ACV lookup=-1，没有其原始aux字段。因此config的实际拒绝环节尚待细分。
+按本地KGSL `setup_volt_dependency_tbl`，电源计划/诊断改为primary ceil(48)，
+MX再ceil(rounded primary)。本机已捕获CX/MX表的结果为CXindex2/raw64、
+MXindex2/raw128；HFI GMU票为`0x00400202`，仍NOT SENT。不选最高档代替
+ownership，不降继承票。KGSL对secondary不足时会饱和到末档；本实现保留
+更严格的拒绝，不将低于primary的MX列为有效依赖。
+
+ACV位投票入口单独处理：允许固定字面名称ACV的unit/width为0，不让任意
+BCM绕过除数验证；AB=0、IB仅0或apps bit0x8。保留8字节aux、对齐、范围、
+保留字节、VCD、重复项检查，普通BCM零除数仍拒绝。零元数据是测试假设，
+**未取得本机ACV原始字节，尚不能确认旧拒绝因此产生**。原厂源码没有在
+`msm_bus_bcm_init`拒绝零字段，ACV单独编码；本实现也不对零字段做除法，
+不把此边界修复当作原厂宽度/聚合结果或真实带宽租约证明。
+
+新增bounded ACV原始entry/aux诊断（失败时可标明未读aux），以及config
+rails/DDR BCM/CNOC BCM/routes/PDC/wire分阶段负错误码。用于下一版只读
+日志定位，不授予任何电源/DDR/PAS/SMMU所有权。测试覆盖日志中CX/MX表
+经synthetic carrier进入生产config、GMU票、ACV bit、普通BCM零除数拒绝、
+reserved/短aux/越界拒绝。`test-arc-bcm-source.py`新增显式原厂源码对照。
+GMU workspace自检增加六个backing PA/bytes及retained_handles/leased_mask
+清理日志，不改变CPU-only准备/释放行为，不发布DMA地址。
+
+离线receipt `../logs/gpu-offline-arc-bcm-20261107/receipt.json`共25项PASS、
+零SKIP，包含62个host程序、sanitizers、7生产单元静态分析、真实固件RAM
+fixture和ARC/ACV源码对照；receipt如实标明f441a35 dirty工作树，不冒称已
+提交修订的构建。本节尚无新CI或cephmem=2真机结果。
+
 ## 2026-11-06：PA截断修复单缓冲真机回归通过
 
 用户授权代理操作已连接手机。先确认fastboot serial67eea163与镜像SHA，

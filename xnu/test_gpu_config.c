@@ -46,5 +46,26 @@ int main(int argc,char **argv)
     config_word(144+4*24+16,0x30094);assert(ceph_gpu_config_build(&db,0x06040001,0,&c)<0);config_fixture();
     config_word(144+20,8);assert(ceph_gpu_config_build(&db,0x06040001,0,&c)<0);
     assert(!memcmp(&c,&saved,sizeof(c)));
+    /* Logged real CX/MX levels, transported in a SYNTHETIC command-db carrier.
+     * ACV's zero unit/width is a source-admitted test case, not yet a recorded
+     * ACV byte snapshot from this phone. No fabricated defaults in production. */
+    config_fixture();
+    const uint16_t live_cx[]={0,16,64,128,192,256,384,416};
+    const uint16_t live_mx[]={0,16,128,192,256,320,384,416};
+    for(unsigned i=0;i<2;++i) {
+        unsigned entry=144+(i+1)*24,aux=264+(i+1)*20;
+        config_word(entry+20,16|((i+1)*20<<16));
+        for(unsigned n=0;n<8;++n) {
+            unsigned value=i?live_mx[n]:live_cx[n];
+            config_db[aux+2*n]=(uint8_t)value;config_db[aux+2*n+1]=(uint8_t)(value>>8);
+        }
+    }
+    config_word(544+2*8,0);config_word(548+2*8,2u<<16);
+    assert(!ceph_gpu_config_build(&db,0x06040001,0,&c));
+    uint32_t rounded_perf[59];
+    assert(ceph_hfi_perf(rounded_perf,59,ceph_config_gx,8,ceph_config_cx,2,&c.gfx,&c.cx,&c.mx)==59);
+    assert(rounded_perf[53]==0x00400202u); /* requested48 -> CX64/MX128 */
+    assert((c.bw.ddr_data[11][2]&0x3fff)==8);
+    config_word(544,0);assert(ceph_gpu_config_build(&db,0x06040001,0,&c)<0); /* not ACV */
     puts("Source-bound Cepheus profile: bin/OPP/12 DDR/2 CNOC/ACD/PDC + parsed synthetic cmd-db, fail-closed PASS (not live metadata)");
 }

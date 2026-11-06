@@ -25,5 +25,25 @@ int main(void)
     wr(172,0xff020010);assert(ceph_bcm_lookup(&db,"SH0",&r)<0 && !r.unit);
     wr(172,0x20010);wr(168,0);assert(ceph_bcm_lookup(&db,"SH0",&r)<0);
     wr(168,1000);wr(164,7);assert(ceph_bcm_lookup(&db,"SH0",&r)<0);
+    wr(164,8);memset(bytes+144,0,8);memcpy(bytes+144,"ACV",3);
+    wr(168,0);wr(172,3u<<16);
+    assert(ceph_bcm_lookup(&db,"ACV",&r)<0 && !r.unit);
+    assert(!ceph_bcm_lookup_acv(&db,&r) && !r.unit && !r.width && r.vcd==3);
+    assert(ceph_bcm_normalize(&r,1,1,4,4,&x,&y)<0);
+    struct ceph_bcm_vote acv={r,0,8};
+    assert(ceph_bcm_commands(&acv,1,out,3,&wait)<0);
+    assert(ceph_bcm_commands_kind(&acv,1,out,3,&wait,0)==1 && out[0].data==0x60000008);
+    acv.y=1;assert(ceph_bcm_commands_kind(&acv,1,out,3,&wait,0)<0);
+    acv.y=8;acv.x=1;assert(ceph_bcm_commands_kind(&acv,1,out,3,&wait,0)<0);
+    memcpy(bytes+144,"SH0",3);assert(ceph_bcm_lookup_acv(&db,&r)<0);
+    assert(ceph_bcm_lookup_kind(&db,"SH0",&r,1)<0); /* cannot relax arbitrary BCM */
+    memset(bytes+144,0,8);memcpy(bytes+144,"ACV",3);
+    struct ceph_bcm_metadata raw;
+    assert(!ceph_bcm_inspect(&db,"ACV",&r,1,&raw) && raw.bounded_aux_read && raw.aux_bytes==8 && raw.info==3u<<16);
+    wr(172,0x01030000); /* reserved byte is NOT waived for bit votes */
+    assert(ceph_bcm_inspect(&db,"ACV",&r,1,&raw)<0 && !r.address && raw.bounded_aux_read && raw.info==0x01030000);
+    wr(164,7);assert(ceph_bcm_inspect(&db,"ACV",&r,1,&raw)<0 && raw.aux_bytes==7 && !raw.bounded_aux_read);
+    wr(164,8|((sizeof(bytes)-4-168u)<<16));
+    assert(ceph_bcm_inspect(&db,"ACV",&r,1,&raw)<0 && !raw.bounded_aux_read);
     puts("BCM: bounded metadata, exact KGSL normalization, VCD grouping/commit/wait/saturation PASS (no votes)");
 }

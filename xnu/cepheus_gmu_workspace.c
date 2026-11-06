@@ -71,8 +71,14 @@ void cepheus_gmu_workspace_selftest(void)
     }
     printf("CEPHEUS GMU MEM: CPU workspace table_pages=%u HFI=%#x log=%#x; no SMMU/DMA\n",
         w.table.used,w.layout.start.hfi_va,w.layout.start.log_va);
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)
+        printf("CEPHEUS GMU MEM: CPU backing index=%u pa=%#llx bytes=%#lx; not published\n",
+            i,(unsigned long long)w.views[i].pa,(unsigned long)w.views[i].bytes);
     int result=cepheus_gmu_workspace_release_cpu(&w);
     printf("CEPHEUS GMU MEM: CPU workspace release=%d state=%u\n",result,(unsigned)w.state);
+    unsigned retained=0;
+    for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)if(w.handles[i])++retained;
+    printf("CEPHEUS GMU MEM: CPU cleanup retained_handles=%u leased_mask=%#x; no SMMU/DMA\n",retained,w.leased);
 }
 
 int cepheus_gmu_workspace_share(struct ceph_gmu_workspace *w,const struct ceph_smmu_plan *p)

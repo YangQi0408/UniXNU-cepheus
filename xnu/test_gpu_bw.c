@@ -27,5 +27,9 @@ int main(void)
     assert(ceph_gpu_bw_table(&c,cl,&d,bad,3,&b)<0);
     struct ceph_bw_node partial[]={{0,16,4},{1,4,4}};d.nodes=partial;d.node_count=2;
     assert(ceph_gpu_bw_table(&c,cl,&d,dl,3,&b)<0);
+    struct ceph_bcm_resource bit_ddr[3];memcpy(bit_ddr,ddr,sizeof(ddr));bit_ddr[2].unit=bit_ddr[2].width=0;
+    d.nodes=dnodes;d.node_count=3;d.bcms=bit_ddr;
+    assert(!ceph_gpu_bw_table(&c,cl,&d,dl,3,&b) && b.ddr_data[1][1]==0x60000008);
+    d.acv_index=-1;assert(ceph_gpu_bw_table(&c,cl,&d,dl,3,&b)<0);
     puts("GPU BW tables: route widths, apps-ACV bit, VCD-stable HFI rows and malformed topology PASS (synthetic metadata)");
 }

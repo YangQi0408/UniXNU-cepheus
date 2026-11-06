@@ -45,7 +45,10 @@ static inline int ceph_power_plan(const struct ceph_power_input *in, struct ceph
         ((in->cx.address|in->mx.address)&3u) || in->cx.address==in->mx.address)
         return CE_PWR_INVALID;
     unsigned c,m;
-    int e=ceph_arc_pair(&in->cx,&in->mx,48,48,&c,&m);
+    /* KGSL setup_volt_dependency_tbl takes the first primary level >=48,
+     * then the first MX level >= that ACTUAL rounded primary, not >=48.
+     * No exact-48 assumption, and no jump to a highest-table overvote. */
+    int e=ceph_arc_pair(&in->cx,&in->mx,48,UINT16_MAX,&c,&m);
     if (e) return CE_PWR_INVALID;
     /* Never lower a pre-existing apps-DRV request. Increase MX first so it
      * covers the actual preserved CX request, not merely our 48 minimum. */

@@ -87,10 +87,15 @@ int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)
 int cepheus_gpu_config_probe(const struct ceph_arc_db *db,uint32_t chipid,uint32_t fuse)
 {
     struct ceph_gpu_config c;
-    if(ceph_gpu_config_build(db,chipid,fuse,&c))return -1;
+    int configured=ceph_gpu_config_build(db,chipid,fuse,&c);
+    if(configured)return configured; /* keep exact refused stage, not generic -1 */
     printf("CEPHEUS GPU CONFIG: fixed Cepheus FDT profile, observed bin=%u gx=%u bw=%u cnoc=%u ddr=%u initial=%u/%u (NOT SENT)\n",
         c.policy.bin,c.policy.gx_levels,c.bw.levels,c.bw.cnoc_count,c.bw.ddr_count,c.initial_freq,c.initial_bw);
     printf("CEPHEUS GPU CONFIG: profile_sha256=%s live FDT identity still unverified; ARC ownership UNKNOWN\n",CE_GPU_CONFIG_FDT_SHA256);
+    uint32_t gmu_vote=0;
+    if(ceph_hfi_vote(&c.cx,&c.mx,48,&gmu_vote))return -1;
+    printf("CEPHEUS GPU CONFIG: GMU 200MHz requested_min=48 rounded_vlvl=%u cx_index=%u mx_index=%u packed_vote=%#x (NOT SENT)\n",
+        (gmu_vote>>16)&0xffff,gmu_vote&0xff,(gmu_vote>>8)&0xff,gmu_vote);
     uint32_t perf[59];
     if(ceph_hfi_perf(perf,59,ceph_config_gx,c.policy.gx_levels,ceph_config_cx,2,&c.gfx,&c.cx,&c.mx)!=59)return -1;
     for(unsigned i=0;i<c.policy.gx_levels;++i)

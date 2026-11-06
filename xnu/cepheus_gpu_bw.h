@@ -23,7 +23,8 @@ static inline int ceph_bw_route_valid(const struct ceph_bw_route *r)
     unsigned used=0;
     for(unsigned i=0;i<r->bcm_count;++i) {
         const struct ceph_bcm_resource *b=&r->bcms[i];
-        if((b->address>>16)!=5 || (b->address&3) || !b->unit || !b->width || b->vcd>=16)return 0;
+        if((b->address>>16)!=5 || (b->address&3) || b->vcd>=16 ||
+            ((int)i!=r->acv_index && (!b->unit || !b->width)))return 0;
         for(unsigned j=0;j<i;++j)if(r->bcms[j].address==b->address)return 0;
     }
     for(unsigned i=0;i<r->node_count;++i) {
@@ -48,7 +49,7 @@ static inline int ceph_bw_level_commands(const struct ceph_bw_route *r,const str
         if(y>v[j].y)v[j].y=y;
     }
     if(r->acv_index>=0) {v[r->acv_index].x=0;v[r->acv_index].y=(l->ab||l->ib)?8:0;}
-    return ceph_bcm_commands(v,r->bcm_count,commands,8,wait);
+    return ceph_bcm_commands_kind(v,r->bcm_count,commands,8,wait,r->acv_index);
 }
 static inline int ceph_gpu_bw_table(const struct ceph_bw_route *cnoc,const struct ceph_bw_level cnoc_levels[2],
     const struct ceph_bw_route *ddr,const struct ceph_bw_level *ddr_levels,unsigned count,struct ceph_hfi_bw *out)
