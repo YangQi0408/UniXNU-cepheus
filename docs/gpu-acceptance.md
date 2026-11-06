@@ -1,5 +1,29 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-06：唯一真机机会前的源码收敛（机会未使用）
+
+用户要求继续至GPU可用，手机在fastboot，仅一次启动机会。因此没有启动只读
+候选去消耗机会；真实power/DDR/SMMU/PAS/stop仍需先准备完整，不能以“理论实现”
+或一轮host模拟冒充最终加速。
+
+- 复查power事务发现独立RCG UPDATE store没有在成功read之后重验lease，
+  与其他RMW路径不一致。现在写前重验；测试在read后丢lease，断言不再写。
+- CM3 reset==1原来仅在电源/时钟效果之后验证，不能将未知/非reset状态作为
+  冷启动输入。前置读取与拒绝，末尾再验证保留；测试确认非reset时零投票零写。
+- 新`cepheus_gx_llc.h`只编码A640 LLC配置：已取得**真实激活slice租约**后，
+  `GBIF_SCACHE_CNTL1`(0x3c02)低25bit重复5个SCID12，保留高7bit。
+  GPUHTW(SCID11)由XBL NoC override设置，A640不在GX路径改写；MMU-500
+  不支持GBIF页属性覆盖，因此不写CNTL0或CX_MISC缓存控制。
+  不把FDT的slice ID当作激活证据、不提供LLCC共享硬件后端，仍保持CP halt。
+- `test-llc-source.py`与本地KGSL/llcc-sm8150源独立对照，RAM用例覆盖高位保留、
+  每lease失败、错SCID/芯片/短aperture/解除halt/fault拒绝。
+- 对本机ScmDxeLA.efi做REA静态调查，确认SMC64路径同时依赖BootServices TPL、
+  shared allocator与listener回调，不能直接转用DXE指针作为XNU后端。
+  记录`docs/scm-static-evidence.md`含完整artifact SHA/Evidence IDs。
+  `smc`可达不证明PAS13存在/认证成功/可安全超时返回。
+
+新增61个host程序通过与7生产单元静态分析；仍无GPU实际命令退休/Metal证明。
+
 ## 2026-11-06：ready 镜像基本启动验收
 
 用户自行启动 `boot-cepheus-ready-9dc6e6e.img`，随后确认主屏幕、触摸、

@@ -19,6 +19,7 @@
 #include "cepheus_cp_init.h"
 #include "cepheus_gx_perfcounter.h"
 #include "cepheus_gx_gbif.h"
+#include "cepheus_gx_llc.h"
 #include "cepheus_gx_va_layout.h"
 #include "cepheus_gx_hwcg.h"
 #include "cepheus_cp_unsecure_gate.h"
@@ -56,6 +57,7 @@ int cepheus_gpu_cp_protect_configure(struct ceph_cp_protection *);
 int cepheus_gpu_cp_snapshot_mmio(struct ceph_cp_snapshot_mmio *,uint32_t *,unsigned);
 int cepheus_gpu_vm39_build(struct ceph_vm_pool *,const struct ceph_vm_region *,unsigned);
 int cepheus_gpu_gx_core_configure(struct ceph_gx_core *);
+int cepheus_gpu_gx_llc_configure(struct ceph_gx_llc *);
 int cepheus_gpu_gx_smmu_plan(const struct ceph_smmu_stream *,unsigned,const struct ceph_smmu_geometry *,unsigned,unsigned,unsigned,uint64_t,uint32_t,struct ceph_gx_smmu_plan *);
 int cepheus_gpu_park_read(void *,enum ceph_gmu_park_reg,uint32_t *);
 int cepheus_gpu_park_write(void *,enum ceph_gmu_park_reg,uint32_t);

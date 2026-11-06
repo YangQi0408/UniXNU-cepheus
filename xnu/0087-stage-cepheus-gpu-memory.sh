@@ -25,6 +25,7 @@ install -m 0644 "$here/cepheus_gpu_vm39.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_core.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_perfcounter.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_gbif.h" bsd/dev/
+install -m 0644 "$here/cepheus_gx_llc.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_va_layout.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_hwcg.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_unsecure_gate.h" bsd/dev/

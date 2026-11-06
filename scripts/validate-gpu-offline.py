@@ -61,6 +61,7 @@ def main():
         for name,script,args in (
             ('hfi-source','test-hfi-source-layout.py',[kgsl/'kgsl_hfi.h']),
             ('cp-source','test-cp-source-layout.py',[kgsl]),
+            ('llc-source','test-llc-source.py',[a.kernel_reference]),
             ('cp-permissions-source','test-cp-permissions-source.py',[a.kernel_reference]),
             ('gmu-mmio-source','test-gmu-mmio-source.py',[kgsl/'a6xx_reg.h']),
             ('gmu-permissions-source','test-gmu-permissions-source.py',[a.kernel_reference]),

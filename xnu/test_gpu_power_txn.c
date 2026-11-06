@@ -5,15 +5,18 @@
 struct mock {
     struct ceph_power_input in;uint32_t reg[CE_PWR_REG_COUNT];
     unsigned call,fail,finishes,kept,writes,votes,delays,root_on,root_off;int timeout,live;
-    uint32_t vote_addr[2];unsigned vote_index[2];
+    uint32_t vote_addr[2];unsigned vote_index[2];int expire_after_rcg_read,expired;
 };
 static int step(struct mock *m) {return ++m->call==m->fail ? -9 : 0;}
 static int prepare(void *p,struct ceph_power_input *in) {struct mock *m=p;int e=step(m);if(e)return e;m->live=1;*in=m->in;return 0;}
-static int valid(void *p) {struct mock *m=p;assert(m->live);return step(m);}
-static int readreg(void *p,enum ceph_power_reg r,uint32_t *v) {struct mock *m=p;int e=step(m);if(e)return e;*v=m->reg[r];return 0;}
+static int valid(void *p) {struct mock *m=p;assert(m->live);int e=step(m);return e?e:m->expired?-9:0;}
+static int readreg(void *p,enum ceph_power_reg r,uint32_t *v) {struct mock *m=p;int e=step(m);if(e)return e;*v=m->reg[r];
+    if(m->expire_after_rcg_read && r==CE_PWR_RCG && m->reg[CE_PWR_RCG_CFG]==0x602)m->expired=1;
+    return 0;}
 static int writereg(void *p,enum ceph_power_reg r,uint32_t v)
 {
     struct mock *m=p;assert(r!=CE_PWR_GX && r!=CE_PWR_CM3_RESET && r!=CE_PWR_CX_STATUS);
+    assert(!m->expired); /* no store after a successful read loses the lease */
     if(r==CE_PWR_RCG_CFG) assert(m->reg[CE_PWR_RCG]&2u);
     if(r==CE_PWR_RCG && (v&2u)) m->root_on++;
     if(r==CE_PWR_RCG && !(v&2u)) m->root_off++;
@@ -77,11 +80,13 @@ int main(void)
     m=fixture();m.timeout=1;b=ops(&m);t=(struct ceph_power_txn){0};
     assert(ceph_power_start(&t,&b)==CE_PWR_TIMEOUT && t.state==CE_PWR_QUARANTINED && m.delays<=501);
     m=fixture();m.reg[CE_PWR_CM3_RESET]=0;b=ops(&m);t=(struct ceph_power_txn){0};
-    assert(ceph_power_start(&t,&b)==CE_PWR_BUSY && t.state==CE_PWR_QUARANTINED);
-    const enum ceph_power_reg bad[]={CE_PWR_CX,CE_PWR_CX_STATUS,CE_PWR_GX,CE_PWR_CFG_AHB,CE_PWR_GMU,CE_PWR_RCG};
+    assert(ceph_power_start(&t,&b)==CE_PWR_BUSY && t.state==CE_PWR_REFUSED && !t.effects && !m.writes && !m.votes);
+    const enum ceph_power_reg bad[]={CE_PWR_CX,CE_PWR_CX_STATUS,CE_PWR_GX,CE_PWR_CFG_AHB,CE_PWR_GMU,CE_PWR_RCG,CE_PWR_CM3_RESET};
     for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
         m=fixture();m.reg[bad[i]]=UINT32_MAX;b=ops(&m);t=(struct ceph_power_txn){0};
         assert(ceph_power_start(&t,&b)!=0 && !t.effects);
     }
+    m=fixture();m.expire_after_rcg_read=1;b=ops(&m);t=(struct ceph_power_txn){0};
+    assert(ceph_power_start(&t,&b)==CE_PWR_BUSY && m.expired && t.state==CE_PWR_QUARANTINED);
     puts("GPU power transaction: monotone MX/CX, bounded polls, every-call failure quarantine PASS (mock; no backend)");
 }
