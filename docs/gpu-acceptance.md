@@ -1,5 +1,31 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-06：PA截断修复单缓冲真机回归通过
+
+用户授权代理操作已连接手机。先确认fastboot serial67eea163与镜像SHA，
+启用有界UDP接收器，再`fastboot boot boot-cepheus-memcheck-6f93116.img`。
+Sending/Booting均OKAY；没有flash、GPU供电写入、PAS或自动复位。
+主机现有NetworkManager配置按ECM MAC02:00:5e:77:ee:01自动恢复192.168.7.1，
+不依赖sudo。设备仍留在运行状态，只停止主机日志接收器。
+
+真机日志完整观察到allocate -> prepare -> map_nc -> pattern PASS -> release0 ->
+stale_release-1 -> retained_pages0，32KiB buffer PA=`0x184394000`、host页16KiB。
+本次实际managed window=`[0x181004000,0x241004000)`，mask=`0x241003000`。
+加载器窗口本次与旧日志不同，不能将某一固定gPhysBase当作所有启动事实；
+运行时读取bounds是必要的。这次PA经旧32位shift会截成0x84394000，修复后
+NC transition成功，直接支持底层cache维护截断纠正。
+
+捕获中没有panic，后续ST-FTS36:39探测/active scan0、one-shot Home完成、
+帧提交与呈现继续。尚无本轮用户UI/手势确认，不把驱动日志当作体验验收。
+原始125707B日志在`../logs/memcheck-6f93116-live-20261106-222832/boot.log`，
+SHA256=`c4e6b0329630d598c32b510d8c0b3ec853685d3b84f3bac97d6b92567e14541c`；
+同目录result.json绑定镜像/内核/结果。仅单缓冲回归，不是GMU workspace或GPU加速。
+
+新增真实阻塞：cmd-db CX raw levels为0/16/64/128/192/256/384/416，
+没有exact MIN_SVS48；ARC probe报no exact pair，GPU config dry-run=-1。
+GX因GMU未供电/上时钟正确跳过，**没有任何GPU命令/PAS测试**。
+后续需按真实ARC rounded level/dependency语义修正源绑定配置，不能为pass伪造48。
+
 ## 2026-11-06：memcheck再次panic，纠正physicalMask根因
 
 `boot-cepheus-memcheck-9dc6e6e.img` 真机失败。用户照片为CPU7，非法PA
