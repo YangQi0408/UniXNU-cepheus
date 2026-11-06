@@ -39,6 +39,8 @@ def main():
     parser.add_argument("reference", type=Path)
     parser.add_argument("kernel", type=Path)
     parser.add_argument("receipt", type=Path)
+    parser.add_argument("--memory-test", type=int, choices=(1, 2),
+                        help="explicit CPU-only memory diagnostic profile; default remains disabled")
     args = parser.parse_args()
     assert not args.receipt.exists(), "keep existing evidence"
     with tempfile.TemporaryDirectory() as temp:
@@ -61,6 +63,9 @@ def main():
         assert len(names) == len(set(names)), "duplicate boot arguments"
         assert len(line) <= 1000
         forbidden = {"cephmem", "cephboost", "cephgpu", "cephboot", "cephpower", "sweetfastboot", "sweetgpu"}
+        if args.memory_test is not None:
+            forbidden.remove("cephmem")
+            assert f"cephmem={args.memory_test}" in tokens
         assert not forbidden.intersection(names)
         required = {"sweetusb=2", "sweettouch=1", "sweetkeys=1", "sweetkeyspononly=1",
                     "sweettouchgpio=1", "sweettouchpower=1", "sweettouchdelay=60",
@@ -73,7 +78,10 @@ def main():
                    "args": line, "all_other_payload_files_unchanged": True,
                    "firmware_dtb_boot_header_unchanged": True, "boot_checksum_valid": True,
                    "hardware_tested": False,
-                   "scope": "Packaging only. Memory selftest/CPU boost/GPU startup disabled. No phone operations."}
+                   "memory_test": args.memory_test,
+                   "scope": "Packaging only. Explicit CPU-only memory selftest enabled." if args.memory_test else
+                       "Packaging only. Memory selftest disabled.",
+                   "cpu_boost_gpu_startup_disabled": True, "phone_operations": False}
     with args.receipt.open("x") as output:
         json.dump(receipt, output, indent=2)
         output.write("\n")
