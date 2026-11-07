@@ -1,5 +1,26 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：仅增加fuse已实测，有真实触点，UI验收待确认
+
+用户要求继续，核对fastboot67eea163及socfuse-7ed0427 SHA2891855a...，
+同soconly内核/ADT/其他payload，参数只加cephfuse=1。先监听再临时
+fastboot boot成功，无flash/reset。240秒日志164083B，SHA256
+`31115c056ea31cb0c6fe40324ec6c7301e9629776cb322f5fee2ca41dda237b7`，
+证据`../logs/socfuse-7ed0427-live-20261107-131331/`。
+
+QFPROM固定页只读bin探测确执行，结果bin0/gx_levels8/lm0/acd0/
+throttle0x80；无fuse写入，不等于GPU电源所有权。OSM/门控GPUCC/
+TSENS执行，GMU blockers0x7a、寄存器读取跳过。CPU_max38400mc，
+gpuss0 31500mc/gpuss1 32100mc。ARC/GX/boost/内存未启用，无其
+probe/试验输出，无System Info读取、无panic、无GPU硬件启动。
+
+触摸chip36:39/scan0，8000读7916空、events315、HID桥83，errors/
+faults/skipped/outside0、active0。RAW前128条ready1/status2/enter5/
+motion116/leave4，没有53 continuation。真实HID down/up各13条，
+包括中央坐标，证明该轮探测期间输入可达；**本轮用户UI验收仍待**，
+不套用soconly PASS，也不认定单项根因。手机留运行，只停止HOST
+接收器；可用回退原样保留，下一次新增探测前先等本轮验收。
+
 ## 2026-11-07：cephsoc对照UI验收正常，下一轮仅增加fuse
 
 用户确认soconly-7ed0427本轮「正常」。结合该次404个FIFO事件/107次
