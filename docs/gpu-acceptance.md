@@ -1,5 +1,25 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：SCM查询内核CI成功，关闭查询基线已准备，设备消失阻止启动
+
+CI42350550635 @a0fa7a5 completed/success，内核SHA256
+`a9993ecd2cc267c93cb933d9c3c76f5ae4fc1c48c8c0fcd660df41a67a620171`，
+device-commit/driver/SCM hook及REGS标记、linked pmap64bit核验通过，
+未含已取消USB控制代码。构建成功不是SMC/PAS真实结果。
+
+查询关闭基线`boot-cepheus-allprobes-a0fa7a5.img`已打包，SHA256
+`f0517ba41d446dff3d81a6777da243464d541d9b0724392c7691b700d6f15a50`。
+与已验收allprobes-008b2cd参数/ADT/其他payload完全一致，只替换内核；
+cephscm参数不存在，包装门禁scm_info=false，无boost/内存/GPU执行。
+此核需先完成查询关闭UI基线，再同核只加查询开关。
+
+用户要求继续，初次枚举67eea163 fastboot存在；下载/打包后**启动前
+再次核对时设备不再fastboot**，assert拒绝且尚未创建采集目录/启动
+监听或fastboot boot。随后lsusb无手机、ECM也不见。代理未flash/
+boot/reboot/SMC，不自动等设备重现后启动，也不把这个主机枚举变化
+说成内核panic或触摸回归。当前运行状态未知，旧已验收镜像保留。
+需用户重新连接fastboot才进行查询关闭基线实测。
+
 ## 2026-11-07：受限SCM查询接入显式boot开关，尚未真机执行
 
 用户要求继续支持查询阶段。已有`cepheus_gpu_scm_probe_once`只编译未
