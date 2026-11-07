@@ -1,5 +1,41 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：ARC UI验收正常；GX诊断发现未触发的单位/寄存器缺陷
+
+用户确认socfusearc-7ed0427「正常」，本轮result.json更新UI PASS。
+不重启追加60秒只读UDP`accepted-touch.log`26579B，SHA256
+`d8159711fd2b2bd9f3f471f270c5194d6d18f9285d8baa189c629ccb04b9823b`。
+真实HID down/up各20条，中央坐标及finger0..3多指事件；health在
+poll29000有events231/HID桥76/errors0/faults0。证据在本轮原目录，
+再次证明早期无触点捕获不等于故障，不能因此归罪ARC。
+
+原计划最后只加cephgx=1，即复用原touchdiag-7ed0427 SHAa870a66c...
+完整失败镜像：核验与正常socfusearc同核/其他payload，参数仅此一项。
+但审查`gpu_gx_probe`发现真实源码缺陷，**暂停启动该旧候选**：A6XX
+常量是DWORD offset，而sr接受BYTE offset，GX读取未乘4；CP_HW_FAULT
+错误使用0x823而非原厂0x821；GMEM打印混合MIN_LO/MAX_LO而非完整
+MIN/MAX64位。修正为所有GX读取乘4、fault0x821、MIN/MAX完整LO/HI。
+GPUCC/GCC原偏移为字节不改，GMU已乘4不重复缩放，不改门禁、不写GX。
+
+这**不是已证实触摸根因**：原失败touchdiag日志明确
+`GMU not powered/clocked; GX not read`，未走这些错误读取；当前也没
+启动GX。新`test-gx-probe.py`抽取完整生产函数编译执行，RAM回调核对
+25个真实字节地址、全部门控/map失败路径阻止GX读取；另独立对照
+原厂a6xx_reg.h名称/值和adreno.c offsetwords<<2约定。此为离线测试，
+不授予实际GPU所有权，不绕过安全固件。原默认profile门禁保持。
+
+需要重新构建内核，不能再声称下一轮与7ed0427完全同核。新HEAD也
+含此前SysInfo只读诊断，必须先新核GX关闭基线验收，再同新核只增
+GX对照，避免同时引入kernel/SysInfo与GX两个变量。当前手机留在
+已验收ARC版，旧可用镜像与失败镜像均保留；GPU执行仍暂停。
+
+完整离线回执`../logs/gpu-offline-gxprobe-20261107/receipt.json`：29项
+PASS、零SKIP，显式输入真实本地GMU/SQE/ZAP/保存FDT及原厂内核/
+XNU/固定patches；这些专有输入不上传CI。单独首次集成测试未提供
+XNU参考故有1 SKIP，不计完整通过；全量回执提供参考后零SKIP通过。
+这仅证明离线源码/包装测试覆盖，GX修正版仍需XNU CI构建和真机门禁/
+输入验收，不能当所有权/GPU启动/加速证据。
+
 ## 2026-11-07：增加ARC只读对照已启动，无触点捕获，UI验收待确认
 
 用户要求继续，核对fastboot67eea163及socfusearc-7ed0427 SHA6d9821a8...，

@@ -1,5 +1,13 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：ARC本轮正常；最后GX对照因离线缺陷暂停
+
+用户确认socfusearc-7ed0427正常；补抓中央和finger0..3真实触点、
+down/up各20，回退保留，当前手机不重启。旧GX探测有DWORD/byte
+偏移及CP_HW_FAULT/GMEM打印错误，已修源码；此前失败日志门控跳过
+GX读取，不能当触摸根因。重构内核后先GX关闭基线再单增GX，不能
+同时把新kernel/SysInfo变量与GX混入。详细证据见gpu-acceptance.md。
+
 ## 2026-11-07：基础探测+fuse本轮触摸UI正常
 
 用户确认socfuse-7ed0427正常，FIFO/HID和UI本轮均通过；仍未建立跨

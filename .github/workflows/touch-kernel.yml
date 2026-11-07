@@ -79,6 +79,7 @@ jobs:
           python3 cepheus/scripts/test-tree.py
           python3 cepheus/scripts/test-gpu-fdt.py
           python3 cepheus/scripts/test-gpu-diagnostic-log.py
+          python3 cepheus/scripts/test-gx-probe.py
           python3 cepheus/scripts/test-zap-layout.py
           bash cepheus/scripts/test-gpu-memory-host.sh
           # The SWEET kernel is plain arm64, not arm64e.

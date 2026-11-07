@@ -302,19 +302,21 @@ static void gpu_gx_probe(void)
 	vm_offset_t gx = ml_io_map(0x02c00000, 0x40000);
 	if (!gx) { printf("CEPHEUS GPU GX: GX aperture map failed\n"); return; }
 	/* Read-only: CP halt/fault, ring/SQE addresses, protection control and the
-	 * 64-bit address-mode words. Nothing here is a write or a clear. */
+	 * 64-bit address-mode words. A6XX constants are DWORD offsets; sr takes
+	 * BYTE offsets. Nothing here is a write or a clear. */
 	printf("CEPHEUS GPU GX: CP_HALT=%#x CP_FAULT=%#x PROTECT_CNTL=%#x RING=%#x/%#x SQE=%#x/%#x\n",
-	    sr(gx, 0x808), sr(gx, 0x823), sr(gx, 0x84f), sr(gx, 0x800), sr(gx, 0x801),
-	    sr(gx, 0x830), sr(gx, 0x831));
+	    sr(gx, 0x808 * 4), sr(gx, 0x821 * 4), sr(gx, 0x84f * 4), sr(gx, 0x800 * 4), sr(gx, 0x801 * 4),
+	    sr(gx, 0x830 * 4), sr(gx, 0x831 * 4));
 	uint32_t modes = 0;
 	static const uint32_t mode_words[] = {0x842, 0xc01, 0x8601, 0x8e05, 0x9e01, 0xbe05,
 	    0xa601, 0x9601, 0xe00, 0xae01, 0xb601, 0xf810};
 	for (unsigned i = 0; i < 12; ++i) {
-		uint32_t v = sr(gx, mode_words[i]);
+		uint32_t v = sr(gx, mode_words[i] * 4);
 		modes |= (v & 1u) ? (1u << i) : 0u;
 	}
-	printf("CEPHEUS GPU GX: addr_mode_mask=%#x (0xfff means all 64-bit) UCHE_TRAP=%#x/%#x GMEM=%#x/%#x\n",
-	    modes, sr(gx, 0xe09), sr(gx, 0xe0a), sr(gx, 0xe0b), sr(gx, 0xe0d));
+	printf("CEPHEUS GPU GX: addr_mode_mask=%#x (0xfff means all 64-bit) UCHE_TRAP=%#x/%#x GMEM_MIN=%#x/%#x GMEM_MAX=%#x/%#x\n",
+	    modes, sr(gx, 0xe09 * 4), sr(gx, 0xe0a * 4), sr(gx, 0xe0b * 4), sr(gx, 0xe0c * 4),
+	    sr(gx, 0xe0d * 4), sr(gx, 0xe0e * 4));
 	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
 }
 static void soc_thread(void *arg, wait_result_t wr)

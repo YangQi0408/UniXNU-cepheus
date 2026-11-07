@@ -48,6 +48,8 @@ def main():
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('ready-boot-args',['python3','scripts/test-ready-boot-args.py'],{}),
+            ('gx-probe',['python3','scripts/test-gx-probe.py'] +
+             ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('touch-fifo',['python3','scripts/test-touch-fifo.py'] +
              ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('touch-sysinfo',['python3','scripts/test-touch-sysinfo.py'] +
