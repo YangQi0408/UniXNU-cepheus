@@ -1,5 +1,27 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：PAS13源码审查纠正，加载门禁仍关闭
+
+本轮未重启/重发SMC/认证/复位/写电源，内核及已验收镜像不变。
+审查固定SM8150下游源树、保存FDT/配置及UEFI已有静态证据发现：
+**KGSL→SSR→PIL-TZ不调用supported7作为加载前置条件**，通用
+qcom_scm_pas_supported的false语义不能直接等同“原厂GPU不能加载”。
+撤回“PAS13必然无法认证/加载”的过强推断；真实返回0不改写，准确状态
+为supported7=false、真实认证能力及返回false原因UNKNOWN。
+这是结论纠正，不是允许跳过XNU supported门禁：加载/CP halt仍关闭，
+不猜PAS ID、不加no_auth、不试认证、不复制参考项目失败即假定旧ZAP的回退。
+
+普通SMC64参数形式一致，首次六次查询未单独检查command7 availability，
+不是完整通用wrapper复刻。PAS init/auth需要独立crypto→DDR租约，静态
+路径含CE0/SN11/SN0/SH0/MC0/ACV；无真实票/所有权，不把这个缺口当查询0
+已证实根因。源码审查细节及可复跑工具见`docs/pas13-supported-audit.md`，
+22个保存源/配置/日志断言PASS的报告在`../logs/pas13-source-audit-20261107/`。
+新增审查工具6个RAM-only单测PASS；完整32项离线检查PASS零SKIP，receipt
+在`../logs/gpu-offline-pas13-audit-20261107/receipt.json`（SHA256
+`e01450656a9f04fad913d2385a495e6c3df8922dea9c31a4a3ab40f0d6541d25`）。
+此项仅源码证据完成，非硬件认证、独立review或GPU加速通过。后续仍须
+本机原厂成功记录/secure实现证据及资源契约，触摸间歇根因仍未知。
+
 ## 2026-11-07：SCM查询后界面仍正常，查询任务完成但PAS加载被否定结果阻断
 
 用户在查询完成后明确确认「现在还正常」，本轮scminfo-a0fa7a5

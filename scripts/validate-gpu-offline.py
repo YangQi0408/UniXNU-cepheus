@@ -47,6 +47,7 @@ def main():
             ('pmap-cache-verifier',['python3','scripts/test-pmap-cache-verifier.py'],{}),
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('scm-hook',['python3','scripts/test-scm-hook.py'],{}),
+            ('pas13-audit-tests',['python3','scripts/test-pas13-audit.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('ready-boot-args',['python3','scripts/test-ready-boot-args.py'],{}),
             ('gx-probe',['python3','scripts/test-gx-probe.py'] +
@@ -84,7 +85,10 @@ def main():
             checks.append((name,['python3','scripts/'+script,*map(str,args)],{}))
         if a.fdt:
             checks.extend([('gx-source',['python3','scripts/test-gx-source-layout.py',str(kgsl),str(a.fdt)],{}),
-                           ('tsens-source',['python3','scripts/test-gpu-tsens-source.py',str(a.kernel_reference/'drivers/thermal'),str(a.fdt)],{})])
+                           ('tsens-source',['python3','scripts/test-gpu-tsens-source.py',str(a.kernel_reference/'drivers/thermal'),str(a.fdt)],{}),
+                           ('pas13-source',['python3','scripts/audit-pas13-source.py',
+                                            '--kernel',str(a.kernel_reference),'--fdt',str(a.fdt),
+                                            '--output',str(out/'pas13-source-report.json')],{})])
         else:receipt['checks'].append({'name':'gx/tsens-source','status':'SKIP','reason':'no captured FDT'})
     else:receipt['checks'].append({'name':'downstream-source-comparison','status':'SKIP','reason':'no explicit kernel reference'})
     for name,present in (('recorded-FDT',a.fdt),('real-ZAP',a.zap),('real-XNU-conf',a.xnu_reference)):

@@ -1,5 +1,16 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-07：原厂加载入口纠正（门禁不变）
+
+固定SM8150 KGSL→SSR→PIL-TZ路径不以前置supported7作加载条件；
+通用qcom_scm_pas_supported不是该GPU入口。已测supported7=0仍为false，
+但“PAS13必然无法加载/认证”不能由此证明。真实认证能力及返回0原因
+UNKNOWN，**本项目加载仍fail-closed，不改查询/CP halt门禁**。
+PAS init/auth的crypto带宽租约是独立资源缺口，非已证实的supported0根因。
+本轮只读源码/保存证据、无手机操作或新SMC；详见
+`pas13-supported-audit.md`及gpu-acceptance.md最新纠正。
+下方旧记录所称“阻断”仅为本项目当前策略，不是原厂GPU强制查询条件。
+
 ## 2026-11-07：查询后UI确认正常，仍不允许PAS加载
 
 用户确认查询后系统仍正常，固定支持查询已完成且不破坏本轮交互。
