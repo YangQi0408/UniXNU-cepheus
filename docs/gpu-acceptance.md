@@ -1,5 +1,27 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：SCM关闭新核基线已启动，真实触点送达但后段USB捕获丢失
+
+用户继续后核对67eea163及allprobes-a0fa7a5 SHA f0517ba4...，先UDP
+监听再fastboot boot成功，无flash/reset。参数及其他payload与上一正常
+allprobes完全一致，只更换SCM候选内核，cephscm不存在。本轮SCM查询
+未启用，不做PAS mutation/GPU电源/CP提交。
+
+计划360秒监听，但30秒无数据后接收器自行exit0，总587datagrams；
+boot.log184202B SHA256
+`9428fc89ca3b928a5d4825a8b25227368fc72ae76a1a721ff752dc7f0400ff10`，
+证据`../logs/allprobes-a0fa7a5-scmoff-live-20261107-154052/`。日志最后
+OSM sample19，**无sample25，不是完整六分钟/后段hook覆盖证明**。
+未见SCM INFO输出、无捕获panic；随后fastboot和ECM均不可见，原因/
+当前运行状态未知，不归因kernel/用户或SCM。代理没有重启/断USB。
+
+触摸chip36:39/scan0，真实HID down/up各26，有中央及finger1事件；
+8000读7777空/events719/HID桥229/errors0/faults0/outside0。前128条
+RAW ready1/status5/enter6/motion110/leave6。GX仍拒绝读取、ARC/config0，
+System Info字段与前版一致，校准UNKNOWN。**本轮UI验收及断USB原因
+等待用户反馈**，不能用真实事件替代UI，不能把部分捕获当最终hook
+阶段已正常完成。保留所有可用回退，尚未启动查询开启镜像或执行SMC。
+
 ## 2026-11-07：SCM查询内核CI成功，关闭查询基线已准备，设备消失阻止启动
 
 CI42350550635 @a0fa7a5 completed/success，内核SHA256
