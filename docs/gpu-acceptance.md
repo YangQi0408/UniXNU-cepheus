@@ -1,5 +1,34 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：修正版CI成功；新核GX关闭基线启动，首次System Info读取
+
+CI42343754102 @008b2cd completed/success，下载核SHA256
+`ca4ab89fb5ccf5b66e0b8ad235c865d530b3e6a23bbb99d9d1adfabdc9ce1888`，
+device-commit、cepheus driver、SYSINFO/GMEM_MIN/MAX标记及linked
+pmap64bit门禁通过。编译不等于GX硬件门禁/读取或GPU启动通过。
+
+用户要求继续，设备67eea163已在fastboot。新基线
+`boot-cepheus-socfusearc-008b2cd.img` SHA256
+`e3668fcb40a5caad97af50f5911d7a26c60630999d21dd9a14dc7b6b1a850dfc`，
+与上一正常ARC版参数**完全相同**，ADT/其他payload一致，只替换内核。
+GX/boost/内存关闭，System Info诊断随新核引入，不称同7ed0427核。
+先监听再fastboot boot成功，无flash/reset。240秒日志135751B，SHA256
+`ce6a1dc74f78af20a8feb7e7e8f39222c7f05abd2a68debd9c128b9415ce2117`，
+证据`../logs/socfusearc-008b2cd-live-20261107-144028/`。
+
+只读FTS System Info快照首次真实返回有效header，chip0x3639/fw0x60/
+svn0x2260/cfg0x37:project0x3e/cx0xffff:project0x3e/AFE3:3:3/protocol0，
+尺寸字段2339x1079、channels16/34、fw_crc0/cfg_crc0。仅按原厂偏移
+解析，不将尺寸差异解释成方向/校准错误，不将cx0xffff或CRC0解释为
+固件损坏或校验通过；无匹配健康快照，**校准状态仍UNKNOWN**。只做
+A6指针读，不发A4 load-data、scan重发、reset/固件/校准恢复。
+
+触摸chip36:39/scan0，RAW ready+2status，8000读7999空/events3、
+errors0/faults0/HID桥0，无panic。ARC/config dry-run均0，票NOT SENT。
+**该次新核UI验收待用户确认**，早期空FIFO不可直接判故障；不套用
+上一版PASS。先等新核GX关闭基线确认，再同新核只加GX参数。手机
+留运行态，回退镜像不覆盖，修正GX读取尚未启用，GPU执行仍暂停。
+
 ## 2026-11-07：用户确认当前整体正常，GX修正版仍待构建/实测
 
 用户追加反馈「现在都正常」。代理此间未再次启动手机，当前仍为
