@@ -1,5 +1,27 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：仅恢复cephsoc实测，有持续触点，UI验收待确认
+
+用户已进入fastboot，核对67eea163和soconly-7ed0427 SHA919a558e...，
+先监听再fastboot boot成功，未flash/reset。保持正常touchonly同核/
+其他payload，只加cephsoc=1，arc/fuse/gx/boost/内存仍关闭。没有新的
+System Info读取。240秒boot.log155622B SHA256
+`e544eeacbca2cbcadd419b6bf37e3bc04920e4949862c4e415492453dbf03eaa`，
+证据`../logs/soconly-7ed0427-live-20261107-130005/`。
+
+OSM LUT/计数、门控GPUCC和TSENS路径确实执行。GMU blockers0x7a，
+GMU寄存器读取跳过；CX_HW_CTRL0x5ff4仍非所有权。CPU_max33400mc/
+gpuss0 31500mc/gpuss1 31800mc，未做CPU请求、GPU供电/firmware/DMA。
+无panic、无arc/bin/gx子探测输出。RAW限额128条包含ready1/status2/
+enter8/motion110/leave7，无continuation53。最终8000读7892空、events404/
+HID bridge calls107，errors/faults/skipped/outside均0、active0。真实
+finger0 down/up各19条，坐标覆盖屏幕中央，不是注入Home。
+
+因此本次cephsoc执行期间触摸链路未停止，但**该次UI用户确认仍待**，
+不套用上一轮验收。不宣称cephsoc永不干扰或某子探测为根因。跨启动
+状态仍有变量；手机留运行态，只停HOST监听。GPU硬件启动继续暂停，
+两个此前已验证回退原样保留。
+
 ## 2026-11-07：同核无探测版触摸正常，回归范围缩小但单项因果未证
 
 用户确认touchonly-7ed0427「正常了」。不重启当前手机追加60秒只读UDP，
