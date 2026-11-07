@@ -1,5 +1,17 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-07：首次真实查询：64-bit可用，但PAS13-supported返回false
+
+scminfo-a0fa7a5临时boot，原生6次SMC返回：64-bit约定self0/1，
+INFO查询PAS1/2/5/6 availability均0/1，PAS13 supported7返回x0=0/
+x1=0。当前conduit按原厂bool解释为false；不是认证结果，也不是所有
+平台环境永不支持的定论。不得由availability0xf绕过supported0，
+不猜其他ID、不试PAS init/auth作为探测、保持CP halt和GPU门禁。
+本次**没有执行PAS mutation/ZAP加载或认证**。完整镜像/日志/寄存器
+转录见gpu-acceptance.md和对应result.json。查询后真实触摸仍送达，
+UI反馈待确认；下一步先审查原厂支持检查/平台环境，不能直接上电。
+下方“未执行SMC”是此前历史状态，现已完成固定只读查询。
+
 ## 2026-11-07：查询候选接入显式开关，仍未SMC/PAS实测
 
 用户要求继续受限支持查询。`cephscm=1`现默认关闭，主soc线程的

@@ -1,5 +1,43 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：首次原生SCM查询返回，PAS13-supported为0，停止加载路径
+
+查询关闭基线由用户确认正常且主动断USB后，核对67eea163，制作同核
+scminfo-a0fa7a5镜像SHA256
+`81dae8c4b97684ac0f08dd21142c846b340f6eeafdf5fae7eb0b77a82cfcfb04`，
+仅增加cephscm=1，内核/ADT/其他payload与已验收f0517ba4...一致。
+先监听再fastboot boot成功，无flash/reset。420秒捕获191392B，SHA256
+`9f8d7c5360c56b829377b2e8a1ecf0dd4b7ce71c62e5f1407403d15dd63e3ebb`，
+证据`../logs/scminfo-a0fa7a5-live-20261107-155024/`，完整寄存器转录
+绑定在result.json。本次真实调用发生在sample25之后，begin/end均捕获。
+
+**真实6次SMC返回**：64-bit self FNID0xc2000601/query0x82000601返回
+x0=0/x1=1；4次INFO FNID0x42000601分别query0x02000201/02/05/06均
+返回0/1；最后FNID0x42000207 args=(1,13,0...)返回x0=0/x1=0。
+最终e=-1/convention2/available0xf/supported0/calls6。原厂
+`__qcom_scm_pas_supported`以ret?false:!!res.a1解释，故当前conduit
+**PAS13 supported查询为false，不是传输错误**；通用init/mem/auth/stop
+availability不等于PAS13可加载，也不等于认证成功。不盲目重试、不换
+猜测PAS ID、不绕过supported/CP halt门禁，未发PAS mutation/电源票。
+此结果是本次原生conduit所见，不证明所有boot/firmware环境PAS13永远
+不可能；需要进一步原厂路径/平台上下文证据，不通过试认证来探路。
+
+查询后触摸仍有33组真实down/up，整段57组；末health20000读19769空/
+events901/HID桥260/errors0/faults0，未见panic。**查询后UI验收仍待
+用户确认**。GX仍拒绝读取、ARC/config0，未GPU上电/firmware/SMMU/
+GMU/CP执行。采集完成ECM仍可见，手机留运行态。当前SCM支持结果
+阻断加载，不把原生SMC可返回叫GPU加速或PAS认证完成。
+
+## 2026-11-07：SCM关闭基线正常，USB由用户主动断开
+
+用户明确反馈「都正常。我自己断开的。继续」，因此查询关闭新核
+allprobes-a0fa7a5本轮UI PASS，上一轮USB消失由用户主动断开，不是
+已知自发USB故障/panic。更新该次result.json，但部分捕获仍只有到
+sample19，不能补称完整360秒/sample25已捕获。下一轮同一内核仅加
+cephscm=1，查询可用性/PAS13支持，不执行PAS mutation或GPU电源。
+当前重新核对67eea163在fastboot，先准备核验镜像再临时启动；用户
+基线验收不能自动扩展到SCM开启版本，回退保留。
+
 ## 2026-11-07：SCM关闭新核基线已启动，真实触点送达但后段USB捕获丢失
 
 用户继续后核对67eea163及allprobes-a0fa7a5 SHA f0517ba4...，先UDP
