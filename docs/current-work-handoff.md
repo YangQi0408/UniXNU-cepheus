@@ -7,9 +7,13 @@
 按FIFO顺序上报的独立修正；11项重放测试及生产FIFO故障测试通过，10份
 保存RAW与顺序模型0差异。完整离线回归34 PASS/0 FAIL/0 SKIP，
 receipt为`../logs/gpu-offline-touch-ordered-20261108/receipt.json`；
-XNU构建待核验，未操作手机；
+XNU CI42391773972 @60a2dc5完整成功，内核/PA64/linked核验及新旧touch-only
+镜像打包完成。新候选`boot-cepheus-touchordered-60a2dc5.img` SHA256
+`a00d1e29087d0f28e695eb0ec91166c48a917fde45685b655c46162541c9f074`，未启动；
 触摸间歇根因未解，不把离线短点修正称真机已恢复。候选首轮仅触摸，
 SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段。
+**当前已到需要真机测试的边界**；完整镜像/证据及分轮验收见
+[有序上报真机前检查](touch-ordered-preflight.md)，手机未操作。
 
 2026-11-08用户已拿走手机，要求先做理论。10份已有RAW日志的host重放
 确认生产驱动按整批最终状态上报会吞掉批内enter→leave；最新失败19事件
@@ -323,6 +327,8 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 | 文件 | 当前判断 |
 |---|---|
 | `boot-cepheus-touch-power.img` | 历史多轮触摸／UI通过，**恢复用旧基线首选候选**；不是当前启动已恢复或长期保证 |
+| `boot-cepheus-touchordered-60a2dc5.img` | 最新有序上报touch-only候选，CI/打包通过、未启动；下一真机验收 |
+| `boot-cepheus-touchonly-control-da8ffc1.img` | 同参数未修正控制镜像，打包通过、未启动；不是allprobes失败轮的相同profile |
 | `boot-cepheus-allprobes-008b2cd.img` | 对应轮次触摸UI通过；GX只走不就绪拒绝，不是GX读取通过 |
 | `boot-cepheus-allprobes-a0fa7a5.img` | SCM关闭旧轮UI通过；该验收不自动扩展到新核 |
 | `boot-cepheus-scminfo-a0fa7a5.img` | 六次查询及查询后UI通过；PAS13=false，不能加载GPU |
@@ -355,6 +361,8 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 |---|---|
 | `../logs/allprobes-da8ffc1-scmoff-live-20261107/` | 最新失败boot.log、fastboot.log、identity、result；用户触摸FAIL |
 | `../logs/touch-theory-replay-20261108/replay.json` | 10份保存RAW的host原函数重放与顺序模型差异；不是新真机结果 |
+| `../logs/touch-ordered-preflight-20261108/replay.json`、`../logs/gpu-offline-touch-ordered-20261108/` | 修正版10日志0差异及34 PASS/0 FAIL/0 SKIP完整离线回归 |
+| `../inputs/ci-42391773972/`、`../logs/ci-42391773972/` | 最新60a2dc5有序触摸上报内核、SHA/commit、完整构建日志 |
 | `../logs/ci-42380203110/`、`../inputs/ci-42380203110/` | 最新完整内核构建日志、artifact、commit及SHA |
 | `../logs/scminfo-a0fa7a5-live-20261107-155024/` | 六次SMC完整in/out及查询后用户UI PASS |
 | `../logs/touchdiag-7ed0427-live-20261107-115339/` | 旧19事件／大量空FIFO触摸失败对照 |

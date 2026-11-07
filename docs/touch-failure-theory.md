@@ -15,8 +15,9 @@ SweetHID仍自行为每个变化构造collection，实际投递/开销须真机�
 `2b3e2397c3a01986592b04014779a6e9a129368138409391e7344df72b0c4c02`。
 最新失败重放down5/move3/up5，旧失败down5/move3/up5；这些仍只属host
 证据。完整离线检查34 PASS/0 FAIL/0 SKIP，receipt为
-`../logs/gpu-offline-touch-ordered-20261108/receipt.json`，固定XNU构建待核验；
-本段不声明镜像或硬件通过。
+`../logs/gpu-offline-touch-ordered-20261108/receipt.json`。随后固定XNU
+CI42391773972 @60a2dc5及内核/linked/PA64核验、touch-only新旧镜像打包
+完成；**未真机测试**，详见[touch-ordered-preflight](touch-ordered-preflight.md)。
 
 下面保留先前理论轮的生产源码身份和未修正重放结果，不能用于描述修正版
 的当前行为。间歇空FIFO根因仍UNKNOWN，QUERY7保持阻断。

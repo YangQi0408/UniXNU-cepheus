@@ -4,6 +4,21 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，历史UI通过不覆盖最新触摸FAIL。
 
+## 2026-11-08：有序上报修正、完整构建与配对镜像完成，停在真机验收前
+
+用户要求“继续推进，直到需要在真机测试”。提交60a2dc5实现先验证整批、
+再按FIFO顺序投递，保留短点/slot重按/末段motion位置；不增加硬件命令。
+11项重放回归与生产FIFO坏批/bulk错误测试通过，10份已有RAW修正版与
+顺序模型0差异。完整离线34 PASS/0 FAIL/0 SKIP，receipt保留dirty=true。
+
+CI42391773972 @60a2dc5完整成功，固定源码cmp、关键patch、75core/13API
+linked及PA64核验通过。本地下载pin/SHA/ordered marker/无unresolved也通过。
+内核SHA6134404e...；新touch-only镜像a00d1e29...与da8ffc1控制547828a5...
+参数/ADT/其他payload核对一致。均未启动，用户手机已拿走，**当前需真机
+独立验收才能继续**。没有新触摸/PAS结论或GPU执行，旧FAIL不改写。
+完整SHA、原日志、配对范围和后续停止条件见
+[有序上报真机前检查](touch-ordered-preflight.md)。
+
 ## 2026-11-08：用户仅允许理论，保存RAW重放定位独立批内上报缺陷
 
 用户已拿走手机，先做离线理论。10份保存RAW日志通过当前生产
