@@ -1,5 +1,9 @@
 # Adreno 640 实现路线与验收边界
 
+> 当前全部工作摘要、镜像／日志索引、目录边界和后续任务见
+> [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
+> 构建通过不替代实测，历史UI通过不覆盖最新触摸FAIL。
+
 ## 2026-11-07：QUERY7内核构建成功，但SCM关闭基线触摸FAIL，停止查询开启轮
 
 用户将67eea163置fastboot，product=cepheus核对通过。推送da8ffc1并运行

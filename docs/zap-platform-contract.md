@@ -1,5 +1,10 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+> 最新状态见[工作交接](current-work-handoff.md)及[TZ证据](tz-native-evidence.md)：
+> 本机TZ原件已经取得，静态表确有PAS13；与真机supported=false仍未解释。
+> QUERY7新核构建／打包完成，但SCM关闭基线触摸FAIL，开启候选未启动。
+> 下文“缺TZ／未发SMC”部分是历史状态，不放宽认证／加载／CP门禁。
+
 ## 2026-11-07：PILDxe客户端实物证据不解除PAS门禁
 
 已有本地日志未找到本机ZAP成功记录，指定目录也未取得本机TZ原件。

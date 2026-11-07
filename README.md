@@ -1,5 +1,10 @@
 # UniXNU-cepheus
 
+> **当前工作总览（2026-11-07）：** [全部工作交接文档](docs/current-work-handoff.md)。
+> 历史主屏幕／触摸／电源基线已通过，但最新`allprobes-da8ffc1`触摸验收
+> **FAIL**，`query7-da8ffc1`未启动；GPU/Metal未完成，触摸与PAS13=false根因
+> 均未知。下文及专题早期章节为历史bring-up记录，不应按“当前可用”直接启动。
+
 **在小米 9（`cepheus`，骁龙 855 / SM8150）上通过 UEFI 引导苹果 XNU 内核，跑到 iOS 16.7.16 的 SpringBoard。**
 
 从 [`JohnLeeeeeee678/UniXNU-raphael`](https://github.com/JohnLeeeeeee678/UniXNU-raphael)（红米 K20 Pro，

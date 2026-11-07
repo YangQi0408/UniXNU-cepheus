@@ -1,5 +1,15 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：最新新核SCM关闭基线触摸FAIL，尚未恢复
+
+用户明确报告`allprobes-da8ffc1`触摸坏。初期19条非空事件之后至16000次
+轮询events仍19，I2C errors0；五个enter原始x均1079。日志中force-cal
+状态在正常旧轮也见，不能证明根因。SCM关闭且未执行查询，不归因于
+新QUERY7。旧触摸源码／参数相同也不排除启动时序／继承状态差异。
+查询开启镜像没有启动，停止GPU测试；未自动复位／重发scan／改校准。
+当前没有新的恢复验收，下面多轮正常属于历史记录，不是长期稳定保证。
+完整镜像／日志索引见[当前交接](current-work-handoff.md)和gpu-acceptance。
+
 ## 2026-11-07：完整只读探测版本轮UI通过
 
 用户确认allprobes-008b2cd正常，实际FIFO/HID捕获也有中央及多指
