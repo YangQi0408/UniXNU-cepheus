@@ -1,5 +1,27 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：同核最后GX参数对照已启动，门禁拒绝GX读取，真实触点正常送达
+
+用户要求继续，核对fastboot67eea163及allprobes-008b2cd SHA8e538843...，
+同已验收新核GX关闭基线kernel/ADT/其他payload，**仅加cephgx=1**。
+先UDP监听再fastboot boot成功，无flash/reset。240秒日志192985B，
+SHA256 `fdd41e05f381df4c997b361ea00227ac15f1d4edf6cd36aeb7753f3428b3b519`，
+证据`../logs/allprobes-008b2cd-live-20261107-145725/`。
+
+GX探测开关确运行，输出`GMU not powered/clocked; GX not read`，
+gmu_blockers0x7a。因此**只验证GX门禁拒绝分支**，未触及修正后的
+GX DWORD寄存器读取，不能称GX窗口可用或GPU加速。ARC/config均0、
+bin0，System Info字段与GX关闭本轮基线相同；校准仍UNKNOWN。未发
+电源票，无boost/内存/GPU供电/firmware/DMA/CP提交，无panic。
+
+触摸chip36:39/scan0，8000读7326空/events2696、HID桥671；errors/
+faults/skipped/outside0、active0、IRQ/SDA/SCL1。RAW前128条ready1/
+status2/enter6/motion114/leave5，真实HID down/up各27，含中央坐标及
+finger1事件。输入链路有实际数据，**本轮界面验收仍待用户确认**，
+不套用GX关闭PASS。原触摸失败根因仍未知，不将逐项本轮通过扩大为
+所有启动稳定或证明此前GX错误读取造成故障。手机留运行，只停止
+HOST监听；既有回退不覆盖，GPU执行阶段仍暂停。
+
 ## 2026-11-07：新核GX关闭基线用户确认正常，准备同核最后GX对照
 
 用户确认socfusearc-008b2cd本轮「正常」，该次result.json更新UI PASS，
