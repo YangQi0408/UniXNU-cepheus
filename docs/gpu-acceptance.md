@@ -1,5 +1,32 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：同核无探测版触摸正常，回归范围缩小但单项因果未证
+
+用户确认touchonly-7ed0427「正常了」。不重启当前手机追加60秒只读UDP，
+`recovered-touch.log` 10347B SHA256
+`ed842d2008a80bab22553a4beab6f5cd0324ac6a115f64a950c72ebb892ddc22`，
+多组真实中央坐标finger0 down/up（495,1206/477,1591等），与用户确认
+共同证明新版7ed0427输入正常。证据及更新result.json在
+`../logs/touchonly-7ed0427-live-20261107-122659/`。纠正：开机捕获无触点
+不足以判故障，该次后来触点可用，不把有限RAW/health预算当持续故障。
+
+新版同核不是必然触摸失败；四项probe组合/执行时序为优先排查方向，
+但跨启动控制器状态未锁定，不能直接认定probe因果或其中某项为根因。
+此前ready-9dc6e6e含probe却曾用户确认正常，亦不应忽略。GPU硬件启动
+继续暂停。**已验证新版回退**touchonly-7ed0427 SHA128e3295...保留，
+旧touch-power回退亦保留；不覆盖、不刷写、不改变固件/校准。
+
+cephsoc控制整个soc线程，arc/fuse/gx是其子开关。因此下一轮最小变量
+先只加cephsoc=1，关闭arc/fuse/gx/boost/内存；它仍含OSM LUT/计数、
+门控GPU状态读取及TSENS，不能称CPU-only。当前不自动重启手机。
+
+下一轮候选已准备`boot-cepheus-soconly-7ed0427.img`，SHA256
+`919a558e77f2ff468b9defece6d1ad0e6ce6e1b5354c537d7b9456d861a44bfc`。
+同一kernel、同一其他payload、相同参数集合仅加cephsoc=1；包装门禁
+显式soc-only，拒绝arc/fuse/gx/boost/内存及touchreset（即使值0），保留
+原默认profile门禁，新增4项参数测试和7项performance测试通过。
+**尚未boot候选**，不把包装/host单测通过当实测，也不声称CPU/GPU加速。
+
 ## 2026-11-07：同核touch-only对照已启动，尚待用户交互确认
 
 用户已进入fastboot，核对67eea163及touchonly-7ed0427 SHA128e3295...，

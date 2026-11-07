@@ -1,5 +1,14 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：同一新版内核touch-only触摸正常
+
+touchonly-7ed0427与失败touchdiag-7ed0427内核及其他payload相同，仅移除
+cephsoc/arc/fuse/gx四个参数。用户确认「正常了」，追加日志有中央坐标
+真实down/up，当前新版可用回退保留。探测组合/时序是重点但未确定单项
+根因，不把跨启动状态当常量。下一轮先只恢复cephsoc主开关（包含门控
+GPU状态/OSM/温度采样，不是纯CPU），仍无boost/内存/arc/fuse/gx。
+证据与摘要见gpu-acceptance.md；当前手机留在可用状态。
+
 ## 2026-11-07：旧touch-power回退恢复，最新内核回归仍待定位
 
 用户确认历史touch-power完整镜像c8eae5a0...本轮触摸恢复；启动前应该仅
