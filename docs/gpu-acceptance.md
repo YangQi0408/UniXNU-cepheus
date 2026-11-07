@@ -1,5 +1,28 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：fuse对照UI正常，下一轮仅增加ARC只读探测
+
+用户确认socfuse-7ed0427本轮「正常」，该次result.json更新UI PASS。
+结合315 FIFO事件/83 HID桥/13组down-up，cephsoc+fuse与触摸本轮
+共存；不能说fuse为已证根因，也不证明所有启动状态稳定。当前可用
+socfuse保留，手机不立即重启。总体回归任务仍进行，GPU硬件启动暂停。
+
+下一轮仅增加cepharc=1：复用触摸供电rh_lock，cmd-db/TCS只读快照及
+config dry-run，不调用rh_send/rh_sync/rh_write；GMU/GX/DDR票全部
+NOT SENT，实际继承票仍UNKNOWN。ARC与fuse同时开启会多执行CPU
+config计算，不能把它叫“仅一次寄存器读取”。GX/boost/内存仍关闭，
+沿用同7ed0427核以免混入新的System Info读取。证据审查不代替硬件
+实际结果；本次只准备下一轮镜像。
+
+已打包`boot-cepheus-socfusearc-7ed0427.img`，SHA256
+`6d9821a8d1609ac36b3ab18fab8735560c4c05351a3e3dc496bf4bfed8a8f45b`。
+保持socfuse完全同kernel/ADT/其他payload、只加cepharc=1，显式
+soc-fuse-arc包装profile仍拒绝GX/boost/内存/touchreset及重复参数，
+保留旧profile约束。6项参数单测、7项performance测试、ARC/ACV源
+检查及5项ARC集成测试通过。初次源码/集成测试调用漏必需的原厂内核/
+patches路径而失败，补齐参数后完整通过；不是硬件证据。**未boot该
+候选**，当前手机仍是用户已验收socfuse运行态，原可用镜像均保留。
+
 ## 2026-11-07：仅增加fuse已实测，有真实触点，UI验收待确认
 
 用户要求继续，核对fastboot67eea163及socfuse-7ed0427 SHA2891855a...，

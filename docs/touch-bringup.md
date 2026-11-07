@@ -1,5 +1,12 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：基础探测+fuse本轮触摸UI正常
+
+用户确认socfuse-7ed0427正常，FIFO/HID和UI本轮均通过；仍未建立跨
+启动因果。下一轮只恢复ARC只读快照/config dry-run，保持同内核，
+GX/boost/内存关，不发电源票，不新增System Info读。当前可用回退
+保留、不立即重启，详细证据见gpu-acceptance.md。
+
 ## 2026-11-07：仅恢复cephsoc本轮UI验收正常
 
 用户确认soconly-7ed0427点击/滑动正常，该轮真实FIFO/HID证据见

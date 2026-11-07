@@ -69,9 +69,24 @@ class Args(unittest.TestCase):
             for invalid in (line.replace(token, ''), line.replace(token, token[:-1]+'0'), line+' '+token):
                 with self.assertRaises(AssertionError):
                     ready.validate_args(invalid, soc_fuse=True)
-        for kwargs in ({'touch_only': True}, {'soc_only': True}, {'memory_test': 1}):
+        for kwargs in ({'touch_only': True}, {'soc_only': True}, {'soc_fuse_arc': True}, {'memory_test': 1}):
             with self.assertRaises(AssertionError):
                 ready.validate_args(line, soc_fuse=True, **kwargs)
+
+    def test_soc_fuse_arc(self):
+        line = BASE + ' sweettouchdiag=1 cephsoc=1 cephfuse=1 cepharc=1'
+        ready.validate_args(line, soc_fuse_arc=True)
+        for name in ('cephgx', 'cephmem', 'cephboost', 'sweettouchreset'):
+            for value in (0, 1, 2):
+                with self.assertRaises(AssertionError):
+                    ready.validate_args(line + f' {name}={value}', soc_fuse_arc=True)
+        for token in ('cephsoc=1', 'cephfuse=1', 'cepharc=1', 'sweettouchdiag=1'):
+            for invalid in (line.replace(token, ''), line.replace(token, token[:-1]+'0'), line+' '+token):
+                with self.assertRaises(AssertionError):
+                    ready.validate_args(invalid, soc_fuse_arc=True)
+        for kwargs in ({'touch_only': True}, {'soc_only': True}, {'soc_fuse': True}, {'memory_test': 1}):
+            with self.assertRaises(AssertionError):
+                ready.validate_args(line, soc_fuse_arc=True, **kwargs)
 
 
 if __name__ == '__main__':
