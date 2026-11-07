@@ -9,7 +9,8 @@
 #include <stdint.h>
 enum ceph_scm_convention {CE_SCM_UNKNOWN,CE_SCM_ARMV8_32,CE_SCM_ARMV8_64};
 enum ceph_scm_query {CE_SCM_SELF,CE_SCM_PAS_INIT_AVAILABLE,CE_SCM_PAS_MEM_AVAILABLE,
-    CE_SCM_PAS_AUTH_AVAILABLE,CE_SCM_PAS_STOP_AVAILABLE,CE_SCM_PAS_SUPPORTED};
+    CE_SCM_PAS_AUTH_AVAILABLE,CE_SCM_PAS_STOP_AVAILABLE,CE_SCM_PAS_QUERY_AVAILABLE,
+    CE_SCM_PAS_SUPPORTED};
 enum {CE_SCM_INTERRUPTED=1,CE_SCM_BUSY=-12,CE_SCM_QUERY_LIMIT=16};
 struct ceph_scm_regs {uint64_t x[8];};
 struct ceph_scm_discovery_ops {
@@ -33,6 +34,7 @@ static inline int ceph_scm_query_regs(enum ceph_scm_convention c,enum ceph_scm_q
     case CE_SCM_PAS_MEM_AVAILABLE:query=0x02000202u;break;
     case CE_SCM_PAS_AUTH_AVAILABLE:query=0x02000205u;break;
     case CE_SCM_PAS_STOP_AVAILABLE:query=0x02000206u;break;
+    case CE_SCM_PAS_QUERY_AVAILABLE:query=0x02000207u;break;
     case CE_SCM_PAS_SUPPORTED:info=0x02000207u;query=13;break;
     }
     *out=(struct ceph_scm_regs){{info|(q==CE_SCM_SELF?0x80000000u:0u)|
@@ -71,7 +73,10 @@ static inline int ceph_scm_discover_pas13(struct ceph_scm_discovery *s,struct ce
         if(e || v!=1)goto failed;
         s->convention=CE_SCM_ARMV8_32;
     }
-    for(unsigned q=CE_SCM_PAS_INIT_AVAILABLE;q<=CE_SCM_PAS_STOP_AVAILABLE;++q) {
+    /* Include command7 availability, as the generic qcom_scm_pas_supported
+     * wrapper does. This only tightens admission; it never overrides false.
+     * Normal SMC64 success is seven calls rather than the old six. */
+    for(unsigned q=CE_SCM_PAS_INIT_AVAILABLE;q<=CE_SCM_PAS_QUERY_AVAILABLE;++q) {
         if(ceph_scm_query_run(s,b,s->convention,(enum ceph_scm_query)q,&v) || v!=1)goto failed;
         s->available_mask|=1u<<(q-CE_SCM_PAS_INIT_AVAILABLE);
     }

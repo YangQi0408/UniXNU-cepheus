@@ -20,4 +20,8 @@ pas = (root / 'drivers/firmware/qcom_scm-64.c').read_text()
 assert 'QCOM_SCM_ARGS(1)' in pas.split('bool __qcom_scm_pas_supported', 1)[1].split('int __qcom_scm_pas_init_image', 1)[0]
 constants = (root / 'drivers/firmware/qcom_scm.h').read_text()
 assert re.search(r'#define\s+QCOM_SCM_PAS_IS_SUPPORTED_CMD\s+0x7\b', constants)
-print('SCM source: fixed INFO6/PIL2, 64->32 convention query, resume/busy constants, PAS supported7 PASS (no SMC)')
+generic = (root / 'drivers/firmware/qcom_scm.c').read_text()
+wrapper = generic.split('bool qcom_scm_pas_supported(u32 peripheral)', 1)[1].split('EXPORT_SYMBOL(qcom_scm_pas_supported)', 1)[0]
+assert '__qcom_scm_is_call_available' in wrapper and 'QCOM_SCM_PAS_IS_SUPPORTED_CMD' in wrapper
+assert wrapper.index('__qcom_scm_is_call_available') < wrapper.index('if (ret <= 0)') < wrapper.index('return __qcom_scm_pas_supported')
+print('SCM source: fixed INFO6/PIL2, convention query, resume/busy constants, availability7 before supported7 PASS (no SMC)')

@@ -140,7 +140,9 @@ public class TzPasEvidence extends GhidraScript {
         report.put("functions", records);
         List<Object> data = new ArrayList<>();
         String[] dataSeeds = {"1c1303f8:192", "1c11c1f0:4", "1c13edf8:8520", "1c165618:240",
-            "1c147e28:16", "1c11d188:88"};
+            "1c147e28:16", "1c11d188:88", "14680000:32", "146801f8:64", "14680c68:8",
+            "1c103078:16", "1c290168:24", "1c295c58:48", "1c29bdf8:240",
+            "14690110:96", "14692810:8", "1c281000:110016"};
         for (String spec : dataSeeds) {
             String[] pair = spec.split(":"); Address address = toAddr(pair[0]);
             byte[] bytes = new byte[Integer.parseInt(pair[1])];

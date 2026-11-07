@@ -64,8 +64,8 @@ int main(void)
     for(enabled=-1;enabled<=2;++enabled) {
         calls=ceph_scm_info_attempted=0;
         soc_scm_probe();
-        assert(calls==(enabled==1?6u:0u) && !locked);
-        if(enabled==1) {soc_scm_probe();assert(calls==6 && !locked);}
+        assert(calls==(enabled==1?7u:0u) && !locked);
+        if(enabled==1) {soc_scm_probe();assert(calls==7 && !locked);}
     }
     calls=ceph_scm_info_attempted=0;enabled=1;
     for(soc_enabled=0;soc_enabled<=2;soc_enabled+=2) {soc_scm_probe();assert(!calls && !ceph_scm_info_attempted);}
@@ -78,8 +78,8 @@ int main(void)
     soc_scm_probe();assert(calls==1 && !locked);
     assert(cepheus_gpu_scm_probe_once(NULL)<0 && calls==1);
     ceph_scm_info_attempted=0;fail_transport=0;
-    assert(!cepheus_gpu_scm_probe_once(&result) && result.supported && result.calls==6 && !locked);
-    assert(cepheus_gpu_scm_probe_once(&result)<0 && calls==7 && !locked);
+    assert(!cepheus_gpu_scm_probe_once(&result) && result.supported && result.calls==7 && !locked);
+    assert(cepheus_gpu_scm_probe_once(&result)<0 && calls==8 && !locked);
     puts("Production SCM hook/once wrapper: opt-in1 only, serialization, errors latched and fixed queries PASS (RAM only)");
 }
 '''

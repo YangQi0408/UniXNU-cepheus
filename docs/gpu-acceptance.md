@@ -1,5 +1,34 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：离线入口/重定位核对完成一轮，停在下一次受限真机查询之前
+
+本轮无手机操作、无新SMC/PAS认证/电源写入、无内核完整构建或镜像启动。
+原生Ghidra私有DB显式25 seeds，1847指令/16数据段原字节/PT_LOAD/
+Capstone/LLVM核对PASS；4584条RELA-format记录做原槽值/addend及目标覆盖核对。
+**纠正**：0x1c03b3b0是循环非函数入口，实际函数0x1c03b274；循环加偏移到
+target当前槽值而非直接加载addend。0x14690110字面量/addend为0x14690000，
+入口ADR相等检查不证明物理加载基址；偏移原值0x7eb980000可在启动时更新。
+不按这些静态地址扫描RAM。重定位不覆盖count/cache/descriptor ID，不证明
+无其他写入；初始化只追到锁和后端调用，NS↔secure frame全程仍未恢复。
+PAS13静态存在与旧实测false的差异**仍未知**，#63不标完成，不放宽门禁。
+
+主机源码候选补查command7 availability，正常64查询由6次变7次，新bit4
+仅表示确认可用；false/error/未到该项不混记。availability7未确认则不发
+PAS13查询；即使availability=true，PAS13=false仍停止。RAM测试覆盖固定
+目标顺序、false/租约失败、单次锁存、x6 resume和16次预算；新policy与真实
+callback做AArch64 compile/assemble但不执行。CI增加不依赖固件的单测。
+**这不是false修复、镜像已准备或真机通过**。用户要求到必须测试时停下，
+故不推送/触发CI、不操作手机；后续构建/打包与实际测试边界列于
+`docs/scm-query7-preflight.md`。此查询不获取secure基址/映像身份/表内容。
+
+新增RELA-format单测6项加原映射8项共14项。最终完整离线回归**33 PASS，
+零FAIL/零SKIP**：`../logs/gpu-offline-tz-startup-query7-final-20261107/receipt.json`
+SHA256 `9532352ee229bc536a1f479cc0231f6b1bc13176c364260f8f7d7dfdfddd7064`。
+最终原件校验 `verification-startup-final.json` SHA256
+`f3c48c7b94d49d87d2acd14f8b7b808914e505de52dc4e14ce70d75de50c90cb`。
+缺入口、截短启动seed、缺RELA数据、改RELA数据、改指令5例手工负向核对
+均被拒（不是另5个CI检查）。证据及纠错详见`docs/tz-native-evidence.md`。
+
 ## 2026-11-07：本机 TZ 已取得，原生 Ghidra 找到 PAS13 描述符与查询链
 
 用户置手机于recovery后，代理只读采集固定tz=sde37，精确4MiB，读取前/

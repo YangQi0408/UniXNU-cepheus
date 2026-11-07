@@ -85,6 +85,8 @@ int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)
     printf("CEPHEUS SCM INFO: e=%d convention=%u available=%#x supported=%u calls=%u transport=%#llx secure=%#llx; no PAS mutations\n",
         e,(unsigned)out->convention,out->available_mask,out->supported,out->calls,
         (unsigned long long)out->transport,(unsigned long long)out->secure);
+    printf("CEPHEUS SCM QUERY7: confirmed=%u (0 means false/error/not-reached; see REGS); normal64 calls=7; false never overridden; no PAS mutations\n",
+        !!(out->available_mask & 0x10u));
     return e;
 }
 #endif

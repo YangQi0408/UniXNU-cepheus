@@ -46,6 +46,67 @@ def map_range(segments, address, size):
     return hits[0]
 
 
+def read_relative_records(blob, segments, offset, size):
+    """Read explicit analyst-selected RELA-format bytes, never apply fixups.
+
+    This image has no section table. The format/range is inferred from the
+    startup loop, not recovered ELF section metadata. Keep current slot and
+    addend separate: the startup loop reads the former, not the latter.
+    """
+    if offset < 0 or size <= 0 or size % 24 or offset + size > len(blob):
+        raise ValueError('invalid RELA-format range')
+    records = []
+    for position in range(offset, offset + size, 24):
+        target, kind, addend = struct.unpack_from('<QQQ', blob, position)
+        if kind != 0x403 or target % 8:
+            raise ValueError('unexpected relative relocation type/alignment')
+        slot, _ = map_range(segments, target, 8)
+        records.append({'file_offset': hex(position), 'target': hex(target),
+                        'type': hex(kind), 'addend': hex(addend),
+                        'static_slot_value': hex(struct.unpack_from('<Q', blob, slot)[0])})
+    if len({r['target'] for r in records}) != len(records):
+        raise ValueError('duplicate relocation target')
+    return records
+
+
+def relocation_summary(blob, segments):
+    records = read_relative_records(blob, segments, 0x1fb000, 0x1adc0)
+    lower, upper = 0x14690170, 0x1c2fe000
+    def eligible(record):
+        return lower <= int(record['static_slot_value'], 16) <= upper
+    mismatches = [r for r in records if r['addend'] != r['static_slot_value']]
+    groups = {}
+    for name, start, size in (('dispatch_handlers', 0x1c1303f8, 0xe40),
+                              ('descriptors', 0x1c13edf8, 0x2148),
+                              ('cache', 0x1c165618, 240), ('count', 0x1c11c1f0, 4)):
+        selected = [r for r in records if start <= int(r['target'], 16) < start + size]
+        groups[name] = {'record_count': len(selected),
+                        'eligible_static_slots': sum(map(eligible, selected)),
+                        'targets': [r['target'] for r in selected]}
+    protected = [(0x1c11c1f0, 4), (0x1c165618, 240)] + [
+        (0x1c13edf8 + i * 0x238 + 0x1f8, 4) for i in range(15)]
+    overlaps = [r for r in records for start, size in protected
+                if int(r['target'], 16) < start + size and start < int(r['target'], 16) + 8]
+    if (len(records) != 4584 or mismatches or overlaps or
+            [groups[n]['record_count'] for n in groups] != [152, 6, 0, 0]):
+        raise ValueError('unexpected static relocation coverage')
+    entry_offset, _ = map_range(segments, 0x14690110, 8)
+    bias_offset, _ = map_range(segments, 0x14690160, 8)
+    return {'record_count': len(records), 'format': 'analyst-bounded RELA triples, type 0x403',
+            'file_start': '0x1fb000', 'file_end_exclusive': '0x215dc0',
+            'all_static_slots_equal_addends': not mismatches,
+            'startup_filter_inclusive': [hex(lower), hex(upper)],
+            'eligible_static_slots': sum(map(eligible, records)),
+            'excluded_static_slots': [r for r in records if not eligible(r)],
+            'groups': groups, 'no_overlap_count_cache_or_descriptor_ids': not overlaps,
+            'entry_literal_static': hex(struct.unpack_from('<Q', blob, entry_offset)[0]),
+            'bias_literal_static': hex(struct.unpack_from('<Q', blob, bias_offset)[0]),
+            'limits': ['Startup loop loads current target slot, not RELA addend; no fixups applied',
+                       'Static filter membership is not observed runtime relocation',
+                       'Entry address equality does not establish physical load address',
+                       'Startup may update bias slot; live value and other writers unknown']}
+
+
 def verify(blob, evidence):
     import capstone
     digest = hashlib.sha256(blob).hexdigest()
@@ -111,13 +172,26 @@ def verify(blob, evidence):
     arg1_target = struct.unpack('<Q', read(0x1c11d188 + 8, 8))[0]
     if arg1_target != 0x1c057290:
         raise ValueError('one-argument dispatch arm mismatch')
-    return {'result': 'PASS_STATIC_BYTES_ONLY', 'tz_sha256': digest,
+    result = {'result': 'PASS_STATIC_BYTES_ONLY', 'tz_sha256': digest,
             'functions': summaries, 'instruction_count': count,
             'static_data_ranges': len(evidence['static_data']), 'descriptors': descriptors,
             'pas7_entry': list(entry), 'arg1_arm': hex(arg1_target),
             'limits': ['No runtime firmware identity or live descriptor state established',
                        'No secure calls, authentication or GPU acceleration tested',
                        'Decompiler warning/unknown types and indirect CFG remain in source evidence']}
+    # Do not silently attach startup semantics to older bundles without these
+    # instruction seeds. Full byte coverage still does not establish execution.
+    if any(f['entry'] == '1c03b274' for f in evidence['functions']):
+        bounds = {f['entry']: f['analyst_body_end_inclusive'] for f in evidence['functions']}
+        if bounds.get('1c03b274') != '1c03b46b' or bounds.get('14690000') != '1469010f':
+            raise ValueError('startup summary requires complete explicit startup/entry seeds')
+        table_off, _ = map_range(segments, 0x1c281000, 0x1adc0)
+        if table_off != 0x1fb000 or not any(
+                d['address'] == '1c281000' and len(bytes.fromhex(d['bytes'])) == 0x1adc0
+                for d in evidence['static_data']):
+            raise ValueError('startup summary requires original RELA-format data coverage')
+        result['relocation'] = relocation_summary(blob, segments)
+    return result
 
 
 def llvm_check(blob, evidence):

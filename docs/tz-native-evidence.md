@@ -144,3 +144,94 @@ handler。与 PAS7 的 ID/result 形式一致。
 截短TZ均被verifier拒绝。这6例为本地手工检查，不是新增CI检查数。
 
 本轮没有内核构建、镜像打包、真机启动、认证或加速性能结果。
+
+## 后续离线轮：入口/frame、重定位和初始化（2026-11-07）
+
+以下是前述17 seeds轮之后的新结果；没有手机命令。继续在同一私有DB用
+`-noanalysis` 导出 `evidence-frame.json`（15 seeds/1344指令/13数据段）、
+`evidence-startup.json`（18 seeds/1609指令/16数据段），最终
+`evidence-startup-init.json`（25 seeds/**1847指令/16数据段**）。对应
+`verification-*.json` 原字节/PT_LOAD/Capstone/LLVM均通过。首次frame导出
+因导入器已有 entry 与分析者seed冲突失败，`headless-frame.log` 保留；
+移除该函数seed、把入口32B改为数据seed才成功，不算首次失败为通过。
+
+### 必须记录的纠正
+
+1. `0x14690004` 的 ADR 与 `0x14690110` 字面量比较，只证明入口执行地址
+   必须等于字面量，否则 `0x14690010` 自旋。字面量原值为
+   **`0x14690000`**；其RELA记录的addend也是`0x14690000`，**不是
+   `0x14690110`**。撤回“因此物理加载基址固定”的推断；secure虚拟映射、
+   loader行为和实际运行值尚未观测。
+2. `0x1c03b3b0` **不是函数入口**，而是 `0x1c03b274..0x1c03b46b`
+   启动函数中的重定位循环。循环取RELA target，再读取 **target当前槽值**，
+   范围检查通过才加 `[0x14690160]` 写回target；**不直接加载 addend**。
+   原件所有4584个槽值恰等于对应addend，不可把这当运行时仍相等的证据。
+3. `[0x14690160]` 原值 **`0x7eb980000`** 是该路径的偏移字面量，不是
+   已知运行基址。启动函数在 `0x1c03b310..320` 的条件路径会更新它。
+   文件VA只能用来定位静态材料，不能按它或加此值去扫描活RAM。
+
+### 重定位范围能排除什么
+
+无section headers；显式选取VA `0x1c281000..0x1c29bdc0`，唯一PT_LOAD
+映射到file `0x1fb000..0x215dc0`。4584条24B RELA-format记录均为
+`type=0x403`。循环对当前槽值的筛选区间是包含两端的
+`[0x14690170,0x1c2fe000]`；按**静态原值**4582条符合、2条不符合：
+`target=0x14690110/value=0x14690000` 与
+`target=0x14690130/value=0x14690168`。
+
+调度表152个handler槽、描述符表6个指针槽均有记录且原值符合筛选；
+count、cache及15项descriptor ID字段与所有8B重定位目标**无重叠**。
+因此该重定位循环自身不能按这些记录清掉PAS13的ID；这**不能证明没有
+其他写入者、运行态表未变化、或当时执行的就是这个固件**。
+verifier导出原槽值/addend分离及覆盖表，不应用任何fixup、不执行固件。
+
+### frame与初始化：局部链成立，全程仍未知
+
+- `0x14680c00` EL3向量保存x0–x15后进入`0x1c0180f0`的ESR路由；
+  `0x1c01c75c`按monitor命令和per-CPU context处理。只核对显式种子范围，
+  没有完整恢复NS入口到secure服务、返回NS寄存器的全部分支。
+- `0x146900c4..104`将x0–x13组成0x70B帧，调用字面量指向的
+  `0x1c03ad50`，恢复x0–x13后`smc #0`。该函数保存frame到
+  `0x1c1619d8+cpu*8`，通过初始化阶段函数，并清回保存指针。
+- 服务函数`0x1c03ae6c`复制输入0x70B到栈、按命令分流；普通请求到
+  `0x1c0574d0`→既有dispatcher。结果组织到0x70B返回帧并复制到
+  per-CPU帧顶减0x70。`0x1c102f80`保存/恢复x0–x13并`smc #0`。
+  **这些不是运行观测，不能证明此前第6次SMC实际走过PAS7 handler。**
+- 初始化阶段`0x1c04cb60`→`0x1c04ca20`→`0x1c04dab4`→
+  `0x1c04e26c`：30个、步长0x80的锁对象初始化（`0x14682bb4`清0x80B），
+  然后`0x1c04f280`调用两个后端初始化helper。未追完这两个helper及其他
+  初始化调用，不能说已排除所有描述符/调度表修改路径。
+- `0x1c03a928`清**启动handoff frame**并建立初始返回包，最后置
+  `0x14692810=1`。这是启动路径，不是“每个PAS查询先清掉参数”的证据，
+  不把它当false根因。
+
+Ghidra的failure-helper栈/终止契约仍未建立，新增入口包装器伪代码也出现
+候选跨函数尾部；**不得把伪代码的邻函数展开当已恢复的调用边**。
+frame字段与返回码语义仍为推断，不能据静态byte PASS宣称完整secure CFG。
+
+### 下一步已到真机返回值边界
+
+源码候选在原查询策略中加入唯一一项 **command7 availability**，不改PAS13
+ID、ABI门禁或false；参见 `docs/scm-query7-preflight.md`。仅补测命令是否
+暴露，不会测出实际基址/映像身份/表内容，亦不构成根因修复。
+本轮只做主机单测和AArch64编译，未完整构建XNU/打包镜像/推送CI/操作手机。
+#63仍in_progress：static PAS13存在，旧真机false未解释，认证能力UNKNOWN。
+
+新增6项RAM-only RELA-format边界单测，与原8项映射测试共14项；验证器在
+startup summary前还要求完整入口/启动seed及原始表数据范围。
+私有证据/数据库/原件不上传公共CI；只将不含专有材料的测试/分析脚本入库。
+
+| 新材料 | SHA256 |
+|---|---|
+| evidence-frame.json | `de4b147b77aca635982866c63eb6ea90ce925b66e2a843af5886f46a14d5c544` |
+| verification-frame.json（旧verifier生成） | `62178e8633dc7767637395ecd3be3df2dbb7491539e8020e635392ba794e2cdb` |
+| evidence-startup-init.json | `f632cb9475879797b8247eda13393e606f5f40b8dd4854b1ba684c4cc315cdfc` |
+| verification-startup-init.json（范围门禁补强前） | `0d4a17379b4bb58135fe799ccd2f0b98ef79245a15c41404164a28da2df090c4` |
+| verification-startup-final.json（最终verifier） | `f3c48c7b94d49d87d2acd14f8b7b808914e505de52dc4e14ce70d75de50c90cb` |
+| GPU offline final receipt | `9532352ee229bc536a1f479cc0231f6b1bc13176c364260f8f7d7dfdfddd7064` |
+
+失败与中间输出全部保留；最终verifier复核另命名，不覆盖上述receipt。
+最终全量回归 `../logs/gpu-offline-tz-startup-query7-final-20261107/receipt.json`
+**33 PASS，零FAIL/零SKIP**；最终verifier校验1847指令/16数据段及4584条
+RELA-format记录通过。缺入口、截短启动seed、缺RELA数据、改RELA数据、
+改指令5例手工负向核对均被拒，不算另5个CI检查或独立审查。

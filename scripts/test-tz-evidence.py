@@ -59,5 +59,51 @@ class MappingTests(unittest.TestCase):
             module.map_range(module.load_segments(self.image()), 0x1000, 0)
 
 
+class RelativeRecordTests(unittest.TestCase):
+    def fixture(self):
+        blob = bytearray(64)
+        struct.pack_into('<QQQ', blob, 0, 0x1000, 0x403, 0x2222)
+        struct.pack_into('<Q', blob, 32, 0x3333)
+        return blob, [(32, 0x1000, 16, 6)]
+
+    def test_current_slot_distinct_from_addend(self):
+        blob, segments = self.fixture()
+        record = module.read_relative_records(blob, segments, 0, 24)[0]
+        self.assertEqual(record['addend'], '0x2222')
+        self.assertEqual(record['static_slot_value'], '0x3333')
+        self.assertEqual(struct.unpack_from('<Q', blob, 32)[0], 0x3333)
+
+    def test_bad_ranges(self):
+        blob, segments = self.fixture()
+        for offset, size in ((-1, 24), (0, 0), (0, 23), (48, 24)):
+            with self.subTest(offset=offset, size=size), self.assertRaises(ValueError):
+                module.read_relative_records(blob, segments, offset, size)
+
+    def test_nonrelative_type(self):
+        blob, segments = self.fixture()
+        struct.pack_into('<Q', blob, 8, 0x402)
+        with self.assertRaises(ValueError):
+            module.read_relative_records(blob, segments, 0, 24)
+
+    def test_unaligned_target(self):
+        blob, segments = self.fixture()
+        struct.pack_into('<Q', blob, 0, 0x1001)
+        with self.assertRaises(ValueError):
+            module.read_relative_records(blob, segments, 0, 24)
+
+    def test_unmapped_target(self):
+        blob, segments = self.fixture()
+        struct.pack_into('<Q', blob, 0, 0x2000)
+        with self.assertRaises(ValueError):
+            module.read_relative_records(blob, segments, 0, 24)
+
+    def test_duplicate_target(self):
+        blob, _ = self.fixture()
+        blob[24:48] = blob[:24]
+        struct.pack_into('<Q', blob, 48, 0x3333)
+        with self.assertRaises(ValueError):
+            module.read_relative_records(blob, [(48, 0x1000, 8, 6)], 0, 48)
+
+
 if __name__ == '__main__':
     unittest.main()
