@@ -1,5 +1,12 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：仅恢复cephsoc本轮UI验收正常
+
+用户确认soconly-7ed0427点击/滑动正常，该轮真实FIFO/HID证据见
+gpu-acceptance.md。OSM/门控GPUCC/温度采样与触摸本轮可共存，不能
+视cephsoc本身为已证根因；下一轮仅加fuse只读bin，ARC/GX等仍关。
+当前可用版本保留、不立即重启。总体回归根因尚未定位。
+
 ## 2026-11-07：同一新版内核touch-only触摸正常
 
 touchonly-7ed0427与失败touchdiag-7ed0427内核及其他payload相同，仅移除

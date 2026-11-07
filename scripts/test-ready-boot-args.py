@@ -58,6 +58,21 @@ class Args(unittest.TestCase):
         with self.assertRaises(AssertionError):
             ready.validate_args(line + ' cephmem=1', memory_test=1, soc_only=True)
 
+    def test_soc_fuse(self):
+        line = BASE + ' sweettouchdiag=1 cephsoc=1 cephfuse=1'
+        ready.validate_args(line, soc_fuse=True)
+        for name in ('cepharc', 'cephgx', 'cephmem', 'cephboost', 'sweettouchreset'):
+            for value in (0, 1, 2):
+                with self.assertRaises(AssertionError):
+                    ready.validate_args(line + f' {name}={value}', soc_fuse=True)
+        for token in ('cephsoc=1', 'cephfuse=1', 'sweettouchdiag=1'):
+            for invalid in (line.replace(token, ''), line.replace(token, token[:-1]+'0'), line+' '+token):
+                with self.assertRaises(AssertionError):
+                    ready.validate_args(invalid, soc_fuse=True)
+        for kwargs in ({'touch_only': True}, {'soc_only': True}, {'memory_test': 1}):
+            with self.assertRaises(AssertionError):
+                ready.validate_args(line, soc_fuse=True, **kwargs)
+
 
 if __name__ == '__main__':
     unittest.main()

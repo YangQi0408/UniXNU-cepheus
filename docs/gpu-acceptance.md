@@ -1,5 +1,25 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：cephsoc对照UI验收正常，下一轮仅增加fuse
+
+用户确认soconly-7ed0427本轮「正常」。结合该次404个FIFO事件/107次
+HID桥调用、19组真实down/up，基础cephsoc探测与触摸本轮可以共存，
+不能单凭早期四参同时移除实验归罪cephsoc；仍不证明跨启动一直稳定。
+该次result.json已明确更新UI PASS，不套用其他实验的验收。
+
+当前可用soconly镜像与此前touchonly/旧touch-power原样保留，手机不
+立即重启。下一轮只增加cephfuse=1（QFPROM固定页只读bin探测），
+继续关闭ARC/GX/CPUboost/内存。此时ARC CONFIG不执行；单独bin结果
+不等于电源所有权或GPU加速，不改fuse/校准/固件，不做GPU电源试写。
+
+已打包`boot-cepheus-socfuse-7ed0427.img`，SHA256
+`2891855aaf56f331222c2bd2be5b37759d54f262b87bbfe907adfe7519c3fb07`。
+与soconly完全同kernel/ADT/其他payload，参数仅新增cephfuse=1；显式
+soc-fuse包装profile要求主开关/fuse/触摸诊断，拒绝ARC/GX/boost/内存/
+touchreset（值0也拒绝），保留原profile门禁。5项参数单测、7项
+performance测试通过。**只完成包装，未启动新候选**，手机仍为已验收
+soconly运行态；不把编译/包装/单测说成加速完成。
+
 ## 2026-11-07：仅恢复cephsoc实测，有持续触点，UI验收待确认
 
 用户已进入fastboot，核对67eea163和soconly-7ed0427 SHA919a558e...，
