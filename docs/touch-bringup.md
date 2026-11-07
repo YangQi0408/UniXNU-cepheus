@@ -1,5 +1,12 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：GX修正新内核的GX关闭基线正常
+
+用户确认socfusearc-008b2cd触摸正常；System Info只读返回身份字段，
+不将cx0xffff/尺寸字段/CRC0当健康或损坏结论。随后补抓无数据，检查
+时设备已在fastboot，非新的触摸失败证据。下一轮同新核仅加GX门控
+只读探测，尚未启动；本次用户验收不能扩展为GX/GPU加速通过。
+
 ## 2026-11-07：ARC本轮正常；最后GX对照因离线缺陷暂停
 
 用户确认socfusearc-7ed0427正常；补抓中央和finger0..3真实触点、

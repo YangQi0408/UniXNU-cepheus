@@ -14,27 +14,30 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_fuse=False, soc_fuse_arc=False):
-    assert sum((touch_only, soc_only, soc_fuse, soc_fuse_arc)) <= 1, "choose one isolation profile"
+def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_fuse=False, soc_fuse_arc=False, all_probes=False):
+    assert sum((touch_only, soc_only, soc_fuse, soc_fuse_arc, all_probes)) <= 1, "choose one isolation profile"
     tokens = line.split()
     names = [t.split("=", 1)[0] for t in tokens]
     assert len(names) == len(set(names)), "duplicate boot arguments"
     assert len(line) <= 1000
     forbidden = {"cephmem", "cephboost", "cephgpu", "cephboot", "cephpower", "sweetfastboot", "sweetgpu", "sweettouchreset"}
     if memory_test is not None:
-        assert memory_test in (1, 2) and not (touch_only or soc_only or soc_fuse or soc_fuse_arc)
+        assert memory_test in (1, 2) and not (touch_only or soc_only or soc_fuse or soc_fuse_arc or all_probes)
         forbidden.remove("cephmem")
         assert f"cephmem={memory_test}" in tokens
     required = {"sweetusb=2", "sweettouch=1", "sweetkeys=1", "sweetkeyspononly=1",
                 "sweettouchgpio=1", "sweettouchpower=1", "sweettouchdelay=60",
                 "sweethidonce=1", "sweetfb_noconsole=1"}
-    if touch_only or soc_only or soc_fuse or soc_fuse_arc:
-        forbidden.add("cephgx")
-        if soc_fuse_arc:
+    if touch_only or soc_only or soc_fuse or soc_fuse_arc or all_probes:
+        if all_probes:
+            required.add("cephgx=1")
+        else:
+            forbidden.add("cephgx")
+        if soc_fuse_arc or all_probes:
             required.add("cepharc=1")
         else:
             forbidden.add("cepharc")
-        if soc_fuse or soc_fuse_arc:
+        if soc_fuse or soc_fuse_arc or all_probes:
             required.add("cephfuse=1")
         else:
             forbidden.add("cephfuse")
@@ -85,6 +88,8 @@ def main():
                         help="require cephsoc=1 and cephfuse=1 with touch diagnostics; no ARC/GX/boost/memory")
     isolation.add_argument("--soc-fuse-arc", action="store_true",
                         help="require cephsoc/fuse/arc=1 with touch diagnostics; no GX/boost/memory")
+    isolation.add_argument("--all-probes", action="store_true",
+                        help="require cephsoc/fuse/arc/gx=1 with touch diagnostics; no boost/memory")
     args = parser.parse_args()
     assert not args.receipt.exists(), "keep existing evidence"
     with tempfile.TemporaryDirectory() as temp:
@@ -102,7 +107,7 @@ def main():
         assert files["UniXNU/Payloads/kernel.macho"] == args.kernel.read_bytes()
         config = tomllib.loads(files["UniXNU/unixnu.toml"].decode())
         line = config["entry"][0]["args"]
-        validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc)
+        validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc, args.all_probes)
         receipt = {"image": str(args.image), "bytes": len(image), "sha256": digest(image),
                    "reference": str(args.reference), "reference_sha256": digest(reference),
                    "kernel_sha256": digest(args.kernel.read_bytes()),
@@ -115,6 +120,7 @@ def main():
                    "soc_only": args.soc_only,
                    "soc_fuse": args.soc_fuse,
                    "soc_fuse_arc": args.soc_fuse_arc,
+                   "all_probes": args.all_probes,
                    "scope": "Packaging only. Explicit CPU-only memory selftest enabled." if args.memory_test else
                        "Packaging only. Memory selftest disabled.",
                    "cpu_boost_gpu_startup_disabled": True, "phone_operations": False}

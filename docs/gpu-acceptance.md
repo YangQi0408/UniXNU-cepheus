@@ -1,5 +1,26 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：新核GX关闭基线用户确认正常，准备同核最后GX对照
+
+用户确认socfusearc-008b2cd本轮「正常」，该次result.json更新UI PASS，
+新核/System Info只读诊断的输入基线本轮成立，但不是GX/GPU验收。
+随后尝试60秒补抓accepted-touch.log，0B、无datagram；检查时设备
+67eea163已在fastboot，代理未发reboot。空补抓是**没有额外证据**，
+不改写用户反馈为触摸失败，也不宣称补抓有真实触点。
+
+下一轮保持CI42343754102 @008b2cd内核、同一System Info、同一
+其他payload，只加cephgx=1；受原门禁保护，不供电/unhalt/DMA/提交，
+不发电源票。原失败7ed0427含错误GX读取不再作新核同核候选。当前
+仅准备包装，fastboot状态已观察，不代表GX新对照已启动。
+
+同核候选`boot-cepheus-allprobes-008b2cd.img`已打包，SHA256
+`8e538843092e7101cd882fc544fdf7fa7e77a0c0ce4d1b4e81ac8608c7ddff87`。
+内核仍ca4ab89f...、ADT及其他payload不变，参数只新增cephgx=1。
+显式all-probes包装门禁要求四探测及触摸diag，拒绝boost/内存/
+touchreset，原profile约束保留；7项参数+7项performance以及生产GX
+RAM/原厂偏移对照均通过。**候选未boot**，本轮仅记录新基线正常及
+准备对照，不将包装成功记为GX硬件读取/触摸验收。
+
 ## 2026-11-07：修正版CI成功；新核GX关闭基线启动，首次System Info读取
 
 CI42343754102 @008b2cd completed/success，下载核SHA256
