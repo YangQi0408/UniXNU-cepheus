@@ -48,6 +48,7 @@ def main():
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('scm-hook',['python3','scripts/test-scm-hook.py'],{}),
             ('pas13-audit-tests',['python3','scripts/test-pas13-audit.py'],{}),
+            ('tz-mapping-tests',['python3','scripts/test-tz-evidence.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('ready-boot-args',['python3','scripts/test-ready-boot-args.py'],{}),
             ('gx-probe',['python3','scripts/test-gx-probe.py'] +

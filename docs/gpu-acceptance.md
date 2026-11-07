@@ -1,5 +1,29 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：本机 TZ 已取得，原生 Ghidra 找到 PAS13 描述符与查询链
+
+用户置手机于recovery后，代理只读采集固定tz=sde37，精确4MiB，读取前/
+主机/读取后SHA256一致：`989389bcf4527b2b8e445998aba49454e556ac554c18d80e9eb999a8cbbdb114`。
+首读多86B dd统计输出被拒并保留；status=none重采到新目录clean。
+Recovery已有cache/metadata rw，并自动解密/尝试mount data失败；不能
+把整个recovery称无写入环境。代理未boot/reboot/flash/mount/写分区/发SMC。
+
+用户明确允许换原生Ghidra后，完全离线创建私有分析函数，导出17 seeds，
+676原指令/6数据段经PT_LOAD原字节、Capstone直接分支、LLVM副本解码核对。
+PAS7调度entry指向0x1c04f444，内部是lazy descriptor查找→布尔转换；15项
+静态表确有PAS13（0x1c13f910），初始化不清掉ID。这**不证明认证成功**。
+撤回“固件完全没有PAS13”的解释；静态表与既有真机false尚未解释一致，
+运行态原因/认证仍UNKNOWN，门禁不放宽。查询链也有secure内部锁/缓存/
+初始化写入，不能描述为完全无内存副作用的读取；未见此链调用auth/上电。
+
+Ghidra dispatcher有failure-helper终止/间接尾跳CFG限制，保留警告不当完整调用图。
+详见`docs/tz-native-evidence.md`、
+`../logs/tz-native-ghidra-20261107/{evidence-dispatch.json,verification.json}`。
+新增8项RAM-only ELF边界单测PASS；无XNU/镜像改动、无本轮硬件执行。
+完整33项离线回归PASS零FAIL/零SKIP，receipt
+`../logs/gpu-offline-tz-native-20261107/receipt.json` SHA256
+`11cd3fc8cacfdc27406544c163c1c321246227cb2678ef3657fb7792d452850d`。
+
 ## 2026-11-07：临时Android取证预检拒绝，避免改写iOS userdata
 
 用户允许先核对、仅安全可行时临时Android取证。实际RAM-only解析本地
