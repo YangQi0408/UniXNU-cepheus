@@ -1,5 +1,27 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：同核touch-only对照已启动，尚待用户交互确认
+
+用户已进入fastboot，核对67eea163及touchonly-7ed0427 SHA128e3295...，
+先UDP监听再fastboot boot，Sending/Booting均OKAY，无flash/reset。
+与失败touchdiag-7ed0427保持相同kernel/ADT/其他payload，只移除四个
+cephsoc/arc/fuse/gx参数。实际日志无CEPHEUS CPU/GPU/ARC probe输出，
+不含System Info新读取或内存测试，触摸diag保留。
+
+240秒捕获114628B，SHA256
+`374115546679a97e7a1c7dec2e54b76337c2c591dc175295c08aa0eb7e53e611`，
+证据在`../logs/touchonly-7ed0427-live-20261107-122659/`。原始事件仅ready03/
+force-cal43:05:01/scan echo43:01:a0:00:01。8000次读7999空、events3、
+errors0/faults0、HID bridge calls0，IRQ/SDA/SCL1。尚未用户确认该次点击/
+滑动和是否可用，不能单凭无触点判回归或判probe非根因。手机留运行态，
+只有HOST监听停止。本次单独控制probe参数，不把跨boot控制器状态相同
+当作已知事实。
+
+System Info内核CI42337001254 @9d3e29d已completed/success并下载，
+SHA256 `646eacc4ea07ab67ff2c37ec73591ffd4180a19057253dac1ff7273f2a7540a7`，
+device-commit和SYSINFO标记、linked pmap64bit门禁核验通过。**未boot这个
+核**，不把它混入本次同核对照，也未作真实System Info读取。
+
 ## 2026-11-07：旧touch-power触摸恢复已验收，补抓真实HID事件
 
 用户确认当前旧touch-power原镜像「触摸好了」，并称「应该是仅重启」。
