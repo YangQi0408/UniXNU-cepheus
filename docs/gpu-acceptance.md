@@ -1,5 +1,24 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：触摸RAW诊断候选构建与打包完成，手机暂未连接
+
+CI42256754912 @7ed0427 completed/success，下载到
+`../inputs/ci-42256754912/`；内核SHA256
+`967ee18a80109652ccf23a393ed560516c6bd8d3a4a1de5886c72720a5f34a23`。
+device-commit绑定7ed04270e32651e4781ea2b27b0cd7d887a9a3c7，RAW/HEALTH/
+sweettouchdiag/ACV标记齐全，linked pmap64位PA门禁通过，取消USB控制不存在。
+
+在network-none构建容器用真实mtools生成
+`boot-cepheus-touchdiag-7ed0427.img`，SHA256
+`a870a66cbed31ca18f7afe144a83b23d47b1b1f88bae84b8a45b8e47e995a5a5`。
+`../dist/boot-cepheus-touchdiag-7ed0427.json`记录包核验：UEFI/DTB/ADT及
+其他payload相对ready-9dc6e6e保持，sweettouchdiag=1，cephmem/cephboost/
+sweettouchreset均缺省，不启动GPU、不改触摸电源/复位策略。不覆盖旧镜像。
+
+此时fastboot devices为空、lsusb无手机、无ECM网卡，**未执行boot**。
+待连接fastboot后再有界捕获真实RAW/health和用户触摸操作。包核验与CI
+成功不等于本次触摸恢复；GPU硬件阶段仍暂停。
+
 ## 2026-11-07：单缓冲对照同样触摸失败，补齐FTS扩展事件协议
 
 用户确认对照memcheck-6f93116「未恢复」。因此两次UI均失败，单次历史
