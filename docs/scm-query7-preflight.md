@@ -60,3 +60,14 @@ error 或未到该项，必须看原始 `REGS`，不能直接记为“不支持�
 
 用户要求推进至需要真机时停下；本轮不执行上述手机步骤，亦未推送/触发
 构建。安全边界仍是不认证、不猜 ID、不改 allowlist/no_auth、不读 secure RAM。
+
+## 后续实测更新：关闭基线失败，开启候选禁止推进
+
+上面状态是离线轮结束时的记录，下面为用户置fastboot后的更新。
+da8ffc1的完整CI42380203110成功、linked核验及两张独立镜像打包核验通过，
+但仅临时启动的SCM关闭 `boot-cepheus-allprobes-da8ffc1.img` 已被用户
+明确报告**触摸坏，验收FAIL**。原日志和receipt保存在
+`../logs/allprobes-da8ffc1-scmoff-live-20261107/`，详细纠错见gpu-acceptance。
+SCM开启 `boot-cepheus-query7-da8ffc1.img` **未启动**；无本轮查询返回值，
+没有新PAS认证/上电/CP，不能据编译/打包成功跳过触摸门槛。
+停止本候选推进，先恢复或隔离触摸回归；不自动复位、重发scan或改校准。

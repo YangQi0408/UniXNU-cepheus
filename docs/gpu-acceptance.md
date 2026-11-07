@@ -1,5 +1,44 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：QUERY7内核构建成功，但SCM关闭基线触摸FAIL，停止查询开启轮
+
+用户将67eea163置fastboot，product=cepheus核对通过。推送da8ffc1并运行
+完整XNU CI **42380203110成功**，下载artifact SHA/pin、QUERY7标记、linked
+SCM入口、无unresolved、64位pmap PA和取消USB控制代码缺席核验通过。
+内核SHA256 `6a03e92c8f3faec7d688c85a9ccbf60819cab9c6e615d6fd079aa6ecd3775e26`。
+network-none构建容器使用真实mtools打包且verify-ready-boot通过：
+
+- SCM关闭 `boot-cepheus-allprobes-da8ffc1.img`：
+  `96fd757773fd876520a7389095258ab3d2da9398e7b451efae1e20029e5cf34d`。
+- SCM开启 `boot-cepheus-query7-da8ffc1.img`：
+  `645e970bdd3a60592b7f28f46b1ba2457ad8559910bf7958f84ecca7f376637e`，
+  **没有启动，不得记为查询实测或可验收版本**。
+
+只临时fastboot boot关闭基线（sending/booting OKAY，无flash）。主机由用户
+运行root MAC限定USB网卡watcher，先开UDP监听再boot，抓取360s，510报文/
+149731B。原日志SHA256
+`551770b8b8832c345c8ec2982893c461f71f785027e1a39203b57583496b60b3`，
+证据 `../logs/allprobes-da8ffc1-scmoff-live-20261107/{boot.log,result.json}`。
+用户明确「触摸是坏的」→ **本镜像触摸验收FAIL**，#66不能完成。
+没有新SCM日志/调用，停止开启QUERY7镜像与PAS/GPU路径；没有代理自动
+重启、复位触摸、scan重发、固件/校准修改或试写电源恢复。
+
+初始化ID36:39、SYSINFO读取、scan err=0；但全部16条health从polls1000
+到16000保持events=19/hid_calls=6，reads=16000/empty=15994/errors=0，
+active=0/skip_next=0/IRQ/SDA/SCL=1。19条原事件含ready1/status3/enter5/
+motion5/leave5，所有enter原始x=1079；HID down2/up2，不把它说成正常触摸。
+43:05:01/43:05:30对应下游force-cal状态；后者在已验收旧轮也存在，
+**不是充分根因证据，更不是修改校准的授权**。表征与早先失败touchdiag
+轮相似，原间歇触摸根因仍UNKNOWN。没有同步的中心手指操作时间轴，不以
+空FIFO独自断言控制器停止扫描；源码/参数不变也不能排除时序/运行态影响。
+
+本轮关闭基线参数与旧allprobes-a0fa7a5完全相同，触摸源码blob也相同。
+实键down/up各8及blank clear存在，主屏幕/电源的用户验收仍UNKNOWN。
+纠正抓取receipt的sample25初值false：脚本匹配式误用n=25/sample=25，
+原日志实际sample25四组均存在，已只改receipt解释，不改boot.log。
+主机ECM仍可见、无fastboot；设备不自行重启。先恢复已验收touch-power
+或保留现场同步只读补抓，需用户选择；GPU测试被触摸失败阻断。
+
 ## 2026-11-07：离线入口/重定位核对完成一轮，停在下一次受限真机查询之前
 
 本轮无手机操作、无新SMC/PAS认证/电源写入、无内核完整构建或镜像启动。
