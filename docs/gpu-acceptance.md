@@ -1,5 +1,22 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：已有本地证据不足，PILDxe实物只证明客户端路径
+
+本轮检索已有项目425个log/txt（640168974B）无a640_zap/PIL成功记录；
+指定本地目录未找到可归属本机的TZ原件。阴性检索有界，不证明手机没有
+成功过，也不把第三方ROM存在当GPU成功。#63保持未完成。
+REA/Ghidra对既有Cepheus PILDxe.efi静态取证确认：retail“不支持”是
+本地列表比较；ELF ops依次发PAS1/2/5，helper使用SMC64和Boot Services。
+**这不是secure dispatch实现或PAS13运行结果**，false原因仍UNKNOWN。
+一处Ghidra未定义的auth函数decompile失败，已如实改为原字节/LLVM离线
+反汇编并核对原文件映射，不编造伪代码，不据此放宽supported门禁。
+
+详见`docs/pildxe-static-evidence.md`；18个静态证据记录
+`../logs/pildxe-static-20261107/evidence-with-mappings.json`，SHA256
+`06ad04cd713b0b548d2287fe6a303530c1f1a9ee47e4b3dc171954a7d2c8de92`。
+本轮无手机操作/新SMC/认证/电源写入、无内核/镜像变化，仍待本机原厂
+日志/TZ材料或另行允许的只读取证，不自行重启手机。
+
 ## 2026-11-07：PAS13源码审查纠正，加载门禁仍关闭
 
 本轮未重启/重发SMC/认证/复位/写电源，内核及已验收镜像不变。

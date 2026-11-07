@@ -1,5 +1,13 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-07：PILDxe客户端实物证据不解除PAS门禁
+
+已有本地日志未找到本机ZAP成功记录，指定目录也未取得本机TZ原件。
+REA对既有PILDxe原件确认retail名单为UEFI本地策略、PAS1/2/5加载ops及
+SMC64客户端helper；不是secure实现或PAS13认证记录，supported0原因
+仍UNKNOWN。加载门禁/CP halt不变，无新SMC或手机操作。
+详见`pildxe-static-evidence.md`与gpu-acceptance.md最新边界。
+
 ## 2026-11-07：原厂加载入口纠正（门禁不变）
 
 固定SM8150 KGSL→SSR→PIL-TZ路径不以前置supported7作加载条件；
