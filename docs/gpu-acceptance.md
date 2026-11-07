@@ -1,5 +1,34 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：旧touch-power触摸恢复已验收，补抓真实HID事件
+
+用户确认当前旧touch-power原镜像「触摸好了」，并称「应该是仅重启」。
+所以这是**回退镜像触摸恢复**，不是已证实冷启动实验，不成立“关机解决”
+结论，也不能据它证明最新内核无回归。触摸持续硬件损坏推断不受支持，
+但究竟新版内核/只读probe/时序/继承状态导致仍未定位，不宣称GPU可用。
+
+不重启当前可用系统，追加60秒UDP捕获`recovered-touch.log` 28242B，
+SHA256 `9dbd64386293cec68b95f4feb5a68ba28a6cfc27bd7dc38fad2540dade85e4a6`，
+位于`../logs/touch-power-control-20261107-121209/`。有连续中央坐标finger0
+down/up和finger1事件；与用户反馈共同证实物理输入，非one-shot Home。
+初始boot.log没有contact不足以判失败，本次明确纠正该证据边界。
+
+touch-power完整原镜像SHA c8eae5a0...保持不变，留作当前已验证回退。
+9d3e29d System Info CI42337001254仍进行中；后续优先新核最小touch-only
+参数，不跑cephsoc/arc/fuse/gx、内存、CPUboost，先拆开kernel与probe差异。
+仅准备镜像，不立即打断当前可用手机。ROOT/校准/固件不改。
+
+最小对照已打包`boot-cepheus-touchonly-7ed0427.img`，SHA256
+`128e329559fa0465ebca3baeeee2b768e2b92334e31889ecea2099f516418377`。
+保持与失败touchdiag-7ed0427**完全相同的内核/ADT/其他payload**，只删
+cephsoc=1/cepharc=1/cephfuse=1/cephgx=1这四个参数，保留touchdiag，
+不含新System Info读（它仍在9d3e29d CI）。这能最小化新版内核与probe
+路径的变量，但同样不能排除每次启动状态不同。`verify-ready-boot.py`
+新增显式touch-only包装门禁，原默认探测profile仍要求cephsoc/gx；
+测试覆盖probe值0也拒绝、reset/内存拒绝、重复参数/漏输入拒绝，未删
+原profile检查。包装通过不等于硬件验收；**本次未boot此候选**，手机
+留在恢复触摸的旧基线状态。
+
 ## 2026-11-07：旧touch-power完整镜像对照已启动，用户结果待确认
 
 用户表示已连接，核对fastboot67eea163，旧镜像touch-power SHA256

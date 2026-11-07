@@ -1,5 +1,13 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：旧touch-power回退恢复，最新内核回归仍待定位
+
+用户确认历史touch-power完整镜像c8eae5a0...本轮触摸恢复；启动前应该仅
+重启，不是确认关机。追加只读日志有中央坐标连续touch0 down/up和touch1
+事件，与用户操作一起证明输入恢复。当前可用回退保留，不立即重启。
+不能说冷启动修复、continuation修复或新内核已稳定，后续touch-only参数
+对照分离kernel与cephsoc/arc/fuse/gx探测。证据身份见gpu-acceptance.md。
+
 ## 2026-11-07：RAW版同样未恢复；扫描与控制器身份继续核查
 
 用户已确认touchdiag-7ed0427失败。本次RAW可见真实边缘坐标和force-cal
