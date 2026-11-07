@@ -54,6 +54,7 @@
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
 #include "cepheus_fts_events.h"
+#include "cepheus_fts_sysinfo.h"
 #include "cepheus_clock_status.h"
 #include "cepheus_gpi_layout.h"
 #include "cepheus_i2c_bitbang.h"
@@ -463,6 +464,31 @@ fts_read_hw(uint32_t address, uint8_t *buf, unsigned len)
 	return touch_msg(TOUCH_I2C_ADDR, NULL, 0, buf, len, false);
 }
 
+/* readSysInfo(0), not readSysInfo(1): only A6/0000 pointer + repeated START.
+ * Read already-loaded data. Invalid/stale header is UNKNOWN, never a trigger
+ * for reload/reset/firmware/calibration writes. One transfer, no retry. */
+static int
+touch_sysinfo_snapshot(void)
+{
+	uint8_t data[CE_FTS_SYSINFO_BYTES] = {0};
+	const uint8_t cmd[] = {0xa6, 0x00, 0x00};
+	int error = cepheus_bb_xfer(&touch_bb, TOUCH_I2C_ADDR, cmd, sizeof(cmd), data, sizeof(data));
+	if (error) {
+		printf("SWEET TOUCH SYSINFO: read error=%d; UNKNOWN, no reload/retry\n", error);
+		return error;
+	}
+	struct ceph_fts_sysinfo info;
+	if (ceph_fts_sysinfo_decode(data, sizeof(data), &info)) {
+		printf("SWEET TOUCH SYSINFO: header=%02x:%02x stale/unavailable; UNKNOWN, no load-data command\n", data[0], data[1]);
+		return 0; /* rejected evidence, not a transport failure */
+	}
+	printf("SWEET TOUCH SYSINFO: chip=%#x fw=%#x svn=%#x cfg=%#x/%#x cx=%#x/%#x afe=%u/%u/%u protocol=%u res=%ux%u channels=%u/%u fw_crc=%#x cfg_crc=%#x (read-only identity; calibration UNKNOWN)\n",
+	    info.chip_id,info.fw_version,info.svn,info.cfg_version,info.cfg_project,
+	    info.cx_version,info.cx_project,info.cfg_afe,info.cx_afe,info.panel_afe,
+	    info.protocol,info.res_x,info.res_y,info.tx,info.rx,info.fw_crc,info.cfg_crc);
+	return 0;
+}
+
 static void
 touch_report(uint32_t mask, const int *x, const int *y)
 {
@@ -773,6 +799,13 @@ touch_thread(void *arg, wait_result_t result)
 		printf("SWEET TOUCH (cepheus): no supported IC (fts=%d dead=%d); stopping\n",
 		    fts, st.dead);
 		goto out;
+	}
+	if (st.diag && st.gpio_i2c) {
+		int snapshot_error = touch_sysinfo_snapshot();
+		if (snapshot_error == EAGAIN || snapshot_error == ETIMEDOUT || snapshot_error == EBUSY) {
+			st.dead = true; /* keep same no-bus-recovery rule as normal reads */
+			goto out;
+		}
 	}
 	/* Vendor setScanMode(SCAN_MODE_ACTIVE, ACTIVE_MULTI_TOUCH). Not firmware
 	 * upload or flash erase. After reset the controller does not scan by default.

@@ -1,5 +1,32 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：RAW版用户验收失败；只读System Info候选
+
+用户明确反馈touchdiag-7ed0427「未恢复」。因此不是触摸修复成功，整体
+交互验收失败；ARC/ACV read-only配置通过作为独立事实保留。主机跟进时
+无手机枚举/ECM，无法追加同步操作捕获，代理没有重启或试写。
+
+实际代码对照35561c0到7ed0427：GPIO bitbang、扫描A0/00/01、触点坐标
+计算和GPIO电源/复位策略未变，仅增加continuation/日志；本次不存在该
+prefix，不能认定为当前原因。原厂ready事件会恢复mode，本实现只释放
+contacts，这是真实生命周期缺口；但本次ready后又有A0/00/01 echo与
+触点，不能仅凭缺口证明扫描停止，暂不加自动scan重发。原厂FOD配置
+初始化有A0/00/00后再A0/00/01，也未擅自套用于此固件状态。
+
+新增诊断限定的System Info snapshot，严格仿readSysInfo(0)：仅I2C
+A6/0000指针写+重复START读取208byte，不调用readSysInfo(1)的A4 load-data，
+不读取/写入lockdown、不reset/calibration/power recovery。校验A5/01后
+解析固件/config/CX/AFE版本、协议、CRC字段、尺寸和通道数；CRC只是原始
+字段不是认证，AFE版本一致也不表示校准健康。无效/陈旧header记UNKNOWN，
+不自动加载；总线timeout/busy/仲裁失败仍恢复引脚并停止，不重试。
+
+`test-touch-sysinfo.py`抽取生产快照函数编译RAM传输，校验唯一A6/0000
+事务与错误传播；显式从原厂readSysInfo的index增量独立重建字段偏移。
+63个host程序；离线receipt `../logs/gpu-offline-touch-sysinfo-20261107/receipt.json`
+27项PASS零SKIP（当前aa8afac dirty修订）。尚未CI或硬件读取System Info，
+触摸未恢复。后续优先旧触摸基线的冷启动对照，再决定scan生命周期修复，
+不直接替换触摸固件/校准或把GPUmock扩充当作交互修复。
+
 ## 2026-11-07：触摸RAW真机捕获；ARC/ACV配置只读校验通过
 
 用户确认连接，核对fastboot67eea163和touchdiag-7ed0427镜像a870a66c...，

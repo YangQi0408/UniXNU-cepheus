@@ -42,6 +42,16 @@ class Integration(unittest.TestCase):
                 self.assertEqual((tree / where / name).read_bytes(), (ROOT / 'xnu' / name).read_bytes())
             self.assertFalse((tree / 'bsd/dev/sweet_rpmh.c').exists())
 
+    def test_touch_system_info_header_staged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tree = Path(directory)
+            (tree / 'bsd/conf').mkdir(parents=True)
+            (tree / 'bsd/dev').mkdir()
+            (tree / 'bsd/conf/files').write_text('base\n')
+            subprocess.run(['bash', str(ROOT / 'xnu/0082-stage-cepheus-touch.sh')], cwd=tree, check=True)
+            for name in ('cepheus_touch.c', 'cepheus_fts_events.h', 'cepheus_fts_sysinfo.h'):
+                self.assertEqual((tree / 'bsd/dev' / name).read_bytes(), (ROOT / 'xnu' / name).read_bytes())
+
     def test_patch_places_each_source_once(self):
         with tempfile.TemporaryDirectory() as directory:
             tree = Path(directory)

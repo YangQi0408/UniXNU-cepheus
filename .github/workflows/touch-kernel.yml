@@ -33,6 +33,7 @@ jobs:
           bash cepheus/scripts/build-kernel-patches.sh ios-sweet
           cp ios-sweet/xnu/patches/*.patch ios-sweet/xnu/patches/*.sh dxb/patches/
           cp cepheus/xnu/cepheus_touch.c cepheus/xnu/cepheus_fts_events.h cepheus/xnu/cepheus_clock_status.h cepheus/xnu/cepheus_gpi_layout.h dxb/patches/
+          cp cepheus/xnu/cepheus_fts_sysinfo.h dxb/patches/
           cp cepheus/xnu/cepheus_i2c_bitbang.h dxb/patches/
           cp cepheus/xnu/cepheus_soc.c cepheus/xnu/cepheus_soc.h dxb/patches/
           cp cepheus/xnu/cepheus_cpu_policy.h dxb/patches/
@@ -69,6 +70,7 @@ jobs:
           python3 cepheus/scripts/prepare-touch-power-patch.py ios-sweet/xnu/patches dxb/patches/0084-cepheus-touch-power.patch
           python3 cepheus/scripts/test-touch-power.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-touch-fifo.py
+          python3 cepheus/scripts/test-touch-sysinfo.py
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-integration.py
           python3 cepheus/scripts/test-pmap-cache-pa.py
@@ -159,6 +161,7 @@ jobs:
           ! grep -E '^bsd/dev/sweet_touch.c[[:space:]]+standard$' dxb/xnu/bsd/conf/files
           cmp cepheus/xnu/cepheus_touch.c dxb/xnu/bsd/dev/cepheus_touch.c
           cmp cepheus/xnu/cepheus_fts_events.h dxb/xnu/bsd/dev/cepheus_fts_events.h
+          cmp cepheus/xnu/cepheus_fts_sysinfo.h dxb/xnu/bsd/dev/cepheus_fts_sysinfo.h
           cmp cepheus/xnu/cepheus_clock_status.h dxb/xnu/bsd/dev/cepheus_clock_status.h
           cmp cepheus/xnu/cepheus_gpi_layout.h dxb/xnu/bsd/dev/cepheus_gpi_layout.h
           cmp cepheus/xnu/cepheus_i2c_bitbang.h dxb/xnu/bsd/dev/cepheus_i2c_bitbang.h
