@@ -4,6 +4,24 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，历史UI通过不覆盖最新触摸FAIL。
 
+## 2026-11-08：用户仅允许理论，保存RAW重放定位独立批内上报缺陷
+
+用户已拿走手机，先做离线理论。10份保存RAW日志通过当前生产
+`touch_fts()`/`touch_report()`原函数host RAM重放，保留输入及源码SHA。
+最新失败19事件6批可复现down2/move2/up2，与历史HID桥6次一致；相同
+parser逐事件上报模型down5/move3/up5。n6..14包含finger1/2/3批内完整
+enter→leave，末状态合并吞掉3组。旧失败19事件4批仍完整发5组down/up，
+所以该缺陷不能解释旧失败和后段无新非空FIFO；整体根因仍UNKNOWN。
+
+新增8项host测试覆盖短点、slot重按、release旧坐标、RAW限额截断及
+错误/continuation状态拒绝，原FIFO/SYSINFO结合固定下游源测试通过。
+CI/离线入口加入新测试，但本轮没有完整XNU构建/远端CI/新镜像/手机
+操作，生产驱动未改、触摸FAIL不变、QUERY7仍未启动。
+重放`../logs/touch-theory-replay-20261108/replay.json` SHA256
+`518c1e98c55c41e63be4700f417fbdc88817688dcdb750efa95bf07f0f7744e8`。
+完整因果边界、原厂状态机、传输时间下限及下一独立修正方案见
+[触摸失败理论](touch-failure-theory.md)。
+
 ## 2026-11-07：QUERY7内核构建成功，但SCM关闭基线触摸FAIL，停止查询开启轮
 
 用户将67eea163置fastboot，product=cepheus核对通过。推送da8ffc1并运行

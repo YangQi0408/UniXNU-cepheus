@@ -48,12 +48,12 @@ static struct {
  int diag; unsigned diag_reads,diag_empty,diag_events,diag_errors;
  unsigned diag_ready,diag_faults,diag_skipped,diag_outside,diag_raw;
 } st;
-static uint8_t fifo[256];static unsigned cursor,total,reports;
-static int read_error;
+static uint8_t fifo[256];static unsigned cursor,total,reports,read_calls;
+static int read_error;static unsigned fail_read_call;
 static int fts_read_cmd(uint8_t cmd,uint8_t *out,unsigned bytes)
 {
  assert(cmd==0x86 && bytes && bytes%8==0);
- if(read_error)return read_error;
+ ++read_calls;if(read_error && (!fail_read_call || read_calls==fail_read_call))return read_error;
  assert(cursor+bytes<=total);memcpy(out,fifo+cursor,bytes);cursor+=bytes;return 0;
 }
 static void touch_report(uint32_t active,const int *x,const int *y)
@@ -90,6 +90,22 @@ int main(void)
  for(unsigned i=0;i<150;++i)batch(enter,8);
  assert(st.diag_raw==128);
  batch(empty,8);assert(st.diag_empty==1);
+ /* A valid prefix followed by a bad ID must not publish a partial batch. */
+ uint8_t bad[24];memcpy(bad,enter,8);bad[7]=2;
+ memcpy(bad+8,ext,8);memcpy(bad+16,invalid,8);
+ /* Prefix would suppress the invalid event; use an ordinary status instead. */
+ bad[8]=0x43;bad[9]=1;bad[10]=0;
+ before=reports;st.active=0;memcpy(fifo,bad,24);cursor=0;total=24;
+ assert(touch_fts()==EIO && reports==before && st.active==0);
+ /* Bulk read failure also leaves the published contacts unchanged. */
+ before=reports;read_calls=0;read_error=ENXIO;fail_read_call=2;
+ memcpy(fifo,bad,24);cursor=0;total=24;
+ assert(touch_fts()==ENXIO && reports==before && st.active==0 && cursor==8);
+ read_error=0;fail_read_call=0;
+ /* Reject a batch after a consumed continuation while retaining its state. */
+ st.skip_next=1;bad[0]=0x13;bad[7]=2;
+ before=reports;memcpy(fifo,bad,24);cursor=0;total=24;
+ assert(touch_fts()==EIO && reports==before && st.active==0 && st.skip_next==0);
  puts("Production touch_fts loop: Xiaomi continuation across/between reads, NOEVENT, errors, bounded diagnostics PASS (RAM only)");
 }
 '''

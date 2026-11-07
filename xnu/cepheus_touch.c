@@ -525,12 +525,13 @@ touch_report(uint32_t mask, const int *x, const int *y)
 /*
  * Drain the ST-FTS event FIFO. Returns 0 on success, or an errno. A single
  * read may carry up to FIFO_DEPTH events; event[7] bits 0..4 say how many
- * more follow, so drain until that field is zero.
+ * more follow. Read that snapshot; arrivals during it wait for the next poll.
  */
 static int
 touch_fts(void)
 {
 	uint8_t buf[FTS_FIFO_EVENT_SIZE * FTS_FIFO_DEPTH];
+	unsigned initial_skip = st.skip_next;
 	struct cepheus_fts_state frame = {.active = st.active, .skip_next = st.skip_next};
 	memcpy(frame.x, st.x, sizeof(frame.x));
 	memcpy(frame.y, st.y, sizeof(frame.y));
@@ -578,7 +579,18 @@ touch_fts(void)
 		st.skip_next = frame.skip_next; /* FIFO popped; retain prefix state */
 		if (parsed) { return EIO; }
 	}
-	touch_report(frame.active, frame.x, frame.y);
+	/* Validate the entire batch before publishing. Replaying the same bytes
+	 * preserves short taps and slot reuse without partially reporting bad data. */
+	frame.active = st.active;
+	frame.skip_next = initial_skip;
+	memcpy(frame.x, st.x, sizeof(frame.x));
+	memcpy(frame.y, st.y, sizeof(frame.y));
+	for (unsigned i = 0; i <= remaining; ++i) {
+		const uint8_t *e = buf + i * FTS_FIFO_EVENT_SIZE;
+		if (!frame.skip_next && e[0] == 0) { break; }
+		(void)cepheus_fts_event(&frame, e); /* validated above */
+		touch_report(frame.active, frame.x, frame.y);
+	}
 	return 0;
 }
 
@@ -816,6 +828,7 @@ touch_thread(void *arg, wait_result_t result)
 	if (scan_error) { goto out; }
 	printf("SWEET TOUCH (cepheus): selected ST-FTS, %dx%d, poll=10ms irq-hint=%d\n",
 	    TOUCH_X_MAX, TOUCH_Y_MAX, st.irq_hint);
+	printf("SWEET TOUCH FIFO: validated batch, ordered contacts, max_events=32\n");
 	unsigned errors = 0, ticks = 0;
 	if (st.diag) { printf("SWEET TOUCH DIAG: enabled raw_limit=128 summary_limit=30; no automatic reset/power recovery\n"); }
 	while (!st.dead) {

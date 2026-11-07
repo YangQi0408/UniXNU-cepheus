@@ -55,6 +55,7 @@ def main():
              ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('touch-fifo',['python3','scripts/test-touch-fifo.py'] +
              ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
+            ('touch-replay',['python3','scripts/test-touch-replay.py'],{}),
             ('touch-sysinfo',['python3','scripts/test-touch-sysinfo.py'] +
              ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('sanitizers',['bash','scripts/test-gpu-sanitizers.sh'],{}),

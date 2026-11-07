@@ -1,5 +1,15 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-08：只做理论，确认批内接触转换丢失
+
+用户已拿走手机，先做离线理论。10份保存RAW以生产FIFO/report原函数
+host重放；最新失败19事件只发2组down/up，顺序模型5组，丢失的3组
+enter→leave在同一批内。旧失败5组全发仍失败，所以这是真实上报缺陷，
+**不是后段空FIFO根因已定位**。正常/失败可见初始化及SYSINFO一致，
+原厂scan路径也不等echo，force-cal状态只记录日志。新增8项host测试；
+生产驱动/镜像未改，无构建/CI/手机命令。细节见
+[理论与重放](touch-failure-theory.md)，触摸验收仍FAIL/根因UNKNOWN。
+
 ## 2026-11-07：最新新核SCM关闭基线触摸FAIL，尚未恢复
 
 用户明确报告`allprobes-da8ffc1`触摸坏。初期19条非空事件之后至16000次
