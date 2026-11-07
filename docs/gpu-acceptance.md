@@ -1,5 +1,21 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：旧touch-power完整镜像对照已启动，用户结果待确认
+
+用户表示已连接，核对fastboot67eea163，旧镜像touch-power SHA256
+`c8eae5a0abd8dd9f8cd58f954497c0510c576b941b09bc0ef1efb2648718ea88`
+与历史成功镜像完全相同，未修改或重打包。先UDP接收再fastboot boot，
+Sending/Booting OKAY，无flash/代理reset。用户此前被请求彻底关机，但
+「已连接」本身不是关机确认，因此**尚不能列为已证实冷启动实验**。
+
+240秒捕获111602B日志，SHA256
+`246ba433e96a786baafab9e58ebee0e02336a5be8af72974c84f9f4c54be06a4`，
+证据`../logs/touch-power-control-20261107-121209/{boot.log,fastboot.log,result.json}`。
+GPIO/ldoc1 enable0、chip36:39/active scan0、one-shot Home完成，未见panic，
+没有contact日志。该旧核无RAW/health，也缺同步用户操作确认，不能据此
+直接判失败或触摸恢复；需用户当前可交互结果。手机留在运行态，HOST
+接收器已停。System Info诊断CI42337001254仍Build XNU，未在本次镜像。
+
 ## 2026-11-07：RAW版用户验收失败；只读System Info候选
 
 用户明确反馈touchdiag-7ed0427「未恢复」。因此不是触摸修复成功，整体
