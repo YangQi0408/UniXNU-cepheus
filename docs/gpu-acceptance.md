@@ -1,5 +1,19 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：临时Android取证预检拒绝，避免改写iOS userdata
+
+用户允许先核对、仅安全可行时临时Android取证。实际RAM-only解析本地
+backup/Android构建/EDL备份三份boot的ramdisk，全部fstab有data/metadata
+formattable且persist无ro并check；现userdata为iOS HFSX，**不得直接启动**。
+fastboot boot本身不flash不意味着Android后续只读，未发生格式化/启动。
+此时主机fastboot/ADB/lsusb均未见手机，serial未核对，运行态未知。
+
+无fastboot boot/reboot/flash、无手机分区读取/新SMC/认证/电源写入。
+详见`docs/android-pas13-preflight.md`及
+`../logs/android-pas13-preflight-20261107/result.json`；后续应单独审查
+不挂载/不执行Android初始化的RAM-only取证候选，尚无可启动产物。
+PAS13与crypto/内存/stop阻塞不变，不通过破坏iOS数据换GPU取证。
+
 ## 2026-11-07：已有本地证据不足，PILDxe实物只证明客户端路径
 
 本轮检索已有项目425个log/txt（640168974B）无a640_zap/PIL成功记录；
