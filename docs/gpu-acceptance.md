@@ -1,5 +1,27 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：增加ARC只读对照已启动，无触点捕获，UI验收待确认
+
+用户要求继续，核对fastboot67eea163及socfusearc-7ed0427 SHA6d9821a8...，
+与已验收socfuse同kernel/ADT/其他payload，仅增加cepharc=1；GX/boost/
+内存关闭。先UDP监听再fastboot boot，Sending/Booting成功，无flash/
+代理reset。240秒日志135504B，SHA256
+`4e29019f9fafe5842d2da999082091b848192891e3d9c05c017bbb5bfe7736eb`，
+证据`../logs/socfusearc-7ed0427-live-20261107-132657/`。
+
+ARC read-only result0、GPU config dry-run0，bin0；CX index2/raw64、
+MX index2/raw128、候选GMU票0x400202 NOT SENT。ACV真实metadata再次
+为unit1/width0/vcd11，inspect0。8个TCS control/enable/wait0、status1，
+实际继承票仍UNKNOWN；未发电源票、不授予所有权、不执行GPU。基础
+GPU状态门禁仍拒绝GMU访问，无GX子探测输出、无System Info读取。
+
+触摸chip36:39/scan0，RAW只有ready03及status43:05:01/scan echo，
+最终8000读7999空/events3/errors0/faults0/HID桥0，IRQ/SDA/SCL1，
+没有panic。**本轮用户操作/UI反馈尚待**，不得把无触点直接认定ARC
+回归：此前已验收touchonly早期捕获也是此模式，随后真实触点+UI均
+正常。本次只证明ARC只读路径完成，触摸验收不套用其他轮次，跨boot
+控制器状态未固定。手机留运行态，只有HOST监听停止；回退均保留。
+
 ## 2026-11-07：fuse对照UI正常，下一轮仅增加ARC只读探测
 
 用户确认socfuse-7ed0427本轮「正常」，该次result.json更新UI PASS。
