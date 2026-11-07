@@ -1,5 +1,35 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：触摸RAW真机捕获；ARC/ACV配置只读校验通过
+
+用户确认连接，核对fastboot67eea163和touchdiag-7ed0427镜像a870a66c...，
+先启动UDP接收器再fastboot boot，Sending/Booting OKAY。240秒有界捕获
+138861B日志，SHA256 `c1059cdbac09821fd6eb7ba77a39a7f7eaa496942142c36a84d93cab2a474eda`。
+证据在`../logs/touchdiag-7ed0427-live-20261107-115339/{boot.log,fastboot.log,result.json}`。
+未flash/复位/恢复供电，cephmem关闭且无allocation/workspace标记；手机
+留在运行态，只停止HOST接收器。
+
+ARC请求48实际选择CXindex2/raw64、MXindex2/raw128，GMU票0x00400202
+NOT SENT。ACV真实entry address0x5000c/version0x1000/aux offset0x9c0/
+8bytes，raw_unit1/raw_info0x000b0000 -> unit1/width0/vcd11，解析result0。
+此前ACV零unit/width只是边界测试假设，本次证实本机是**width0、unit1**；
+旧普通BCM解析器因此拒绝ACV。新GPU config dry-run=0，固定bin/rails/
+BW/PDC/wire编码通过。仍live FDT/profile未实时绑定、ARC票ownership未知，
+没有真实DDR/GPU电源/HFI发送，不把它当作上电权限或GPU启动完成。
+
+FTS初始化ID36:39/scan err0；原始19条事件为1个ready03、3个status43、
+5个enter13、5个motion23、5个leave33。**没有53:02:18**，本次不能把
+continuation遗漏列作根因。原始触点本身x1079或x4且y合法，outside0；
+因此旧“右边缘”不能作为clamp/字节损坏的证明。随后健康统计持续增长到
+8000次读/7996空读，events保持19、errors0、faults0、active0、IRQ/SDA/SCL
+均1，hid_calls10仅桥函数调用，不证明用户态接收或触摸成功。
+
+status43:05:01及43:05:30在原厂源分别称mutual negative detect force cal
+和MS invalid Mutual Strength soft Force cal。观测支持后续核查控制器扫描/
+校准状态，不证明面板损坏、需要触摸firmware更新或电压问题；不自动尝试
+这些写入。捕获无panic，power键真实down/up与blank713us可见。目前缺少
+同步的用户中央操作时间和这版体验确认，不能单凭空FIFO判本次触摸失败。
+
 ## 2026-11-07：触摸RAW诊断候选构建与打包完成，手机暂未连接
 
 CI42256754912 @7ed0427 completed/success，下载到
