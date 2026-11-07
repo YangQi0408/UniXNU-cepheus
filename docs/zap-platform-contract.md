@@ -1,5 +1,11 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-07：查询后UI确认正常，仍不允许PAS加载
+
+用户确认查询后系统仍正常，固定支持查询已完成且不破坏本轮交互。
+PAS13-supported0不变，未执行init/mem/auth/stop，也未启动GPU。
+后续先审查原厂调用和平台上下文，不能将“查询可返回”当“认证可行”。
+
 ## 2026-11-07：首次真实查询：64-bit可用，但PAS13-supported返回false
 
 scminfo-a0fa7a5临时boot，原生6次SMC返回：64-bit约定self0/1，
