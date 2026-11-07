@@ -1,5 +1,30 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：完整只读探测版触摸UI通过，保留当前回退
+
+用户确认allprobes-008b2cd本轮点击/滑动「正常」，更新该轮result.json
+为UI PASS。结合2696个FIFO事件/671次HID桥/27组真实down-up，当前
+完整只读探测版与触摸**本轮共存通过**，保留当前镜像SHA256
+`8e538843092e7101cd882fc544fdf7fa7e77a0c0ce4d1b4e81ac8608c7ddff87`
+作为可用回退。手机不重启、不flash，旧可用/失败镜像及日志均保留。
+
+本轮逐项结果汇总（每项独立用户反馈，不假定跨启动状态固定）：
+
+| 内核/参数阶段 | 本轮触摸UI | 硬件范围 |
+| --- | --- | --- |
+| 7ed0427 touch-only | PASS | 未运行cephsoc |
+| 7ed0427 +soc | PASS | OSM/门控GPUCC/TSENS，无boost |
+| 7ed0427 +fuse | PASS | 固定QFPROM只读bin0 |
+| 7ed0427 +ARC | PASS | cmd-db/TCS只读和config dry-run，无票 |
+| 008b2cd 同ARC参数、GX关闭 | PASS | 新核及只读System Info基线 |
+| 008b2cd 再加GX | PASS | GX门禁拒绝，未读GX寄存器 |
+
+以上不能倒推此前失败版根因，也不能把未触发的GX偏移缺陷称触摸
+修复原因；原间歇性故障仍未定位。不宣称“全启动稳定”或“GPU完成”。
+GPU供电/所有权、PAS/GMU/SMMU/CP执行与iOS用户态ABI仍未验收。
+下一硬件阶段应另行显式受限，只从SCM/PAS支持查询开始；本轮不自动
+发送SCM或电源命令，不跨越GX拒绝门禁。
+
 ## 2026-11-07：同核最后GX参数对照已启动，门禁拒绝GX读取，真实触点正常送达
 
 用户要求继续，核对fastboot67eea163及allprobes-008b2cd SHA8e538843...，

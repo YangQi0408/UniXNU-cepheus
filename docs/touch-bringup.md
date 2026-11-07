@@ -1,5 +1,14 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-07：完整只读探测版本轮UI通过
+
+用户确认allprobes-008b2cd正常，实际FIFO/HID捕获也有中央及多指
+事件。当前版SHA8e538843...留作回退，不重启、不刷写。GX只触发
+“GMU not powered/clocked; GX not read”拒绝分支，未验证GX寄存器
+读取或GPU执行。逐项同核对照本轮通过，旧间歇性触摸失败根因仍
+未知，不能宣称所有启动稳定或GX偏移修正解决触摸。详细矩阵及
+镜像/日志身份见gpu-acceptance.md。
+
 ## 2026-11-07：GX修正新内核的GX关闭基线正常
 
 用户确认socfusearc-008b2cd触摸正常；System Info只读返回身份字段，
