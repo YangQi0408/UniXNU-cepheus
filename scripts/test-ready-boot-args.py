@@ -104,6 +104,23 @@ class Args(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 ready.validate_args(line, all_probes=True, **kwargs)
 
+    def test_scm_info_optin(self):
+        baseline = BASE + ' sweettouchdiag=1 cephsoc=1 cephfuse=1 cepharc=1 cephgx=1'
+        line = baseline + ' cephscm=1'
+        ready.validate_args(line, all_probes=True, scm_info=True)
+        for value in (0, 1, 2):
+            with self.assertRaises(AssertionError):
+                ready.validate_args(baseline + f' cephscm={value}', all_probes=True)
+        for invalid in (baseline, line.replace('cephscm=1', 'cephscm=0'),
+                        line.replace('cephsoc=1', ''), line+' cephscm=1',
+                        line+' cephboost=1', line+' cephmem=1'):
+            with self.assertRaises(AssertionError):
+                ready.validate_args(invalid, all_probes=True, scm_info=True)
+        with self.assertRaises(AssertionError):
+            ready.validate_args(line, scm_info=True)
+        with self.assertRaises(AssertionError):
+            ready.validate_args(line+' cephmem=1', memory_test=1, all_probes=True, scm_info=True)
+
 
 if __name__ == '__main__':
     unittest.main()

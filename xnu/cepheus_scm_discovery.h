@@ -80,8 +80,8 @@ static inline int ceph_scm_discover_pas13(struct ceph_scm_discovery *s,struct ce
 failed:s->error=-1;return -1;
 }
 #if defined(KERNEL)
-/* XNU one-shot thread-context info probe; NOT wired into boot/startup and not
- * a PAS loader. Calls only the fixed discovery queries above, never PAS1/2/5/6
+/* XNU one-shot thread-context info probe; opt-in cephscm=1 after baseline
+ * soc-thread sampling, not a PAS loader. Calls fixed queries, never PAS1/2/5/6
  * directly. Actual secure-world return time is unknown until hardware tested. */
 int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *);
 #endif

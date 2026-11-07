@@ -46,6 +46,7 @@ def main():
              (['--xnu',str(a.xnu_reference)] if a.xnu_reference else []),{}),
             ('pmap-cache-verifier',['python3','scripts/test-pmap-cache-verifier.py'],{}),
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
+            ('scm-hook',['python3','scripts/test-scm-hook.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('ready-boot-args',['python3','scripts/test-ready-boot-args.py'],{}),
             ('gx-probe',['python3','scripts/test-gx-probe.py'] +

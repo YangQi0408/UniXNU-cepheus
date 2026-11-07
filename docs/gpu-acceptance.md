@@ -1,5 +1,40 @@
 # Adreno 640 实现路线与验收边界
 
+## 2026-11-07：受限SCM查询接入显式boot开关，尚未真机执行
+
+用户要求继续支持查询阶段。已有`cepheus_gpu_scm_probe_once`只编译未
+hook；本次增加默认关闭`cephscm=1`，在soc线程45秒初始探测、后续
+60秒等待和120秒有界采样之后执行（实际调度时间非固定墙钟）。不
+从触摸/IRQ路径调用。必须cephsoc=1，出现cephboost/cephmem即拒绝，
+值0也拒绝；包装器禁止其与CPUtrial/interactive/单缓冲/workspace混用。
+**普通profile现在明确禁止cephscm出现**，显式all-probes+scm-info
+profile才要求cephscm=1，保留旧参数/缓存/PA/安全门禁。
+
+唯一目标是现有固定INFO call-available和PAS13-supported7；不会直接
+调用PAS init1/mem2/auth5/shutdown6，也不传共享buffer、DXE指针或
+任意FNID，不发GPU电源票、不解除CP halt。查询available1/2/5/6是
+将命令号作为INFO的整数参数，不是执行该命令。先前桥的序列mutex/
+线程上下文检查、once错误锁存、INTERRUPTED保留返回x6继续及最多
+16次实际调用不变。为取证新增每次SMC前/后x0..x7日志，未增加调用。
+
+**最多16次不等于可中断墙钟超时**：单次secure调用可能不返回，或
+需要本实现没有的listener服务；真实conduit/返回/PAS13仍未知。不能
+由查询通过授予GPU租约/认证成功，不做自动fastboot恢复。只有保持
+回退的临时boot实测才能确认，不把离线替身说成真实SMC。
+
+`test-scm-hook.py`抽取生产helper及once wrapper，RAM替身覆盖默认/
+0/2不调用、主开关不等1拒绝、boost/mem参数presence拒绝、错误锁存/
+第二次零调用/mutex/上下文；codegen编译真实SMC汇编不执行。启动
+源码门禁只允许这个经测helper调用info once，所有GPUengine/PAS
+mutation禁令保留。测试首次替身误缩进触发-Werror，修正后通过，
+没有降低告警门禁。完整回执
+`../logs/gpu-offline-scmhook-20261107/receipt.json`共30 PASS零SKIP，
+显式本地真实固件和源输入不上传公共CI。
+
+当前手机fastboot枚举为空、USB ECM仍可见；代理没有重启/boot/SMC。
+已验收allprobes-008b2cd保持回退。需新XNU CI产物，先查询关闭新核
+基线验收，再同核只加cephscm=1；**本轮只源码/离线完成**。
+
 ## 2026-11-07：完整只读探测版触摸UI通过，保留当前回退
 
 用户确认allprobes-008b2cd本轮点击/滑动「正常」，更新该轮result.json

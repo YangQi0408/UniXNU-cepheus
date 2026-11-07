@@ -1,5 +1,17 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-07：查询候选接入显式开关，仍未SMC/PAS实测
+
+用户要求继续受限支持查询。`cephscm=1`现默认关闭，主soc线程的
+基线有界采样后才调用one-shot固定INFO/PAS13-supported引擎；出现
+boost/内存参数即拒绝，不是任意SMC接口。只查询availability及supported，
+无PAS1/2/5/6 mutation、共享buffer、认证/复位或GPU启动。最多16次
+不保证单次secure call返回；每次寄存器日志只做取证、不自动恢复。
+30项完整离线检查通过，XNU新构建/查询关闭基线/同核查询真机结果
+仍待。旧2026-11-06“未hook”是历史状态，本次是显式opt-in候选，
+不能据此把ZAP实例视为认证或GPU资源视为已拥有。详细记录见
+gpu-acceptance.md。本轮未重启/启动手机或执行任何SMC。
+
 范围：本地SM8150内核`36f369fdb77319a2984a48b89f025ac3e5f97386`、保存本机FDT
 SHA256 `bdd364a16ceabe9960e128103162e5280b150303624a123dfd71e871f9a43274`，
 以及已验证容器结构的本地`a640_zap`文件。**没有执行SMC、认证、加载或启动ZAP。**

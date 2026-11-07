@@ -105,7 +105,7 @@ class Integration(unittest.TestCase):
     def test_boot_sources_do_not_invoke_gpu_engines(self):
         # A build can accidentally retain all symbols AND introduce a startup
         # call. Keep this separate check on actual boot-facing source bodies.
-        dangerous=('cepheus_gpu_scm_probe_once','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
+        dangerous=('cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
                    'cepheus_gpu_submit','ceph_smmu_install_context')
@@ -113,9 +113,18 @@ class Integration(unittest.TestCase):
             text=(ROOT/'xnu'/name).read_text()
             text=re.sub(r'/\*.*?\*/|//[^\n]*','',text,flags=re.S)
             for call in dangerous:self.assertNotRegex(text,rf'\b{call}\s*\(',name)
+            if name != 'cepheus_soc.c':
+                self.assertNotRegex(text,r'\bcepheus_gpu_scm_probe_once\s*\(',name)
+        # The sole boot SCM caller must be the separately tested opt-in helper.
+        soc=(ROOT/'xnu/cepheus_soc.c').read_text()
+        self.assertEqual(soc.count('cepheus_gpu_scm_probe_once('),1)
+        helper=soc.split('static void soc_scm_probe(void)',1)[1].split('static void soc_thread',1)[0]
+        self.assertIn('cepheus_gpu_scm_probe_once(',helper)
+        self.assertIn('if (enabled != 1) { return; }',helper)
         source=(ROOT/'xnu/cepheus_gpu_compile.c').read_text()
         body=source.split('int cepheus_gpu_config_probe',1)[1].split('int cepheus_gpu_qmp_connect',1)[0]
         for call in dangerous:self.assertNotRegex(body,rf'\b{call}\s*\(')
+        self.assertNotRegex(body,r'\bcepheus_gpu_scm_probe_once\s*\(')
 
     def test_no_security_bypass_in_concrete_cp_adapters(self):
         for name in ('cepheus_cp_ring_config.h','cepheus_cp_protection.h',

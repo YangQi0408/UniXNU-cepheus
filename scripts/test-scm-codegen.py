@@ -12,6 +12,7 @@ typedef unsigned long long uint64_t;
 #define NULL ((void *)0)
 struct ceph_scm_regs { uint64_t x[8]; };
 extern int ceph_scm_info_context(void *);
+extern int printf(const char *, ...);
 '''
 with tempfile.TemporaryDirectory() as directory:
     work = Path(directory)

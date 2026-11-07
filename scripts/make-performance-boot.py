@@ -42,6 +42,8 @@ def main():
     p.add_argument('--touch-power', action='store_true', help='with GPIO, submit ldoc1 XOB enable-only vote')
     p.add_argument('--touch-diagnostic', action='store_true', help='with GPIO, bounded raw FIFO/health logs; no recovery writes')
     p.add_argument('--soc-probe', action='store_true', help='read-only CPU OSM and gated GPU state probe')
+    p.add_argument('--scm-info-probe', action='store_true',
+                   help='with soc-probe, fixed one-shot INFO/PAS13-supported queries after baseline sampling; secure return time not bounded')
     p.add_argument('--gpu-arc-probe', action='store_true', help='with soc-probe, read-only ARC voltage tables/TCS snapshot; no votes')
     p.add_argument('--gpu-memory-test', action='store_true', help='with soc-probe, CPU-only IOKit buffer selftest; no GPU DMA')
     p.add_argument('--gpu-workspace-test', action='store_true', help='with soc-probe, CPU-only GMU backing/page-table/HFI workspace test')
@@ -61,6 +63,9 @@ def main():
         p.error('not a Mach-O kernel')
     if a.soc_probe and (b'CEPHEUS OSM:' not in kernel or b'CEPHEUS GPU:' not in kernel):
         p.error('missing CPU/GPU diagnostic code')
+    if a.scm_info_probe and (not a.soc_probe or a.cpu_trial or a.cpu_interactive or a.gpu_memory_test or a.gpu_workspace_test or
+                             b'cephscm' not in kernel or b'CEPHEUS SCM INFO: begin' not in kernel):
+        p.error('SCM info probe requires soc-probe, compiled opt-in hook, and no boost or memory test')
     if a.gpu_arc_probe and (not a.soc_probe or b'CEPHEUS ARC:' not in kernel):
         p.error('ARC probe requires soc probe and compiled ARC diagnostics')
     if a.gpu_memory_test and (not a.soc_probe or b'CEPHEUS GPU MEM:' not in kernel):
@@ -104,6 +109,7 @@ def main():
         before = (w / 'config').read_text()
         line = make_args(tomllib.loads(before)['entry'][0]['args'], a.fixed_timer)
         if a.soc_probe: line += ' cephsoc=1'
+        if a.scm_info_probe: line += ' cephscm=1'
         if a.gpu_arc_probe: line += ' cepharc=1'
         if a.gpu_memory_test: line += ' cephmem=1'
         if a.gpu_workspace_test: line += ' cephmem=2'

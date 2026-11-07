@@ -1,6 +1,7 @@
 /* Linkable integration wrappers: compile real headers as XNU C, not only host
- * fixtures. These have no startup hook or MMIO backend. API calls are private
- * kernel building blocks and are NEVER exposed as a userspace dispatch table.
+ * fixtures. No GPU engine startup hook. Only fixed SCM info discovery has an
+ * explicit opt-in soc-thread hook. APIs are private kernel building blocks,
+ * NEVER exposed as a userspace dispatch table.
  */
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
@@ -53,6 +54,9 @@ static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
     (void)unused;
     if(!r || ceph_scm_info_context(NULL))return -1;
+    printf("CEPHEUS SCM INFO REGS: in=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",
+        (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
+        (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
     /* No indirect UEFI pointers and no shared-buffer address. This callback
      * is static/private and its sole caller is the fixed discovery engine. */
     register uint64_t x0 __asm__("x0")=r->x[0],x1 __asm__("x1")=r->x[1];
@@ -63,6 +67,9 @@ static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
         "+r"(x4),"+r"(x5),"+r"(x6),"+r"(x7) : :
         "x8","x9","x10","x11","x12","x13","x14","x15","x16","x17","cc","memory");
     *r=(struct ceph_scm_regs){{x0,x1,x2,x3,x4,x5,x6,x7}};
+    printf("CEPHEUS SCM INFO REGS: out=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",
+        (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
+        (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
     return 0;
 }
 int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)

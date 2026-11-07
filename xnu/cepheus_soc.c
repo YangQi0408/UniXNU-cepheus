@@ -17,6 +17,7 @@
 #include "cepheus_gpu_power.h"
 #include "cepheus_gpu_memory.h"
 #include "cepheus_gpu_bin.h"
+#include "cepheus_scm_discovery.h"
 extern void cepheus_gmu_workspace_selftest(void);
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
@@ -319,6 +320,27 @@ static void gpu_gx_probe(void)
 	    sr(gx, 0xe0d * 4), sr(gx, 0xe0e * 4));
 	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
 }
+static void soc_scm_probe(void)
+{
+	int enabled = 0;
+	PE_parse_boot_argn("cephscm", &enabled, sizeof(enabled));
+	if (enabled != 1) { return; }
+	int soc_enabled = 0, conflict = 0;
+	PE_parse_boot_argn("cephsoc", &soc_enabled, sizeof(soc_enabled));
+	if (soc_enabled != 1 || PE_parse_boot_argn("cephboost", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephmem", &conflict, sizeof(conflict))) {
+		printf("CEPHEUS SCM INFO: refused mixed boost/memory or invalid soc profile; no SMC\n");
+		return;
+	}
+	/* After the bounded baseline sampling, never from the touch/IRQ path.
+	 * Fixed INFO/PAS-supported queries only; a non-returning secure call
+	 * cannot be interrupted by this local call-count budget. */
+	printf("CEPHEUS SCM INFO: begin query_limit=%u; secure return time unbounded; no PAS mutations\n", CE_SCM_QUERY_LIMIT);
+	struct ceph_scm_discovery result = {0};
+	int error = cepheus_gpu_scm_probe_once(&result);
+	printf("CEPHEUS SCM INFO: end error=%d calls=%u supported=%u; no power or GPU startup\n",
+	    error, result.calls, result.supported);
+}
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
@@ -363,6 +385,7 @@ static void soc_thread(void *arg, wait_result_t wr)
 	}
 	osm_trial_restore();
 	osm_sample(25);
+	soc_scm_probe(); /* explicit cephscm=1; default remains no SMC */
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);
 }
