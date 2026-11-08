@@ -10,6 +10,36 @@
 不可用，但false原因与认证能力仍UNKNOWN。后续离线补齐平台资源与加载后端，
 不重复相同查询或控制轮，不将可用性查询当作认证证据。
 
+## 2026-11-08：独立ZAP内存工作区，仍为CPU准备
+
+新增cepheus_zap_memory_prepare/get/put/release_cpu，接入生产IOKit分配及已封存
+ZAP快照。工作区独占一个MDT/image pair，独立预算1MiB+16KiB；GPU池仍保持
+单块256KiB/总1MiB。镜像要求1MiB连续和PA对齐，MDT按主机页取整（SWEET
+16KiB）；保留6860B MDT、4096B逻辑长度和1MiB实际容量，不把容量传作逻辑长度。
+分配mask显式编码对齐，不放宽PA上界；PA范围、连续性、对齐在cache重映射前
+检查，随后逐主机页验证Normal-NC。完整容量先清零，复制后只允许只读lease。
+
+工作区handle与普通GPU池分开，不能交给GPU publish/view/release；源快照持有到
+两次分配和复制结束，之后可独立释放。分配中拒绝第二个prepare，lease阻止释放，
+generation拒绝旧handle，GPU terminal与分配竞态会清理尚未暴露的pair。局部失败
+释放可确认仍为CPU所有的部分；IOKit complete失败则保留该部分的backing/预算，
+整个工作区永久隔离、不重试、不允许新pair覆盖。没有调用方done=true释放捷径。
+
+这补齐了实际分配/封存/CPU清理路径，**不是PAS-compatible allocator或加载
+生命周期**。Normal-NC与下游MDT的STRONGLY_ORDERED并未证明等价，secure PA可达、
+XPU粒度/别名和共享资源仍未知；新API明确禁止把PA送给PAS。没有硬件publish、
+认证/停止入口或启动调用。后续必须建立secure访问和cache合同，再按原厂
+init_image/mem_setup/load/auth顺序接入；不能把预复制完成当作认证或zap_loaded。
+
+本机5种真实固件工作区场景在ASan/UBSan下通过，包括分配/映射/prepare/cache/
+对齐失败、部分清理失败、8线程lease、旧handle、独立预算和terminal竞态；
+MDT/b02及全容量零填充比对通过。共享分配器有改动，因此运行了一次相关GPU
+内存host套件（GMU/SQE/ZAP真实材料），9项integration、PA mask测试、修改C++
+单元静态分析均通过。首次旧套件误传a630_gmu.bin被固定身份检查拒绝，改用
+a640_gmu.bin后通过，原始失败日志保留。ASan关闭故意隔离场景的leak检测，
+不声称无泄漏。没有重跑完整离线入口、没有手机操作；证据
+../logs/zap-memory-20261108/。本阶段完整XNU构建待验证。
+
 ## 2026-11-08：内核ZAP元数据与重定位镜像准备
 
 153561e新增cepheus_zap_image.h及cepheus_gpu_zap_snapshot_prepare，接入已有

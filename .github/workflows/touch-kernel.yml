@@ -41,7 +41,7 @@ jobs:
           cp cepheus/xnu/cepheus_arc.h cepheus/xnu/cepheus_arc_probe.h dxb/patches/
           cp cepheus/xnu/cepheus_bcm.h dxb/patches/
           for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
-            cepheus_gpu_memory_state.h cepheus_zap_image.h \
+            cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h \
             cepheus_gmu_upload_mmio.h \
             cepheus_qmp_connect.h \
             cepheus_gpu_tsens.h \
@@ -88,6 +88,7 @@ jobs:
           python3 cepheus/scripts/test-gx-probe.py
           python3 cepheus/scripts/test-zap-layout.py
           bash cepheus/scripts/test-gpu-memory-host.sh
+          bash cepheus/scripts/test-zap-memory-host.sh
           # The SWEET kernel is plain arm64, not arm64e.
           python3 -c 'from pathlib import Path; p=Path("dxb/build.sh"); s=p.read_text(); old="ARCHS=\"x86_64 arm64e\" VALID_ARCHS=\"x86_64 arm64e\""; assert s.count(old)==1; p.write_text(s.replace(old,"ARCHS=\"x86_64 arm64e arm64\" VALID_ARCHS=\"x86_64 arm64e arm64\""))'
       - name: Toolchain and event parser regression

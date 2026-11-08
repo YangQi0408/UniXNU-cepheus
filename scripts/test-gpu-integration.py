@@ -39,6 +39,9 @@ class Integration(unittest.TestCase):
             subprocess.run(['bash', str(ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh')], cwd=tree, check=True)
             for where, name in [('bsd/dev', 'cepheus_gpu_compile.c'), ('bsd/dev', 'cepheus_hfi_boot.h'),
                                 ('bsd/dev', 'cepheus_zap_image.h'),
+                                ('bsd/dev', 'cepheus_zap_memory.h'),
+                                ('iokit/Kernel/arm', 'cepheus_zap_image.h'),
+                                ('iokit/Kernel/arm', 'cepheus_zap_memory.h'),
                                 ('bsd/dev', 'cepheus_smmu_install.h'), ('iokit/Kernel/arm', 'cepheus_gpu_memory.cpp')]:
                 self.assertEqual((tree / where / name).read_bytes(), (ROOT / 'xnu' / name).read_bytes())
             self.assertFalse((tree / 'bsd/dev/sweet_rpmh.c').exists())
@@ -94,7 +97,7 @@ class Integration(unittest.TestCase):
         allocation = source.split('b->memory=IOBufferMemoryDescriptor::inTaskWithPhysicalMask', 1)[1].split(';', 1)[0]
         self.assertNotIn('kIOMapWriteCombineCache', allocation)
         self.assertNotIn('kIOMemoryPersistent', allocation)
-        self.assertLess(source.index('cepheus_gpu_pa_window_mask('), source.index('inTaskWithPhysicalMask('))
+        self.assertLess(source.index('cepheus_gpu_pa_aligned_window_mask('), source.index('inTaskWithPhysicalMask('))
         self.assertLess(source.index('cepheus_gpu_pa_range_managed('), source.index('createMappingInTask('))
         self.assertNotIn('0x000000fffffff000', source)
 
@@ -109,7 +112,8 @@ class Integration(unittest.TestCase):
         dangerous=('cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
-                   'cepheus_gpu_submit','ceph_smmu_install_context','cepheus_gpu_zap_snapshot_prepare')
+                   'cepheus_gpu_submit','ceph_smmu_install_context','cepheus_gpu_zap_snapshot_prepare',
+                   'cepheus_zap_memory_prepare')
         for name in ('cepheus_soc.c','cepheus_touch.c','cepheus_arc_probe.h'):
             text=(ROOT/'xnu'/name).read_text()
             text=re.sub(r'/\*.*?\*/|//[^\n]*','',text,flags=re.S)

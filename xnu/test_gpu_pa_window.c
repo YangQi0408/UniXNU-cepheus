@@ -39,5 +39,14 @@ int main(void)
     assert(!cepheus_gpu_pa_window_mask(first,first,16384));
     assert(!cepheus_gpu_pa_window_mask(first,last,8192));
     assert(!cepheus_gpu_pa_window_mask(first,(1ULL<<40)+0x4000,16384));
+    for(uint64_t top=first+0x400000;top<first+0x800000;top+=0x4000) {
+        uint64_t mask=cepheus_gpu_pa_aligned_window_mask(first,top,16384,1048576);
+        assert(mask);
+        uint64_t zeros=(~mask)&(mask-1);
+        assert(zeros+1==1048576 && (mask|zeros)<top);
+    }
+    assert(!cepheus_gpu_pa_aligned_window_mask(first,last,16384,0));
+    assert(!cepheus_gpu_pa_aligned_window_mask(first,last,16384,8193));
+    assert(!cepheus_gpu_pa_aligned_window_mask(first,last,16384,2097152));
     puts("GPU PA window: real gPhysBase>4GiB layout, panicking PAs rejected, no truncation PASS");
 }

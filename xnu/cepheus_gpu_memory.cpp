@@ -1,4 +1,4 @@
-/* XNU-owned GMU backing allocation/cache primitives. No SMMU/GPU MMIO here.
+/* XNU-owned GPU backing and separate ZAP CPU staging. No SMMU/GPU MMIO here.
  * Default off: exported selftest only runs under cephmem=1. It allocates,
  * checks actual PA contiguity and CPU visibility, then releases CPU-only memory.
  * Device publication latches retention; there is deliberately no bool-based
@@ -35,6 +35,8 @@ extern uint64_t vm_last_phys;
 #include "cepheus_gpu_memory_state.h"
 #include "cepheus_gpu_firmware.h"
 #include "cepheus_gpu_memory_private.h"
+#include "cepheus_zap_image.h"
+#include "cepheus_zap_memory.h"
 
 struct ceph_gpu_buffer {
     IOBufferMemoryDescriptor *memory;
@@ -42,11 +44,23 @@ struct ceph_gpu_buffer {
     void *cpu;
     uint64_t pa;
     size_t bytes;
+    unsigned *budget;
     bool prepared,published;
 };
 
 /* One-shot selftest counter and bounded outstanding buffer budget. */
 static unsigned ceph_memory_once,ceph_memory_pages;
+static unsigned ceph_zap_pages;
+struct ceph_buffer_policy {size_t alignment,maximum;unsigned *pages,limit;};
+static const struct ceph_buffer_policy ceph_gpu_policy={4096,256*1024,&ceph_memory_pages,256};
+static const struct ceph_buffer_policy ceph_zap_mdt_policy={4096,16384,&ceph_zap_pages,260};
+static const struct ceph_buffer_policy ceph_zap_image_policy={1048576,1048576,&ceph_zap_pages,260};
+/* Index16 gives the separate workspace a disjoint handle namespace. */
+static struct {
+    struct ceph_mem_slot state;
+    struct ceph_gpu_buffer mdt,image;
+    struct ceph_zap_image layout;
+} ceph_zap;
 static IOLock *ceph_pool_lock;
 static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;uint64_t group;} ceph_pool[16];
 static struct ceph_gpu_publication ceph_groups[16];
@@ -82,7 +96,7 @@ ceph_gpu_pool_lock(void)
 static void
 ceph_gpu_buffer_dispose_cpu(struct ceph_gpu_buffer *b)
 {
-    if (b->published) return; /* no speculative free after possible DMA */
+    if (!b->bytes || b->published) return; /* no speculative free after possible DMA */
     if (b->prepared && b->memory->complete(kIODirectionInOut)!=kIOReturnSuccess) {
         b->published=true; /* uncertain completion: retain allocation/accounting */
         printf("CEPHEUS GPU MEM: complete failed; allocation retained\n");
@@ -90,29 +104,30 @@ ceph_gpu_buffer_dispose_cpu(struct ceph_gpu_buffer *b)
     }
     if (b->mapping) b->mapping->release();
     if (b->memory) b->memory->release();
-    __atomic_fetch_sub(&ceph_memory_pages,(unsigned)(b->bytes/4096),__ATOMIC_RELEASE);
+    __atomic_fetch_sub(b->budget,(unsigned)(b->bytes/4096),__ATOMIC_RELEASE);
     b->memory=NULL;b->mapping=NULL;b->cpu=NULL;b->pa=0;b->bytes=0;b->prepared=false;
+    b->budget=NULL;
 }
 
 static int
-ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
+ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes,const struct ceph_buffer_policy *policy)
 {
-    if (!b || b->memory || !bytes || bytes>256*1024 || (bytes&4095u)) return -1;
+    if (!b || b->bytes || !bytes || bytes>policy->maximum || (bytes&4095u)) return -1;
     /* SWEET XNU uses 16KiB host pages while GMU tables use 4KiB. Account
      * physical allocation, not the smaller requested length. No odd geometry. */
     size_t host_page=(size_t)page_size;
     if(host_page!=4096 && host_page!=16384)return -1;
     bytes=(bytes+host_page-1)&~(host_page-1);
-    uint64_t window_mask=cepheus_gpu_pa_window_mask(vm_first_phys,vm_last_phys,host_page);
+    uint64_t window_mask=cepheus_gpu_pa_aligned_window_mask(vm_first_phys,vm_last_phys,host_page,policy->alignment);
     if(!window_mask)return -1; /* no fixed-mask fallback for invalid bounds */
-    unsigned pages=(unsigned)(bytes/4096),used=__atomic_load_n(&ceph_memory_pages,__ATOMIC_ACQUIRE);
+    unsigned pages=(unsigned)(bytes/4096),used=__atomic_load_n(policy->pages,__ATOMIC_ACQUIRE);
     do {
-        /* ICACHE+DCACHE alone need480KiB; include HFI/log/page tables and
-         * immutable firmware snapshots while retaining a hard1MiB cap. */
-        if (used>256 || pages>256-used) return -1;
-    } while (!__atomic_compare_exchange_n(&ceph_memory_pages,&used,used+pages,false,
+        /* GPU and ZAP accounting are independent. Retained allocations keep
+         * their charge in the originating budget, including failed complete. */
+        if (used>policy->limit || pages>policy->limit-used) return -1;
+    } while (!__atomic_compare_exchange_n(policy->pages,&used,used+pages,false,
         __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE));
-    b->bytes=bytes;
+    b->bytes=bytes;b->budget=policy->pages;
     printf("CEPHEUS GPU MEM: phase=allocate bytes=%#lx host_page=%#lx managed=[%#llx,%#llx) mask=%#llx\n",
         (unsigned long)bytes,(unsigned long)host_page,(unsigned long long)vm_first_phys,
         (unsigned long long)vm_last_phys,(unsigned long long)window_mask);
@@ -141,7 +156,8 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes)
      * kernel down during the mapping call itself -- after this point is far too
      * late. maxPhys in the allocation mask is only an upper bound and cannot
      * express this lower bound, so the check has to be here. */
-    if(!b->pa || (b->pa&(host_page-1)) || length<bytes || b->memory->getLength()!=bytes ||
+    if(!b->pa || (b->pa&(host_page-1)) || (b->pa&(policy->alignment-1)) ||
+        length<bytes || b->memory->getLength()!=bytes ||
         !cepheus_gpu_pa_range_managed(b->pa,bytes,vm_first_phys,vm_last_phys)) {
         printf("CEPHEUS GPU MEM: backing invalid pa=%#llx bytes=%#lx segment=%#lx host_page=%#lx managed=[%#llx,%#llx); refused before mapping\n",
             (unsigned long long)b->pa,(unsigned long)bytes,
@@ -201,7 +217,7 @@ cepheus_gpu_memory_alloc(size_t bytes,uint64_t *handle)
     /* ALLOCATING excludes all handle lookups, so slow IOKit work and slot
      * initialization can run outside the pool mutex without concurrent views. */
     slot->firmware_bytes=0;slot->firmware_kind=0;slot->group=0;
-    int e=ceph_gpu_buffer_alloc_cpu(&slot->buffer,bytes);
+    int e=ceph_gpu_buffer_alloc_cpu(&slot->buffer,bytes,&ceph_gpu_policy);
     IOLockLock(lock);
     /* Allocation may sleep outside this mutex while another thread abandons
      * the GPU session. Recheck before handing out a new usable handle. This
@@ -301,6 +317,92 @@ cepheus_gpu_memory_release_cpu(uint64_t handle)
     if(e)printf("CEPHEUS GPU MEM: retained slot=%u bytes=%lu generation=%u\n",
         (unsigned)index,(unsigned long)slot->buffer.bytes,slot->state.generation);
     IOLockUnlock(lock);return e;
+}
+
+static void ceph_zap_dispose_cpu(void)
+{
+    ceph_gpu_buffer_dispose_cpu(&ceph_zap.image);
+    ceph_gpu_buffer_dispose_cpu(&ceph_zap.mdt);
+}
+
+extern "C" int
+cepheus_zap_memory_prepare(uint64_t snapshot,uint64_t *handle)
+{
+    if(!handle)return -1;
+    *handle=0;
+    struct ceph_gpu_firmware_view source={};
+    if(cepheus_gpu_firmware_get(snapshot,CE_FW_A640_ZAP,&source))return -1;
+    struct ceph_zap_image layout={};
+    int e=ceph_zap_parse(source.data,source.bytes,&layout);
+    /* Fixed verified A640 artifact only; never grow the budget from ELF data. */
+    if(e || layout.mdt_bytes!=6860 || layout.logical_bytes!=4096 || layout.allocation_bytes!=1048576) {
+        (void)cepheus_gpu_memory_view_put(snapshot);return -1;
+    }
+    IOLock *lock=ceph_gpu_pool_lock(); /* firmware_get already created it */
+    IOLockLock(lock);
+    e=ceph_pool_terminal?-1:ceph_mem_reserve(&ceph_zap.state);
+    IOLockUnlock(lock);
+    if(e) { (void)cepheus_gpu_memory_view_put(snapshot);return -1; }
+    /* ALLOCATING excludes get/release while IOKit may sleep. The sealed source
+     * stays leased throughout both allocations and copies. No PA is published. */
+    e=ceph_gpu_buffer_alloc_cpu(&ceph_zap.mdt,8192,&ceph_zap_mdt_policy);
+    if(!e)e=ceph_gpu_buffer_alloc_cpu(&ceph_zap.image,layout.allocation_bytes,&ceph_zap_image_policy);
+    if(!e && ceph_zap_overlap(ceph_zap.mdt.pa,ceph_zap.mdt.bytes,ceph_zap.image.pa,ceph_zap.image.bytes))e=-1;
+    if(!e)e=ceph_zap_stage(source.data,source.bytes,(uint8_t *)ceph_zap.mdt.cpu,ceph_zap.mdt.bytes,
+        (uint8_t *)ceph_zap.image.cpu,ceph_zap.image.bytes,&ceph_zap.layout);
+    if(!e)ceph_gpu_memory_barrier();
+    if(cepheus_gpu_memory_view_put(snapshot))e=-1;
+    IOLockLock(lock);
+    if(ceph_pool_terminal)e=-1;
+    if(e) {
+        IOLockUnlock(lock);ceph_zap_dispose_cpu();IOLockLock(lock);
+    }
+    bool retained=ceph_zap.mdt.published || ceph_zap.image.published;
+    (void)ceph_mem_finish_allocation(&ceph_zap.state,!e,retained);
+    if(!e) {
+        (void)ceph_mem_seal(&ceph_zap.state);
+        *handle=ceph_mem_handle(16,ceph_zap.state.generation);
+    }
+    if(retained)printf("CEPHEUS ZAP MEM: CPU cleanup uncertain; workspace retained\n");
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int
+cepheus_zap_memory_get(uint64_t handle,struct ceph_zap_memory_view *view)
+{
+    if(!view)return -1;
+    *view={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int e=-1;
+    if(ceph_mem_matches(&ceph_zap.state,16,handle) && !ceph_mem_readonly_get(&ceph_zap.state)) {
+        *view={(const uint8_t *)ceph_zap.mdt.cpu,(const uint8_t *)ceph_zap.image.cpu,
+            ceph_zap.mdt.pa,ceph_zap.image.pa,ceph_zap.mdt.bytes,ceph_zap.image.bytes,
+            ceph_zap.layout.mdt_bytes,ceph_zap.layout.logical_bytes,ceph_zap.layout.entry_offset};e=0;
+    }
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int
+cepheus_zap_memory_put(uint64_t handle)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);
+    int e=ceph_mem_matches(&ceph_zap.state,16,handle)?ceph_mem_view_put(&ceph_zap.state):-1;
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int
+cepheus_zap_memory_release_cpu(uint64_t handle)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);
+    if(!ceph_mem_matches(&ceph_zap.state,16,handle) || ceph_mem_release_begin(&ceph_zap.state)) {
+        IOLockUnlock(lock);return -1;
+    }
+    IOLockUnlock(lock);ceph_zap_dispose_cpu();IOLockLock(lock);
+    bool retained=ceph_zap.mdt.published || ceph_zap.image.published;
+    (void)ceph_mem_finish_allocation(&ceph_zap.state,0,retained);
+    if(retained)printf("CEPHEUS ZAP MEM: CPU cleanup uncertain; workspace retained\n");
+    IOLockUnlock(lock);return retained?-1:0;
 }
 
 extern "C" void

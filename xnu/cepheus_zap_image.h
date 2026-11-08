@@ -31,7 +31,12 @@ static inline int ceph_zap_parse(const uint8_t *elf,size_t bytes,struct ceph_zap
         ceph_zap_le32(elf+28)!=52 || ceph_zap_le16(elf+40)!=52 || ceph_zap_le16(elf+42)!=32)return -1;
     unsigned count=ceph_zap_le16(elf+44);
     if(count<3 || count>CE_ZAP_MAX_SEGMENTS || 52+32*count>bytes)return -1;
-    struct ceph_zap_image p={0};p.header_bytes=52+32*count;
+#ifdef __cplusplus
+    struct ceph_zap_image p={};
+#else
+    struct ceph_zap_image p={0};
+#endif
+    p.header_bytes=52+32*count;
     uint64_t low=UINT64_MAX,high=0;uint32_t alignment=0;
     for(unsigned i=0;i<count;++i) {
         const uint8_t *h=elf+52+32*i;
