@@ -1,7 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 17:55 +08:00**。范围：独立ZAP CPU内存预检镜像准备完成，停在真机前。
+更新：**2026-11-08 18:09 +08:00**。范围：ZAP CPU预检已真机执行，严格日志缺项，UI待确认。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
+
+最新：用户“已进入”后核对67eea163/cepheus，候选zapmem-b5006b5临时boot成功。
+18:05:13收到六条有序执行成功记录：MDT16384B/PA0x184398000/attr0，镜像
+1MiB/PA0x185d00000/attr0x44；4+256页翻译、pattern PASS、MDT恢复attr0xff、
+end result0/retained_pages0。scheduled初始标记缺失，原严格七条判定NOT_PASS，
+未补造日志或放宽标准；90秒时序不能验收。简短触摸/唤醒确认已请求但未回复，
+UI保持PENDING，不能由health errors0推断触摸正常。预检后9条health末events3。
+采集18:07:46自然结束300.000947s/340包/91661B，SHA479b2f82...；主机RX错误/
+丢弃0，自有capture/watch均退出。无自动重启/恢复/重试，手机保持候选运行。
+证据../logs/zapmem-b5006b5-live-20261108-1802/result.json，详见
+[ZAP真机记录](zap-memory-preflight.md)。GPU/Metal未执行，PAS13=false仍未解。
+以下为离线准备及更早记录。
 
 已到单次真机预检点：MDT强序映射、逐4KiB AT/PAR检查、Device字节复制、释放
 前Copyback及新旧别名验证已接入，11种无固件预检和5种真实ZAP工作区场景、

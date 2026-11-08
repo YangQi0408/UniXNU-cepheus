@@ -10,6 +10,12 @@
 不可用，但false原因与认证能力仍UNKNOWN。后续离线补齐平台资源与加载后端，
 不重复相同查询或控制轮，不将可用性查询当作认证证据。
 
+18:05后续ZAP CPU预检已收到真实MDT Device属性、镜像Normal-NC属性、读写及
+Copyback恢复成功记录，end result0/retained_pages0。缺初始scheduled标记，
+严格七条日志NOT_PASS；触摸/唤醒反馈尚未回复。它补充CPU内存执行事实，
+不改变secure PA/XPU未知、PAS13=false或加载门禁，详见
+[ZAP真机记录](zap-memory-preflight.md)。
+
 ## 2026-11-08：独立ZAP内存工作区，仍为CPU准备
 
 后续推进：MDT现已切换到Device-nGnRnE候选映射，并接入实际CPU翻译检查、

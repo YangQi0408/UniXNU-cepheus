@@ -1,4 +1,31 @@
-# ZAP内存预检：下一次真机测试点
+# ZAP内存预检：真机执行记录与离线准备
+
+## 2026-11-08 18:09：六条执行成功记录，完整验收未通过，UI待确认
+
+用户回复“已进入”后核对67eea163/cepheus及候选SHA1f986169...，采集READY后
+18:02:56发起一次临时boot，发送/Booting均成功，未flash。18:05:13收到begin、
+两条translated、pattern PASS、MDT restored及end result=0/retained_pages=0。
+这是主机接收时间，不是精确内核运行时间。MDT PA0x184398000/16384B，4个
+4KiB页attr=0；镜像PA0x185d00000/1048576B，256页attr=0x44、1MiB对齐，
+logical4096B。两块范围不重叠，MDT恢复attr=0xff。六条执行记录及几何核验
+通过，未补造任何记录；本轮未执行PAS/SMC/GPU。
+
+最早的scheduled delay_s=90没有收到，因此原七条严格核验结果保持NOT_PASS。
+不能声称完整预检验收PASS或证实90秒时序。日志链路首包在采集+63.270秒，
+但缺失原因不能仅凭此确定；不为这个缺项自动追加测试。一次简短主屏幕/
+触摸/熄屏唤醒确认已发出，截至本次记录尚未回复，UI状态保持PENDING。
+预检后9条health，末条events=3/errors=0，不能用错误为0替代人工触摸验收。
+
+采集18:07:46自然到期300.000947秒，340包/91661B；SHA256
+479b2f821c4a1a7d56aa455e646ee6224cf228d243d497db9ab460efe308948e。
+主机网卡RX errors/dropped均0，watcher未记录断开；UDP仍无完整送达保证。
+capture exit0，自己的专用MAC watcher已正常请求停止，容器退出143符合SIGTERM。
+未自动重启/恢复/重试，手机保持候选运行，当前画面待用户确认。
+证据：[本轮结果](../../logs/zapmem-b5006b5-live-20261108-1802/result.json)、
+[严格判定](../../logs/zapmem-b5006b5-live-20261108-1802/zap-strict.json)、
+[执行事实](../../logs/zapmem-b5006b5-live-20261108-1802/execution-observations.json)。
+
+## 离线准备记录
 
 2026-11-08 17:55 +08:00离线实现、完整XNU构建与镜像打包核验均完成，尚未真机执行。
 目标是验证新增的真实IOKit强序映射、CPU翻译属性、1MiB对齐连续分配及清理。
@@ -62,7 +89,8 @@ f1b5a674a6ff858f50511f5c6d11a9b126701e6e04bd2a4427f0cc40063a72d1。
 不变；候选相对新控制版保持同核，仅增加cephzapmem=1，其他TOML字段、
 ADT、固件、DTB及boot头均核验。两份*.verified.json位于dist，额外的
 control-config-verification.json及receipt.json位于上述证据目录。
-两个新镜像均未boot；下一步只需候选单次真机预检，不追加控制轮。
+离线阶段两个新镜像均未boot；随后只对候选执行一次临时boot，结果见本文开头。
+同核控制镜像仍仅用于离线比对，不追加控制轮。
 
 前序CI42465594915被旧GX测试的源码提取边界阻断，fde990f已修复并通过。
 CI42465792206及42467439486均在KDK安装时报image not recognized，尚未进入

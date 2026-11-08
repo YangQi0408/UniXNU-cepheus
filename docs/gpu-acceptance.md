@@ -4,6 +4,19 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-08 18:09：CPU预检执行成功记录齐全，严格日志NOT_PASS，UI待确认
+
+zapmem-b5006b5在67eea163/cepheus临时boot成功，18:05:13收到六条执行记录：
+MDT16KiB/4页attr0、镜像1MiB/256页attr0x44且1MiB PA对齐，pattern PASS，
+MDT恢复attr0xff，end result0/retained_pages0。记录及范围检查通过，不证明
+secure可达、PAS认证或GPU执行。最早scheduled标记缺失，严格七条判定仍为
+NOT_PASS，不能追认完整预检PASS或90秒时序，未修改判定规则或补造记录。
+一次简短UI/触摸/唤醒确认尚未收到，保持PENDING；后续health errors0不替代
+功能验收。300.000947秒采集自然到期，340包/91661B，SHA479b2f82...。
+capture及自有watcher均退出，手机保持候选运行，无自动重启/恢复或加测。
+证据../logs/zapmem-b5006b5-live-20261108-1802/，详见
+[ZAP真机记录](zap-memory-preflight.md)。
+
 ## 2026-11-08 17:55：MDT强序映射及独立内存预检，已到真机点
 
 用户要求继续直到需要真机。已实现Device-nGnRnE MDT、AT/PAR真实翻译检查、
