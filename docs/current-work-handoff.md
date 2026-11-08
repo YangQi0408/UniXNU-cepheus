@@ -3,15 +3,22 @@
 更新：**2026-11-08**。范围：延迟SoC本轮体验PASS、阶段证据不足及后续门禁。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
+最新14:27基础控制轮soccontrol-b2b99e7本轮PASS：用户“都正常”，420s648包/
+186771B，sample25四组齐全且之后触摸events317增至890/errors0，HID69对。
+日志SHA2a4a5873...，证据../logs/soccontrol-b2b99e7-live-20261108-1426/。
+自有采集/watch均退出。用户明确时间紧、尽可能省测试：不重复控制/离线回归，
+查询出完整结果再一次简短点按/唤醒确认即收尾。已请求手动fastboot，
+下一直接query7-basic-b2b99e7（a060bd43...），尚未启动，不再重复控制。
+
 最新指示“直接下一阶段吧”：转入基础SoC采样后的SCM/PAS13固定查询准备，
 不再以补跑240s时序对照阻塞下一阶段；历史缺证据仍不追认PASS。
 复用CI42450429814/b2b99e7 kernel SHAe9f8f3f7...，两张同核镜像已打包、
-严格delta核验且未启动：soccontrol-b2b99e7 SHAb239af44...（只加cephsoc1），
+严格delta核验：soccontrol-b2b99e7 SHAb239af44...（只加cephsoc1，之后本轮PASS），
 query7-basic-b2b99e7 SHAa060bd43...（相对控制只加cephscm1）。
 默认45s基础等待/sample25后查询，不带fuse/ARC/GX/boost/memory/240s延迟。
 新增基于生产策略的RAM日志核验13项、参数15项、时间线6项测试通过；
 完整离线38/0/0，receipt ../logs/gpu-offline-query7-basic-20261108/。
-下一真机先独立新基础控制，再配对查询；手机保持iOS，等待物理键fastboot，
+新基础控制已完成，下一直接配对查询；手机保持iOS，等待物理键fastboot，
 需要稳定数据连接。GPU/Metal尚未运行，细节见[SCM下一阶段](scm-query7-preflight.md)。
 
 最新14:02轮：同核延迟`socdelay240-b2b99e7` SHA7e082de6...临时boot成功。

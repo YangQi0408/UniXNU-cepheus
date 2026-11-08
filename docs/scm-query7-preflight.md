@@ -5,6 +5,8 @@
 用户在240s延迟轮结束后明确要求“直接下一阶段吧”。因此不把补跑该延迟
 时序对照当作所有后续离线工作的前置。其当前触摸/唤醒PASS保留，缺失的
 SoC阶段仍为INCONCLUSIVE，不能追认探测完成或触摸根因修复。
+随后用户要求尽量舍弃测试以节省时间：已完成的控制不重复，离线检查不复跑；
+查询采到完整结果后只做一次简短点按/唤醒确认，即结束采集，不等满固定窗口。
 
 下一阶段为既有固定INFO/PAS13支持查询，使用已通过新核touch-only控制的
 CI42450429814/b2b99e7内核。没有改生产内核、触摸或SMC策略，也不启动旧
@@ -16,7 +18,7 @@ cephsocdelay与SCM混用仍拒绝，boost/内存/GPU启动参数仍拒绝。
 
 | 镜像（../dist/） | SHA256 | 配置与状态 |
 |---|---|---|
-| boot-cepheus-soccontrol-b2b99e7.img | b239af44ded8f62e833b023f5983828355995751fad31522bac5848a53e8bc47 | 相对已验收touchcontrol只加cephsoc=1；未实测 |
+| boot-cepheus-soccontrol-b2b99e7.img | b239af44ded8f62e833b023f5983828355995751fad31522bac5848a53e8bc47 | 相对已验收touchcontrol只加cephsoc=1；14:27轮PASS |
 | boot-cepheus-query7-basic-b2b99e7.img | a060bd435ad3581520f29c0bb6886516963cd4f0955b8f40ce2a4cf23e0b5f19 | 相对上行只加cephscm=1；未实测 |
 
 两张均70680576B，真实mtools离线打包；容器network-none/UID1000/
@@ -53,9 +55,19 @@ QUERY7 confirmed=false仍不能单独判“不支持”，须看寄存器。
 
 ### 下一真机步骤
 
-手机当前iOS由用户保留；进入fastboot仍使用物理电源+音量下。先完成新
-soccontrol的独立UI/触摸/唤醒验收和sample25四组采集，再在下一启动临时
-boot配对query7-basic。每轮监听在boot前就绪，并核对67eea163/cepheus和SHA。
+14:27新soccontrol已独立验收：用户“都正常”确认UI/触摸/唤醒，sample25
+四组齐全，之后8条health中events317增至890、errors0；HID down/up各69。
+420.001535s648包186771B，日志SHA256
+2a4a58738d4350dc2d90f39bab2c7c0bb90e5d3d4f1512eef769ed89ac5e49bc。
+RAW128限额，34完整批124事件重放0差异，末125..128省略；health2000缺失
+保留为UDP缺口。host RX错误0，所查日志无重枚举。自有capture/watch均退出。
+证据../logs/soccontrol-b2b99e7-live-20261108-1426/result.json及capture/
+packets/action-timeline/replay/receive-timeline。用户“是”合并确认从上一正常
+iOS物理键进入fastboot及换线或插稳，具体哪种线材处理未单独确认。
+
+该控制已完成，不再重复。手机当前iOS由用户保留，已请求物理电源+音量下
+进入fastboot后直接临时boot配对query7-basic。监听在boot前就绪，并核对
+67eea163/cepheus和SHA。新查询候选尚未启动。
 查询版应采集sample25、SCM begin、每次REGS in/out、summary/QUERY7/end，
 再记录查询后触摸/唤醒反馈；连接质量不足时只记缺证据，不自动恢复。
 用户怀疑数据线不稳，应以稳定数据连接取得查询返回证据。

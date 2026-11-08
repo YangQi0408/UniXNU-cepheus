@@ -4,6 +4,26 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-08 14:27：新基础控制PASS，下一直接SCM查询
+
+用户要求“直接下一阶段吧”，完成最小基础SoC/SCM配对准备。复用已验收
+touchcontrol的b2b99e7内核，生产xnu未变；工具提交9594ed7已推送，
+完整离线38/0/0。soccontrol SHAb239af44...，query7-basic SHAa060bd43...，
+严格仅新增cephscm=1；默认45s基础采样，fuse/ARC/GX/boost/memory全关。
+完整身份见[SCM下一阶段](scm-query7-preflight.md)。
+
+67eea163/cepheus临时boot控制成功，sending1.588s/booting0.126s；
+用户“都正常”确认主屏幕/触摸/唤醒PASS。sample25四组齐全，之后8条health，
+events317增至890/errors0，HID down/up各69。420.001535s648包186771B，
+日志SHA 2a4a58738d4350dc2d90f39bab2c7c0bb90e5d3d4f1512eef769ed89ac5e49bc。
+RAW128达限、34完整批124事件重放0差异，尾125..128省略；缺health2000，
+不把UDP称为绝对完整。host RX错误0、所查日志无重枚举，采集/watch已退出。
+证据../logs/soccontrol-b2b99e7-live-20261108-1426/，本轮无SCM/GPU执行。
+
+用户随后要求尽量省测试：控制不重复、离线不复跑，已请求手动fastboot，
+下一直接query7-basic；采到完整SCM结果后仅简短点按/唤醒确认便收尾。
+候选尚未启动，无新PAS13结果，更没有GPU/Metal运行。旧240s时序仍无结论。
+
 ## 2026-11-08 14:02：240s延迟轮当前触摸/唤醒PASS，阶段对照无结论
 
 同核`boot-cepheus-socdelay240-b2b99e7.img` SHA
