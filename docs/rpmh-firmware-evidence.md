@@ -99,3 +99,17 @@ REA bundle中unknowns=0仅表示工具记录格式，不表示硬件语义没有
 交接。不能据此实现一个始终成功的power.prepare，也不将缓存状态冒充硬件
 ACK。下一必须在有身份/边界验证的UEFI上下文处理请求完成及最终交接，再
 由XNU唯一共享资源管理者接管；当前没有这段实现。没有取消GPU启动门禁。
+
+同轮通过gh取得SDM670参考源码，固定仓库Rivko/android-firmware-qti-sdm670
+commit 20bb8ae36c93fc16bbadda0e0a83f930c0c8a271；4个文件的git blob/SHA256
+保存在同证据目录reference-sdm670/identity.json。这是异型号参考源码，
+不声称它就是本机RpmhDxe的构建来源。EFIRpmh.h的0x10001协议布局在偏移
+0x50命名为rpmh_find_resource_command(address, out)，与已查本机表和call相符；
+rpmh_resource_commands.h中DRV记录的state/priority/vote_at_rpmh/local_votes/
+next布局也与上述静态访问吻合，尚不构成运行态交接保证。
+
+参考rpmh_resource_commands.c:457的update直接覆盖该DRV/set的data，不按
+client handle求max。不能通过“新建RPMh handle并投最小GPU档”自动保留原有
+消费者需求；handle用于请求跟踪，不是新的硬件投票槽。churn_all也只等待
+对应handle的请求，不能冒充全局所有客户端完成屏障。需进一步接入已有的
+上层资源聚合器，或建立已核验的最终请求交接，不能用裸RPMh新client绕过。

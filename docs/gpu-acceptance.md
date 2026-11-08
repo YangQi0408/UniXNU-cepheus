@@ -4,7 +4,7 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
-## 2026-11-08 18:52：上电访问顺序及MMIO适配层，尚无GPU执行候选
+## 2026-11-08 19:14：上电访问顺序/MMIO适配层完整构建通过，尚无GPU执行候选
 
 ceph_power_start不再于CX/GMU时钟关闭时读CM3 SYSRESET，改到电源和时钟
 就绪后读取；非reset1保留已写资源。新增固定窗口、具名寄存器、时钟门禁、
@@ -15,8 +15,12 @@ GPU执行版；所缺为真实平台资源接管、SMMU和ZAP认证/停止接入
 新增针对性host测试通过：断电区域PROT_NONE、完整事务、196处lease过期、
 超时/复位异常/越权写；相关4种GMU链路、9项staging、下游CM3偏移和两个
 生产单元静态分析通过。证据../logs/gpu-power-backend-20261108/receipt.json。
-staging/CI/verifier新增两入口，完整构建待运行；host结果不代表真机寄存器
-已读写。没有重复完整离线套件或操作手机，不安排新的触摸/控制/内存轮。
+staging/CI/verifier新增两入口。CI42473371718 @0e9b3ea完整成功，内核
+17415800B/SHA256 fa0b719fa238ceb5659de89a912450005f24900c54221de19033950495fde65d；
+78核心入口/18内存API、无unresolved、staged source和触摸/PA64检查均通过。
+产物../inputs/ci-42473371718/kernel.macho；同证据目录build-verification.json。
+未打包/boot，host结果不代表真机寄存器已读写。本地仅针对性验证，CI按原
+工作流执行既有检查；没有操作手机，不安排新的触摸/控制/内存轮。
 
 ## 2026-11-08 18:16：CPU预检执行成功记录齐全，严格日志NOT_PASS，UI正常
 

@@ -1,6 +1,6 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 18:52 +08:00**。范围：修正上电访问顺序并补齐受限MMIO适配层；尚无GPU执行候选。
+更新：**2026-11-08 19:14 +08:00**。范围：上电访问顺序/MMIO适配层完整构建通过；尚无GPU执行候选。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
 用户要求快速推进GPU实测，不重复控制/触摸/内存轮。目标为GPU写scratch并完成
@@ -12,7 +12,11 @@ fence；目前仍缺真实共享资源接管、PAS认证/停止及SMMU平台接�
 cepheus_gpu_power_mmio.h，固定GCC/GPUCC/GMU窗口、访问时钟门禁、具名寄存器
 及受限写掩码，实际volatile访问和arm64屏障；无映射/电源投票/所有权获取或
 启动hook。空lease不允许通过，不能当作完整平台后端。新增两个链接入口，
-staging/CI/verifier已接入，完整XNU构建待运行，旧内核未包含这些改动。
+staging/CI/verifier已接入。0e9b3ea完整XNU构建CI42473371718成功，内核
+17415800B/SHAfa0b719f...；78核心入口/18内存API、无unresolved、staged source、
+触摸及PA64核验均通过。产物../inputs/ci-42473371718/kernel.macho，证据
+../logs/gpu-power-backend-20261108/build-verification.json。未打包/boot，
+手机旧内核未包含改动。
 
 针对性ASan/UBSan覆盖断电PROT_NONE区域、完整寄存器事务、196个lease失效点、
 超时/异常复位及非法写；真实A640 GMU材料的4种相关bringup场景、9项集成、
