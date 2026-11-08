@@ -4,6 +4,21 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-08 13:52：新核touch-only控制版本轮PASS，延迟候选未启动
+
+67eea163/product=cepheus fastboot核对，控制SHAafdf72c6.../kernel SHAe9f8f3f7...
+核验及日志就绪后临时boot，sending1.584s/booting0.126s OKAY，无flash。
+用户前序失败iOS经物理电源+音量下入fastboot，未报告Android过渡。完成
+中央拖点/边缘/双指/电源熄屏唤醒请求后答“都正常了”，本轮UI/触摸/电源PASS。
+420s589包157985B，日志SHA
+`d07228282f56bbd272891a1b76650c9765b7e8d36b99be0df1eb83b015bc4700`。
+18health，last18000/events1179/hid_calls1172/errors0/faults0/active0；HID down/
+up55各、电源6各，blank706/710/891us。RAW128达限，120事件26完整批0差异。
+仅该启动验收，不是间歇根因或GPU加速；无SoC/SCM/GPU探测。
+证据`../logs/touchcontrol-b2b99e7-live-20261108-1347/`。主机采集/自有watcher
+已收尾，手机ECM仍在，未自动重启；延迟版等待用户手动fastboot，见
+[soc-delay-preflight](soc-delay-preflight.md)。
+
 ## 2026-11-08：240s基础SoC延迟候选与新核控制版完成，停在真机前
 
 用户明确“完整构建并离线验证，到真机测试前停下”。b2b99e7实现固定240s

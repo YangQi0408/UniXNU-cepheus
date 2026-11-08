@@ -1,7 +1,32 @@
 # SoC delayed basic probe: offline preparation
 
-Updated: 2026-11-08. Hardware status: NOT TESTED. The user chose to preserve
-the current failed runtime and continue offline; no phone operations here.
+Updated: 2026-11-08. Control hardware round PASS; delayed candidate NOT TESTED.
+The user returned the device to fastboot and authorized testing after the offline
+stage. Historical offline preparation and preserved-failure boundaries are below.
+
+## Control Hardware Round
+
+2026-11-08 13:52: serial67eea163/product=cepheus in fastboot, SHA and packaging
+rechecked, host exact-MAC watcher and420s UDP receiver ready before temporary boot.
+Sending1.584s/booting0.126s OKAY, exit0; no partition flash. User reports entering
+fastboot from previous failed iOS via physical power/volume-down, with no
+intermediate Android reported. No agent reboot/reset/scan resend/recovery.
+
+After center5 drags/20 taps, edge/two-finger and power blank/wake request, user
+replied "都正常了": main screen/touch/power-wake-touch PASS for this boot.
+589 packets/157985B/420.001692s, log SHA256
+`d07228282f56bbd272891a1b76650c9765b7e8d36b99be0df1eb83b015bc4700`.
+Evidence: `../logs/touchcontrol-b2b99e7-live-20261108-1347/result.json`, capture,
+packet timings, action timeline, replay and receive-timeline. Last health18000:
+events1179/hid_calls1172/errors0/faults0/active0;18 health records. HID down/up55
+each, power down/up6 each, blank clear706/710/891us. No SoC/GPU/SCM markers.
+
+RAW128 budget reached;26 complete batches/120 events, production and ordered
+model0 differences. Truncated batch n121..128 omitted. Prefix down3/move112/up2
+is not entire-round delivery; no later RAW after budget. No-contact instruction
+not separately confirmed. UDP/one-boot limits remain; intermittent root cause
+UNKNOWN. Receiver completed, own watcher stopped, ECM still present. Delayed
+candidate remains unbooted, pending user-controlled return to fastboot.
 
 ## Purpose And Boundary
 
@@ -77,7 +102,7 @@ network-none, UID1000, cap-drop-ALL/no-new-privileges build container.
 
 | Image under `../dist/` | SHA256 | Hardware |
 |---|---|---|
-| `boot-cepheus-touchcontrol-b2b99e7.img` | `afdf72c6d4159d52d39dc687cfa733dc772c3cc5b717ff4cbfdc213302f65f6c` | NOT TESTED |
+| `boot-cepheus-touchcontrol-b2b99e7.img` | `afdf72c6d4159d52d39dc687cfa733dc772c3cc5b717ff4cbfdc213302f65f6c` | 2026-11-08 control PASS |
 | `boot-cepheus-socdelay240-b2b99e7.img` | `7e082de680a9ecd09d4c6fe698ecd6b7d65906eb1b08a50c18692ba7b142747b` | NOT TESTED |
 
 Control receipt: `boot-cepheus-touchcontrol-b2b99e7.json`, SHA256

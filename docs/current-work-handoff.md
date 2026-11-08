@@ -3,6 +3,14 @@
 更新：**2026-11-08**。范围：同核SoC基础轮触摸FAIL、现场保留与离线排查。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
+最新真机13:52轮：新核`touchcontrol-b2b99e7`临时boot，用户“都正常了”确认
+主屏幕/中央拖点/边缘/双指/电源熄屏唤醒触摸PASS。前序为失败iOS经物理
+电源+音量下进fastboot，未报告中途Android。420s589包/157985B，日志SHA
+d0722828...；last health18000/events1179/hid_calls1172/errors0，26完整批/
+120事件重放0差异（RAW预算128尾批省略）。采集与自有watcher已结束，
+ECM仍在，未自动重启；延迟候选未启动，等待用户手动回fastboot。
+证据`../logs/touchcontrol-b2b99e7-live-20261108-1347/`。间歇根因仍UNKNOWN。
+
 最新离线推进：新增固定`cephsocdelay=240`基础探测门禁及scheduled/begin/
 baseline-end内核uptime标记，默认45s不变；不新增硬件操作。生产线程host
 测试、4项封装门禁、14项参数及原SCM测试通过，完整离线37 PASS/0 FAIL/
@@ -11,7 +19,7 @@ baseline-end内核uptime标记，默认45s不变；不新增硬件操作。生�
 CI42450429814 @b2b99e7完整成功，kernel SHAe9f8f3f7...；新核touch-only
 `boot-cepheus-touchcontrol-b2b99e7.img` SHAafdf72c6...，同核延迟版
 `boot-cepheus-socdelay240-b2b99e7.img` SHA7e082de6...，严格配对核验通过。
-两者均未真机测试，停在新核控制版独立验收前；不动保留现场。
+当时两者未测；之后新核控制版本轮PASS如上，延迟版仍未测试。
 流程见[soc-delay-preflight](soc-delay-preflight.md)，根因仍UNKNOWN。
 
 最新12:35轮：`soconly-ordered-60a2dc5`临时boot，触摸FAIL，用户确认中央
