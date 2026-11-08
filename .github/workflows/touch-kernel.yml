@@ -161,6 +161,31 @@ jobs:
           python3 cepheus/scripts/test-scm-codegen.py
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_scm_discovery.c -o /tmp/ceph-scm-discovery
           /tmp/ceph-scm-discovery
+      - name: Install verified KDK 13.5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          kdk_image="$RUNNER_TEMP/KDK_13.5_22G74.dmg"
+          # The browser download URL can return an HTTP error page. Use the
+          # release API and pin the published digest before mounting anything.
+          for attempt in 1 2 3; do
+            if gh release download 22G74 --repo dortania/KdkSupportPkg \
+                --pattern Kernel_Debug_Kit_13.5_build_22G74.dmg \
+                --clobber --output "$kdk_image" &&
+                printf '29866842eef039812888daea4176ce493be153b0d6d1b88f90753d69ea51b7d4  %s\n' "$kdk_image" | shasum -a 256 --check; then
+              break
+            fi
+            test "$attempt" -lt 3 || exit 1
+            sleep 5
+          done
+          hdiutil verify "$kdk_image"
+          kdk_mount="$RUNNER_TEMP/kdk-mount"
+          mkdir "$kdk_mount"
+          hdiutil attach -readonly -nobrowse -mountpoint "$kdk_mount" "$kdk_image"
+          trap 'hdiutil detach "$kdk_mount"' EXIT
+          sudo installer -pkg "$kdk_mount/KernelDebugKit.pkg" -target /
+          test -d /Library/Developer/KDKs/KDK_13.5_22G74.kdk
       - name: Build XNU
         working-directory: dxb
         run: |
