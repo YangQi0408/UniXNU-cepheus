@@ -1,5 +1,32 @@
 # cepheus ST-FTS 触摸 bring-up
 
+## 2026-11-08：同核仅加cephsoc后触摸FAIL，用户选择保留现场
+
+`soconly-ordered-60a2dc5`临时boot，kernel及payload与早先通过touch-only相同，
+唯一参数新增cephsoc=1。用户确认完成中央操作，主屏幕/电源正常，触摸坏。
+19条health到19000轮持续events6/hid_calls2/errors0，唯一接触原始1079,0；
+6事件4批修正版重放0差异，不是漏发中央HID，原FIFO没有中央事件。
+OSM sample0..25四组齐全，GMU门禁跳过；fuse/ARC/GX/SCM/boost/内存不开。
+
+主日志SHA a929e459...，证据与结论见gpu-acceptance及touch-failure-theory。
+用户保留现场、先离线排查；代理未重启/reset/重发scan/校准或供电恢复。
+仅一次跨启动对照不能定cephsoc子项因果；整体间歇根因仍UNKNOWN，
+有序上报修正不能描述为故障已修复。停止后续GPU探测，当前未恢复验收。
+
+## 2026-11-08：有序上报touch-only本轮验收通过
+
+临时boot `touchordered-60a2dc5`，用户对中央拖动/短点/边缘/双指及电源
+熄屏唤醒后输入回复“好了，都正常”：本轮主屏幕/触摸/电源PASS。
+日志575包，health最后events1148/hid_calls1101/errors0，finger0/1真实
+接触、物理电源down/up各7及4次清黑存在。RAW128限额，32完整批127事件
+修正版重放0差异；不是所有后续短点均有RAW明细。没有新GPU/SCM操作。
+原日志SHA6c9758bb...，完整身份见gpu-acceptance及真机result。
+
+**间歇空FIFO根因仍UNKNOWN，不宣称所有启动恢复。**末段ECM断开后主机
+看到MTP/ADB，原因待用户说明；代理未重启/reset/重发scan。下一同核仅
+加cephsoc基础只读候选已完成离线核验、未启动，见soc-ordered-preflight。
+下文“当前失败/未恢复”属于相应历史轮，不覆盖本次用户验收。
+
 ## 2026-11-08：只做理论，确认批内接触转换丢失
 
 用户已拿走手机，先做离线理论。10份保存RAW以生产FIFO/report原函数

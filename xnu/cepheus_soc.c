@@ -320,6 +320,33 @@ static void gpu_gx_probe(void)
 	    sr(gx, 0xe0d * 4), sr(gx, 0xe0e * 4));
 	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
 }
+static bool soc_probe_delay(unsigned *seconds)
+{
+	int delay = 0;
+	*seconds = 45;
+	if (!PE_parse_boot_argn("cephsocdelay", &delay, sizeof(delay))) { return true; }
+	int enabled = 0, conflict = 0;
+	PE_parse_boot_argn("cephsoc", &enabled, sizeof(enabled));
+	if (delay != 240 || enabled != 1 ||
+	    PE_parse_boot_argn("cephfuse", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cepharc", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephgx", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephscm", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephboost", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephmem", &conflict, sizeof(conflict))) {
+		printf("CEPHEUS SOC: refused delay profile; fixed 240s basic-only; no probes\n");
+		return false;
+	}
+	*seconds = 240;
+	return true;
+}
+static void soc_probe_mark(const char *phase, unsigned seconds)
+{
+	uint64_t ns;
+	absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
+	printf("CEPHEUS SOC: %s delay_s=%u uptime_ms=%llu\n", phase, seconds,
+	    (unsigned long long)(ns / NSEC_PER_MSEC));
+}
 static void soc_scm_probe(void)
 {
 	int enabled = 0;
@@ -344,7 +371,16 @@ static void soc_scm_probe(void)
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
-	swait(45000); // keep boot/USB alive before the hardware probe
+	unsigned delay;
+	if (!soc_probe_delay(&delay)) {
+		(void)thread_terminate(current_thread());
+		thread_block(THREAD_CONTINUE_NULL);
+		return;
+	}
+	/* The delayed profile changes timing only, never the basic probe set. */
+	if (delay == 240) { soc_probe_mark("scheduled", delay); }
+	swait(delay * 1000);
+	if (delay == 240) { soc_probe_mark("begin", delay); }
 	for (unsigned n = 0; n < 4; ++n) { osm_dump(&banks[n]); }
 	gpu_probe();
 	int fuse=0;
@@ -385,6 +421,7 @@ static void soc_thread(void *arg, wait_result_t wr)
 	}
 	osm_trial_restore();
 	osm_sample(25);
+	if (delay == 240) { soc_probe_mark("baseline-end", delay); }
 	soc_scm_probe(); /* explicit cephscm=1; default remains no SMC */
 	(void)thread_terminate(current_thread());
 	thread_block(THREAD_CONTINUE_NULL);

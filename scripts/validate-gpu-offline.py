@@ -47,6 +47,8 @@ def main():
             ('pmap-cache-verifier',['python3','scripts/test-pmap-cache-verifier.py'],{}),
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('scm-hook',['python3','scripts/test-scm-hook.py'],{}),
+            ('soc-delay',['python3','scripts/test-soc-delay.py'],{}),
+            ('soc-delay-packaging',['python3','scripts/test-soc-delay-packaging.py'],{}),
             ('pas13-audit-tests',['python3','scripts/test-pas13-audit.py'],{}),
             ('tz-mapping-tests',['python3','scripts/test-tz-evidence.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
@@ -56,6 +58,7 @@ def main():
             ('touch-fifo',['python3','scripts/test-touch-fifo.py'] +
              ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('touch-replay',['python3','scripts/test-touch-replay.py'],{}),
+            ('touch-soc-timeline',['python3','scripts/test-touch-soc-log.py'],{}),
             ('touch-sysinfo',['python3','scripts/test-touch-sysinfo.py'] +
              ([str(a.kernel_reference)] if a.kernel_reference else []),{}),
             ('sanitizers',['bash','scripts/test-gpu-sanitizers.sh'],{}),

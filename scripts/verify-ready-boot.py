@@ -14,13 +14,17 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_fuse=False, soc_fuse_arc=False, all_probes=False, scm_info=False):
+def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_fuse=False, soc_fuse_arc=False, all_probes=False, scm_info=False, soc_delay=False):
     assert sum((touch_only, soc_only, soc_fuse, soc_fuse_arc, all_probes)) <= 1, "choose one isolation profile"
     tokens = line.split()
     names = [t.split("=", 1)[0] for t in tokens]
     assert len(names) == len(set(names)), "duplicate boot arguments"
     assert len(line) <= 1000
     forbidden = {"cephmem", "cephboost", "cephgpu", "cephboot", "cephpower", "sweetfastboot", "sweetgpu", "sweettouchreset"}
+    if soc_delay:
+        assert soc_only and memory_test is None and not scm_info, "SoC delay requires basic-only profile"
+    else:
+        forbidden.add("cephsocdelay")
     if scm_info:
         assert all_probes and memory_test is None, "SCM query requires explicit full read-only baseline profile"
     else:
@@ -34,6 +38,8 @@ def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_
                 "sweethidonce=1", "sweetfb_noconsole=1"}
     if scm_info:
         required.add("cephscm=1")
+    if soc_delay:
+        required.add("cephsocdelay=240")
     if touch_only or soc_only or soc_fuse or soc_fuse_arc or all_probes:
         if all_probes:
             required.add("cephgx=1")
@@ -77,6 +83,22 @@ def unpack(path, directory):
     return data, offset, ramdisk_size, files
 
 
+def validate_added_args(config, reference, added):
+    assert added and len(added) == len(set(added)), "unique added arguments required"
+    old = reference["entry"][0]["args"].split()
+    new = config["entry"][0]["args"].split()
+    old_names = {token.split("=", 1)[0] for token in old}
+    added_names = [token.split("=", 1)[0] for token in added]
+    assert len(added_names) == len(set(added_names)), "duplicate added argument names"
+    assert not old_names.intersection(added_names), "argument already present in reference"
+    assert all(new.count(token) == 1 for token in added), "added argument missing or duplicated"
+    assert [token for token in new if token not in added] == old, "other arguments changed"
+    # Compare every TOML field, allowing only the verified entry's args string.
+    normalized = {**config, "entry": [dict(entry) for entry in config["entry"]]}
+    normalized["entry"][0]["args"] = reference["entry"][0]["args"]
+    assert normalized == reference, "other config fields changed"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
@@ -98,6 +120,10 @@ def main():
                         help="require cephsoc/fuse/arc/gx=1 with touch diagnostics; no boost/memory")
     parser.add_argument("--scm-info", action="store_true",
                         help="with --all-probes, require explicit cephscm=1 fixed INFO/PAS-supported queries")
+    parser.add_argument("--soc-delay", action="store_true",
+                        help="with --soc-only, require fixed cephsocdelay=240 and compiled phase markers")
+    parser.add_argument("--only-added-arg", action="append", default=[], metavar="TOKEN",
+                        help="also require unchanged reference kernel/config except these added args")
     args = parser.parse_args()
     assert not args.receipt.exists(), "keep existing evidence"
     with tempfile.TemporaryDirectory() as temp:
@@ -115,7 +141,15 @@ def main():
         assert files["UniXNU/Payloads/kernel.macho"] == args.kernel.read_bytes()
         config = tomllib.loads(files["UniXNU/unixnu.toml"].decode())
         line = config["entry"][0]["args"]
-        validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc, args.all_probes, args.scm_info)
+        validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc, args.all_probes, args.scm_info, args.soc_delay)
+        if args.soc_delay:
+            kernel = files["UniXNU/Payloads/kernel.macho"]
+            assert all(marker in kernel for marker in
+                       (b"cephsocdelay", b"CEPHEUS SOC: %s delay_s=%u uptime_ms=%llu",
+                        b"baseline-end", b"CEPHEUS SOC: refused delay profile")), "missing compiled delay guard/phase markers"
+        if args.only_added_arg:
+            assert files["UniXNU/Payloads/kernel.macho"] == originals["UniXNU/Payloads/kernel.macho"], "reference kernel changed"
+            validate_added_args(config, tomllib.loads(originals["UniXNU/unixnu.toml"].decode()), args.only_added_arg)
         receipt = {"image": str(args.image), "bytes": len(image), "sha256": digest(image),
                    "reference": str(args.reference), "reference_sha256": digest(reference),
                    "kernel_sha256": digest(args.kernel.read_bytes()),
@@ -126,6 +160,7 @@ def main():
                    "memory_test": args.memory_test,
                    "touch_only": args.touch_only,
                    "soc_only": args.soc_only,
+                   "soc_probe_delay_s": 240 if args.soc_delay else None,
                    "soc_fuse": args.soc_fuse,
                    "soc_fuse_arc": args.soc_fuse_arc,
                    "all_probes": args.all_probes,
@@ -133,6 +168,9 @@ def main():
                    "scope": "Packaging only. Explicit CPU-only memory selftest enabled." if args.memory_test else
                        "Packaging only. Memory selftest disabled.",
                    "cpu_boost_gpu_startup_disabled": True, "phone_operations": False}
+        if args.only_added_arg:
+            receipt.update({"kernel_unchanged_from_reference": True,
+                            "only_config_change_added_args": args.only_added_arg})
     with args.receipt.open("x") as output:
         json.dump(receipt, output, indent=2)
         output.write("\n")

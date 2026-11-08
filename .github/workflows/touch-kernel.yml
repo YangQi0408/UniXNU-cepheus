@@ -71,9 +71,12 @@ jobs:
           python3 cepheus/scripts/test-touch-power.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-touch-fifo.py
           python3 cepheus/scripts/test-touch-replay.py
+          python3 cepheus/scripts/test-touch-soc-log.py
           python3 cepheus/scripts/test-touch-sysinfo.py
           python3 cepheus/scripts/test-ready-boot-args.py
           python3 cepheus/scripts/test-scm-hook.py
+          python3 cepheus/scripts/test-soc-delay.py
+          python3 cepheus/scripts/test-soc-delay-packaging.py
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches
           python3 cepheus/scripts/test-gpu-integration.py
           python3 cepheus/scripts/test-pmap-cache-pa.py
@@ -176,6 +179,7 @@ jobs:
           mkdir out
           K=dxb/fakeroot/System/Library/Kernels/kernel.development.sweet
           python3 cepheus/scripts/verify-touch-kernel.py "$K" --ordered-contacts
+          python3 -c 'from pathlib import Path; d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes(); assert all(s in d for s in (b"cephsocdelay", b"CEPHEUS SOC: %s delay_s=%u uptime_ms=%llu", b"baseline-end", b"CEPHEUS SOC: refused delay profile"))'
           grep 'Applying patch:' dxb/build.log | grep 0084-cepheus-touch-power.patch
           grep 'Applying patch:' dxb/build.log | grep 0085-cepheus-soc.patch
           cmp cepheus/xnu/cepheus_soc.c dxb/xnu/bsd/dev/cepheus_soc.c

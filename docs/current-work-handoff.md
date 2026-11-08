@@ -1,9 +1,39 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08**。范围：触摸失败、文档整理及最新离线理论，不包含未来测试。
+更新：**2026-11-08**。范围：同核SoC基础轮触摸FAIL、现场保留与离线排查。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
-用户随后要求“继续推进，直到需要在真机测试”。已实现整批先验证、
+最新离线推进：新增固定`cephsocdelay=240`基础探测门禁及scheduled/begin/
+baseline-end内核uptime标记，默认45s不变；不新增硬件操作。生产线程host
+测试、4项封装门禁、14项参数及原SCM测试通过，完整离线37 PASS/0 FAIL/
+0 SKIP，receipt `../logs/gpu-offline-socdelay-20261108-r2/receipt.json`，构建待完成。
+需新核touch-only控制版与同核延迟版配对；目前未真机测试，不动保留现场。
+流程见[soc-delay-preflight](soc-delay-preflight.md)，根因仍UNKNOWN。
+
+最新12:35轮：`soconly-ordered-60a2dc5`临时boot，触摸FAIL，用户确认中央
+操作已做、主屏幕/电源正常，选择“保留当前现场，先离线排查”。420s452包/
+123804B，19条health至19000保持events6/hid_calls2/errors0，仅1079,0边缘
+enter/leave；sample0..25四组齐全、GMU跳过，无SCM/GX/fuse/ARC/boost/内存。
+日志SHA `a929e459341d37375bd4f72452b5a9e98baa3f8a9452668b8f03713adf1ee566`，
+证据`../logs/soconly-ordered-60a2dc5-live-20261108-1235/`。当前ECM仍在，代理
+未重启/恢复；停止后续GPU探测。6事件生产重放0差异，批内有序上报没有
+解释无中央FIFO。离线包时间线4项测试通过，生产kernel/镜像未修改。
+**根因仍UNKNOWN，不根据单次跨启动对照认定cephsoc单项因果。**
+
+先前01:10轮：`touchordered-60a2dc5`临时boot本轮用户确认“好了，都正常”，主屏幕/
+触摸/电源熄屏唤醒后输入PASS。日志575包/161064B，最后health events1148/
+hid_calls1101/errors0；完整身份见gpu-acceptance和
+`../logs/touchordered-60a2dc5-live-20261108-0111/result.json`。间歇根因仍未知。
+采集尾01:15:47 ECM断开后见Xiaomi MTP/ADB，原因待确认，代理未重启。
+
+用户要求继续至下一测试点：同kernel的`soconly-ordered-60a2dc5`已打包并
+严格核验仅新增cephsoc=1，11项参数回归通过；SHA
+`5d7e64ae5740ad4ab82e2e6ef614e537bd344e483b77aa44f0470cc1f8be8a24`。
+该候选随后已测试触摸FAIL，不作为可用基线。详见
+[同核SoC基础预检与结果](soc-ordered-preflight.md)及
+[触摸理论最新排查](touch-failure-theory.md)。下面保留各阶段历史上下文。
+
+前一离线阶段（历史）：用户要求“继续推进，直到需要在真机测试”。已实现整批先验证、
 按FIFO顺序上报的独立修正；11项重放测试及生产FIFO故障测试通过，10份
 保存RAW与顺序模型0差异。完整离线回归34 PASS/0 FAIL/0 SKIP，
 receipt为`../logs/gpu-offline-touch-ordered-20261108/receipt.json`；
@@ -12,8 +42,8 @@ XNU CI42391773972 @60a2dc5完整成功，内核/PA64/linked核验及新旧touch-
 `a00d1e29087d0f28e695eb0ec91166c48a917fde45685b655c46162541c9f074`，未启动；
 触摸间歇根因未解，不把离线短点修正称真机已恢复。候选首轮仅触摸，
 SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段。
-**当前已到需要真机测试的边界**；完整镜像/证据及分轮验收见
-[有序上报真机前检查](touch-ordered-preflight.md)，手机未操作。
+当时停在真机前；之后验收已在本文开头更新。完整镜像/证据及分轮验收见
+[有序上报真机前检查](touch-ordered-preflight.md)。
 
 2026-11-08用户已拿走手机，要求先做理论。10份已有RAW日志的host重放
 确认生产驱动按整批最终状态上报会吞掉批内enter→leave；最新失败19事件
@@ -23,7 +53,7 @@ SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段
 [触摸失败理论与重放](touch-failure-theory.md)。下面硬件结论均为历史记录。
 
 > **最重要的现状：iOS 16.7.16 曾多轮成功运行主屏幕、触摸和电源键；
-> 最新 `allprobes-da8ffc1` 查询关闭基线的触摸已被用户判定失败。
+> 有序touch-only先前PASS；最新同核仅加cephsoc的soc-only轮触摸FAIL，未恢复。
 > GPU/Metal硬件加速没有完成，QUERY7开启候选没有启动。
 > 触摸间歇失败根因和PAS13 supported=false原因都没有定位。**
 
@@ -41,7 +71,7 @@ SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段
 | 触摸 | ST-FTS，I²C `0x49`，chip ID `36:39` |
 | GPU | Adreno640，FDT chipid `0x06040001` |
 | iOS | iPhone X材料，16.7.16 / 20H392；研究用SWEET shim |
-| 最近设备观测 | 失败基线运行后USB ECM仍可见、无fastboot；整理文档时未再检查手机 |
+| 最近设备观测 | 最新soc-only轮触摸FAIL、主屏幕/电源正常；采集结束ECM仍在，用户选择保留现场 |
 
 证据分为四级，**不得互相替代**：
 
@@ -138,7 +168,7 @@ PosterBoard历史SIGTRAP、bluetoothd／fairplayd.H2重复exec等用户态缺陷
 记录，不因主屏幕可见就声明所有iOS服务完整。Wi-Fi／BT／音频／相机／蜂窝、
 Apple服务和App Store没有获得可用验收；研究shim不等同SEP或正常iPhone安全模型。
 
-## 5. 触摸工作：历史通过与当前失败
+## 5. 触摸工作：有序touch-only通过与最新SoC轮失败
 
 ### 已实现及验证
 
@@ -154,7 +184,7 @@ Apple服务和App Store没有获得可用验收；研究shim不等同SEP或正�
 - touch-power旧基线及后续touchonly → soconly → socfuse → socfusearc →
   新核GX关闭 → 新核GX开启多轮分别获得用户正常确认。
 
-### 最新失败：不是新SCM查询造成的
+### 最近失败轮：不是新SCM查询造成的
 
 2026-11-07临时启动 **`boot-cepheus-allprobes-da8ffc1.img`**：
 
@@ -175,8 +205,8 @@ Apple服务和App Store没有获得可用验收；研究shim不等同SEP或正�
 间歇问题修好，也不证明这次所有触摸硬件损坏。
 
 没有自动复位、重发scan、固件／校准修改或试写电源恢复。手机未由代理重启。
-失败之后没有新恢复验收。2026-11-08用户已拿走手机，先做离线理论，
-恢复旧基线或现场补抓暂不执行。
+该历史轮之后曾有有序touch-only恢复验收，最新soc-only再次失败。最新用户
+选择保留现场、先离线排查，不执行恢复启动/现场新命令；详见首页及理论文档。
 
 ## 6. GPU源码成果与真正缺口
 
@@ -327,13 +357,14 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 | 文件 | 当前判断 |
 |---|---|
 | `boot-cepheus-touch-power.img` | 历史多轮触摸／UI通过，**恢复用旧基线首选候选**；不是当前启动已恢复或长期保证 |
-| `boot-cepheus-touchordered-60a2dc5.img` | 最新有序上报touch-only候选，CI/打包通过、未启动；下一真机验收 |
+| `boot-cepheus-touchordered-60a2dc5.img` | 最新有序touch-only本轮用户UI/PWR/touch PASS；保留可用镜像，不证明长稳 |
+| `boot-cepheus-soconly-ordered-60a2dc5.img` | **最新临时启动触摸FAIL**，同核仅加cephsoc；保留证据，不当可用升级版 |
 | `boot-cepheus-touchonly-control-da8ffc1.img` | 同参数未修正控制镜像，打包通过、未启动；不是allprobes失败轮的相同profile |
 | `boot-cepheus-allprobes-008b2cd.img` | 对应轮次触摸UI通过；GX只走不就绪拒绝，不是GX读取通过 |
 | `boot-cepheus-allprobes-a0fa7a5.img` | SCM关闭旧轮UI通过；该验收不自动扩展到新核 |
 | `boot-cepheus-scminfo-a0fa7a5.img` | 六次查询及查询后UI通过；PAS13=false，不能加载GPU |
-| `boot-cepheus-allprobes-da8ffc1.img` | **最新已启动、触摸FAIL**，不得作为可用升级版 |
-| `boot-cepheus-query7-da8ffc1.img` | **仅构建／打包核验，未启动；被触摸FAIL阻断** |
+| `boot-cepheus-allprobes-da8ffc1.img` | 历史触摸FAIL，不得作为可用升级版 |
+| `boot-cepheus-query7-da8ffc1.img` | **旧kernel仅构建／打包、未启动；当前需新kernel逐项重验基线，不能直接跳过** |
 | `boot-cepheus-workspace-6f93116.img`、`boot-cepheus-memcheck-6f93116.img` | CPU内存局部回归有通过证据，但后续对应触摸失败；不作可用UI候选 |
 | `boot-cepheus-memcheck-9dc6e6e.img`、旧gxprobe/bisect/cephmem候选 | 有已知panic或不完整修复，不按旧README命令再次启动 |
 | 其余历史perf/cpu/probe/root/FD产物 | 全保留；状态按专题及每轮receipt核对，不能因存在文件就视为已测 |
@@ -359,7 +390,9 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 
 | 路径 | 内容 |
 |---|---|
-| `../logs/allprobes-da8ffc1-scmoff-live-20261107/` | 最新失败boot.log、fastboot.log、identity、result；用户触摸FAIL |
+| `../logs/soconly-ordered-60a2dc5-live-20261108-1235/` | 最新触摸FAIL、中央动作确认，ECM现场保留；全量capture/result/replay/receive-timeline |
+| `../logs/touchordered-60a2dc5-live-20261108-0111/` | 先前touch-only本轮用户PASS；raw/capture/包时间/动作指令/result/replay，尾USB变化待确认 |
+| `../logs/allprobes-da8ffc1-scmoff-live-20261107/` | 最近失败boot.log、fastboot.log、identity、result；历史用户触摸FAIL |
 | `../logs/touch-theory-replay-20261108/replay.json` | 10份保存RAW的host原函数重放与顺序模型差异；不是新真机结果 |
 | `../logs/touch-ordered-preflight-20261108/replay.json`、`../logs/gpu-offline-touch-ordered-20261108/` | 修正版10日志0差异及34 PASS/0 FAIL/0 SKIP完整离线回归 |
 | `../inputs/ci-42391773972/`、`../logs/ci-42391773972/` | 最新60a2dc5有序触摸上报内核、SHA/commit、完整构建日志 |
@@ -377,8 +410,8 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 
 | 关键材料 | SHA256 |
 |---|---|
-| 最新失败boot.log | `551770b8b8832c345c8ec2982893c461f71f785027e1a39203b57583496b60b3` |
-| 最新失败result.json | `8439a3df64465a6876e0f065cb3bf56a5391794c0ca901f60b48e0a0e2a031fe` |
+| 最近失败boot.log | `551770b8b8832c345c8ec2982893c461f71f785027e1a39203b57583496b60b3` |
+| 最近失败result.json | `8439a3df64465a6876e0f065cb3bf56a5391794c0ca901f60b48e0a0e2a031fe` |
 | QUERY7最终离线receipt | `9532352ee229bc536a1f479cc0231f6b1bc13176c364260f8f7d7dfdfddd7064` |
 | TZ原件 | `989389bcf4527b2b8e445998aba49454e556ac554c18d80e9eb999a8cbbdb114` |
 | TZ clean采集receipt | `59ebe18cbff96a2ba5fc05d492761cc53685f1022e6e5c3d4556971994451980` |
@@ -444,8 +477,8 @@ TZ verifier需显式原件／证据／新output；不在公共CI下载私有材�
 
 | 优先级 | 任务与依赖 | 验收标准 |
 |---|---|---|
-| P0 | **#67／#60：触摸失败理论、间歇根因** | 用户已拿走手机；先做离线理论，已确认批内转换丢失；后续独立修正/同步真机验收，不试写恢复 |
-| P1 | **#66：QUERY7候选**，被#67阻断 | 已构建／打包；只能在触摸基线通过后另轮受限查询；失败停止，true也不自动auth |
+| P0 | **#67／#60：触摸间歇根因** | 同核soc-only最新FAIL，现场保留；先离线排查/分离子探测与时序，不试写恢复 |
+| P1 | **#66：QUERY7候选**，被最新触摸FAIL阻断 | 所有查询开启候选未启动；停止增加探测，必须重新获得同核基线后分轮验收；true不自动auth |
 | P1 | **#63：静态PAS13与真机false差异** | 不改现有事实，建立实际conduit／运行映像／参数／表变化的有界证据；无安全通道则保持UNKNOWN |
 | P2 | **#33/#30/#58：ARC、电源、DDR与工作区** | 真实继承／所有权／cache证据，非mock lease；触摸稳定前不混合测试 |
 | P2 | **#45：退休／停止** | 实际GX/CM3及DMA静默；不确定保留隔离资源 |
@@ -454,8 +487,10 @@ TZ verifier需显式原件／证据／新output；不在公共CI下载私有材�
 
 #62原厂路径审查、#64取得TZ原件已经完成，不再把它们写成材料缺失。
 #63只完成了静态证据部分，原因调查未完成。历史#53标题“一次机会”不再适用。
-用户最新要求是继续工作、手机已拿走先做理论；当前不恢复／重启／查询手机，
-不新增真机结论。离线新发现和待实现方案见touch-failure-theory。
+用户最新选择保留当前失败现场、先离线排查。已完成soc-only实测FAIL证据、
+6事件重放和接收时间线、基础路径源码核查；不再启动/查询/恢复手机。
+离线下一方向为同核恢复基线及单项子探测/启动先后对照，但未实现新kernel
+候选，未授权自动执行。间歇根因调查不标完成，QUERY7/GPU执行仍未实测。
 
 ## 13. 专题文档导航与阅读顺序
 

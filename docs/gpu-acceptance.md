@@ -2,7 +2,77 @@
 
 > 当前全部工作摘要、镜像／日志索引、目录边界和后续任务见
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
-> 构建通过不替代实测，历史UI通过不覆盖最新触摸FAIL。
+> 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
+
+## 2026-11-08 12:35：同核SoC基础轮触摸FAIL，现场保留，停止后续探测
+
+用户重新连接67eea163/product=cepheus，核对候选/kernel/delta SHA，先开MAC
+限定watcher及UDP420s，再仅临时fastboot boot，sending/booting OKAY。
+`boot-cepheus-soconly-ordered-60a2dc5.img` SHA
+`5d7e64ae5740ad4ab82e2e6ef614e537bd344e483b77aa44f0470cc1f8be8a24`，
+同早先PASS的touch-only kernel6134404e... /CI42391773972/60a2dc5，严格
+核验只新增cephsoc=1。**用户明确“触摸仍然是坏的”→触摸FAIL**；之后
+确认中央操作已做及主屏幕/电源正常，选择保留现场、先离线排查。
+
+420.001s452包/123804B，日志SHA256
+`a929e459341d37375bd4f72452b5a9e98baa3f8a9452668b8f03713adf1ee566`，
+result SHA `3748befe8b1adf8c2be31cae3e1d2e8238cd1a43ff2f835806bae31a268f57a2`。
+目录`../logs/soconly-ordered-60a2dc5-live-20261108-1235/`保存preflight/fastboot/
+boot/capture/packet时间/动作指令/result/replay/receive-timeline。
+
+19条health polls1000..19000全部events6/hid_calls2，最后empty18996/errors0/
+active0/skip_next0/IRQ/SDA/SCL1。RAW ready1/status3/enter1/leave1，只有右上角
+1079,0；无中央motion，未达128限额。生产6事件4批重放down1/up1/0差异。
+power down/up各4，blank clear720/729/711us；这些不替代用户触摸FAIL。
+
+sample0..25各四组齐全，sample25主机12:39:37收到，之后9条health仍无新增
+接触。GPUCC快照gmu0x7a/memory0x37a/CX_HW0x5ff4与历史正常soconly相同，
+GMU snapshot门禁跳过；无GX/fuse/ARC/SCM/boost/memory或所见panic标记。
+**只证明基础探测局部完成，不是其与触摸共存通过，更不是GPU执行。**
+
+源码基础路径无直接触摸GPIO/scan/reset写；一次touch-only PASS→soc-only
+FAIL不能隔离OSM/GPUCC/TSENS、日志/调度、继承/感测状态的因果。
+force-cal43:05:30在正常旧轮也见，不能据此修改校准。零总线错误、持续
+空读不证明感测或scan健康。有序上报修正未解决本轮故障，根因UNKNOWN。
+
+采集结束ECM仍在、host192.168.7.1/24；自己的receiver/watcher已收尾。
+用户选择保留现场，不自动恢复touch-only或重启，不加fuse/ARC/GX/SCM，
+禁止scan重发/reset/电源恢复/firmware或校准写入。离线时间线工具4项测试
+及CI入口完成，无生产kernel改动/新构建，详见touch-failure-theory。
+
+## 2026-11-08：有序touch-only本轮通过，下一同核SoC基础候选未启动
+
+核对67eea163/product=cepheus和SHA，先开root MAC限定watcher与UDP监听，
+仅临时fastboot boot `boot-cepheus-touchordered-60a2dc5.img`，sending/booting
+OKAY。用户执行中央拖动/短点/边缘/双指/电源熄屏唤醒后复测并回复
+“好了，都正常”：**本轮主屏幕、触摸、电源PASS**。不flash、不重刷root，
+没有新增reset/scan重发/校准/firmware/电源恢复、SCM或GPU命令。
+
+镜像SHA `a00d1e29087d0f28e695eb0ec91166c48a917fde45685b655c46162541c9f074`；
+相同CI42391773972 /60a2dc5内核SHA6134404e...。
+420.001s采集575包/161064B，原日志SHA256
+`6c9758bbc1ad2b937c9e9972441318e4c45734ab914667fd67ca8f717d1a959f`。
+证据`../logs/touchordered-60a2dc5-live-20261108-0111/{boot.log,capture.json,
+packets.jsonl,action-timeline.json,result.json,replay.json}`，历史receipt不改。
+
+所见最后health polls13000/events1148/hid_calls1101/errors0/faults0/active0；
+finger0/1 HID down46/4、up45/3，电源down/up各7，clear_us730/714/714/708。
+空闲多轮只有3初始化事件，操作后事件增长；不能单凭空闲empty定故障。
+RAW128限额，32完整批127事件生产函数与顺序模型0差异；n128所属尾批省略，
+prefix down5/move115/up4不是整轮HID计数，未证明每个短点批内转换。
+
+12条health缺polls2000，UDP无完整交付保证；原日志尾部是两指down，
+01:15:47 ECM断开，随后lsusb为Xiaomi2717:ff48 MTP/ADB，原因待确认。
+不得据末down/up不平衡判卡指，也不得写“手机仍运行iOS”；所收日志没有
+panic不排除未收尾段。用户验收先于断开，代理没有重启命令。
+**历史间歇空FIFO根因仍UNKNOWN，本轮通过不等于因果修复或长期稳定。**
+
+用户继续要求推进到下一真机点。已打包同kernel的
+`boot-cepheus-soconly-ordered-60a2dc5.img` SHA5d7e64ae...；真实mtools及新增
+`--only-added-arg cephsoc=1`严格核验：kernel/所有TOML字段/其他payload不变，
+仅新增cephsoc=1，11项配置回归通过。**新候选未启动**，fuse/ARC/GX/SCM/
+boost/内存全关；需先独立UI验收才能进一步恢复探测，见
+[SoC基础下一轮预检](soc-ordered-preflight.md)。未执行新QUERY7或GPU/Metal。
 
 ## 2026-11-08：有序上报修正、完整构建与配对镜像完成，停在真机验收前
 

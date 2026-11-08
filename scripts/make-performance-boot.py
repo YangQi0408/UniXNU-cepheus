@@ -31,6 +31,20 @@ def make_args(line, fixed):
     return line
 
 
+def validate_soc_delay(args, kernel, parser):
+    if args.soc_probe_delay is None:
+        return
+    if (args.soc_probe_delay != 240 or not args.soc_probe or not args.touch_gpio or
+            not args.touch_diagnostic or args.touch_probe or args.scm_info_probe or
+            args.gpu_arc_probe or args.gpu_memory_test or args.gpu_workspace_test or
+            args.gpu_fuse_probe or args.gpu_gx_probe or args.cpu_trial or args.cpu_interactive):
+        parser.error('SoC delay requires fixed 240s basic-only soc-probe with GPIO touch diagnostics')
+    for marker in (b'cephsocdelay', b'CEPHEUS SOC: %s delay_s=%u uptime_ms=%llu',
+                   b'baseline-end', b'CEPHEUS SOC: refused delay profile'):
+        if marker not in kernel:
+            parser.error(f'missing SoC delay guard/phase marker: {marker!r}')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('source', type=Path)
@@ -42,6 +56,8 @@ def main():
     p.add_argument('--touch-power', action='store_true', help='with GPIO, submit ldoc1 XOB enable-only vote')
     p.add_argument('--touch-diagnostic', action='store_true', help='with GPIO, bounded raw FIFO/health logs; no recovery writes')
     p.add_argument('--soc-probe', action='store_true', help='read-only CPU OSM and gated GPU state probe')
+    p.add_argument('--soc-probe-delay', type=int, choices=(240,),
+                   help='fixed 240s SoC thread wait; basic probe with GPIO touch diagnostics only')
     p.add_argument('--scm-info-probe', action='store_true',
                    help='with soc-probe, fixed one-shot INFO/PAS13-supported queries after baseline sampling; secure return time not bounded')
     p.add_argument('--gpu-arc-probe', action='store_true', help='with soc-probe, read-only ARC voltage tables/TCS snapshot; no votes')
@@ -63,6 +79,7 @@ def main():
         p.error('not a Mach-O kernel')
     if a.soc_probe and (b'CEPHEUS OSM:' not in kernel or b'CEPHEUS GPU:' not in kernel):
         p.error('missing CPU/GPU diagnostic code')
+    validate_soc_delay(a, kernel, p)
     if a.scm_info_probe and (not a.soc_probe or a.cpu_trial or a.cpu_interactive or a.gpu_memory_test or a.gpu_workspace_test or
                              b'cephscm' not in kernel or b'CEPHEUS SCM INFO: begin' not in kernel):
         p.error('SCM info probe requires soc-probe, compiled opt-in hook, and no boost or memory test')
@@ -109,6 +126,7 @@ def main():
         before = (w / 'config').read_text()
         line = make_args(tomllib.loads(before)['entry'][0]['args'], a.fixed_timer)
         if a.soc_probe: line += ' cephsoc=1'
+        if a.soc_probe_delay is not None: line += f' cephsocdelay={a.soc_probe_delay}'
         if a.scm_info_probe: line += ' cephscm=1'
         if a.gpu_arc_probe: line += ' cepharc=1'
         if a.gpu_memory_test: line += ' cephmem=1'

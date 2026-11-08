@@ -1,6 +1,69 @@
 # 触摸间歇失败：离线重放与理论排查
 
-## 后续推进：接触转换修正已实现，构建待核验
+## 2026-11-08：延迟基础探测候选离线推进
+
+用户问“然后呢”，继续离线准备同一新核的touch-only控制版和240s延迟
+基础SoC探测版；保留当前失败现场，不新增手机命令。新参数
+`cephsocdelay=240`仅接受cephsoc=1且无fuse/ARC/GX/SCM/boost/memory参数，
+包括=0混入也拒绝。默认45s与原探测集合不变，仅延迟版增加内核时间标记。
+240s是线程等待，不保证用户已验收；缺pre-begin PASS的轮次不能用于
+判断探测后的触摸变化。当前代码与host测试已实现，完整离线37 PASS/0 FAIL/
+0 SKIP（r2 receipt；首轮GX测试截取范围FAIL保留），新核构建待完成，
+真机未测试。详见[soc-delay-preflight](soc-delay-preflight.md)。
+
+## 2026-11-08：有序修正版的SoC基础轮仍失败，现场保留
+
+touch-only `touchordered-60a2dc5`本轮用户PASS；同kernel/ADT/其他payload和
+TOML参数只新增cephsoc=1的`soconly-ordered-60a2dc5`随后触摸FAIL。
+用户确认中央操作已完成，主屏幕/电源正常，并选择保留现场、先离线排查。
+不重启/reset/重发scan/改电源/校准；停止fuse/ARC/GX/SCM的后续测试。
+
+420s原日志452包/123804B，SHA256
+`a929e459341d37375bd4f72452b5a9e98baa3f8a9452668b8f03713adf1ee566`。
+证据在`../logs/soconly-ordered-60a2dc5-live-20261108-1235/`，包含result、
+RAW重放和包边界receive-timeline。6RAW/4批完整重放：down1/move0/up1，
+生产实现与顺序模型0差异。19条health到polls19000保持events6/hid_calls2/
+errors0/active0/skip_next0/IRQ/SDA/SCL1，RAW未达128限额；仅右上角1079,0
+enter/leave，没有中央触点。**本轮不能用批内上报丢失解释无中央FIFO。**
+
+主机接收时间：基础GPU快照12:36:37，selected12:36:52，边缘enter
+12:36:55，force-cal43:05:30在12:36:56；中央操作指令12:37:45，用户随后
+报告触摸坏并确认完成。四组sample25在12:39:37，之后9条health仍events6，
+最后12:41:48。时间来自UDP最终含该行的包，不是内核/控制器/手指时间戳。
+没有单独确认sample25后的中央复测，不能声称采样结束后仍经用户复验失败。
+
+### 能收紧的判断
+
+- 两轮严格单变量镜像对照提高cephsoc组合/时序的排查优先级，但跨启动的
+  控制器、电气、用户接触和继承状态不恒定，**不是单项因果证明**。
+- 基础路径源码不写触摸GPIO/scan/reset。OSM试写只在boost opt-in；本轮
+  缺boost，trial不激活，restore跳过；SCM入口缺cephscm返回。GMU读取被
+  blockers0x7a拒绝，GX/fuse/ARC/memory不请求，日志无这些新增调用。
+- OSM四组sample0..25齐全，触摸持续轮询到19000：不支持“触摸线程完全
+  停止/死循环未读FIFO”。但没有I2C电气波形或原始sense-frame，成功空读
+  不等于模拟感测健康，也不排除错误采样或固件内部状态。
+- 基础GPU/GCC快照与历史正常soconly-7ed0427相同（包括CX_HW0x5ff4/
+  gmu0x7a/memory0x37a），不是失败独有状态。SYSINFO及powered GPIO回读
+  与同核正常touch-only一致；force-cal在正常旧轮也出现，不能据此改校准。
+- sample25后仍有空读，削弱“只在持续OSM采样期间阻塞读FIFO”的简单解释，
+  不排除启动期一次性影响、之前形成的内部状态或未确认后续操作。
+
+### 下一离线/分轮方向，不自动执行
+
+先重复同核touch-only重新获得本轮恢复验收，并记录启动前系统/关机方式、
+手指无接触窗口和供电/USB状态；用户目前选择保留现场，暂不启动。
+再将cephsoc从“OSM+GPUCC+TSENS+日志/线程”拆成显式单项只读profile，
+或先让整组探测发生在触摸已验收之后，验证启动先后关联。分组或延迟版
+都需独立源码/构建/参数门禁及新用户许可；当前没有这些新kernel候选。
+日志/线程时序对照也应保留，不把“只读”当作不可能影响硬件或系统。
+不增加自动scan/reset、sense-frame加载或触摸校准写入来掩盖失败。
+
+新增`analyze-touch-soc-log.py`仅处理保存原件，验证SHA和accepted包长度/数目，
+将console行定位到最后含该行的包；4项host测试覆盖断行、外来包过滤、
+SHA/长度不符拒绝、CRLF/UTF8/空抓取。CI/离线入口已接入；本轮不改
+生产XNU源码、不构建新内核、不新增真机命令。根因仍UNKNOWN。
+
+## 前一阶段：接触转换修正已实现，构建与首轮完成
 
 用户随后要求“继续推进，直到需要在真机测试”。生产`touch_fts()`现在
 先验证整个批次，再用同一parser重放并按FIFO顺序上报；保持批内短点、
@@ -17,7 +80,8 @@ SweetHID仍自行为每个变化构造collection，实际投递/开销须真机�
 证据。完整离线检查34 PASS/0 FAIL/0 SKIP，receipt为
 `../logs/gpu-offline-touch-ordered-20261108/receipt.json`。随后固定XNU
 CI42391773972 @60a2dc5及内核/linked/PA64核验、touch-only新旧镜像打包
-完成；**未真机测试**，详见[touch-ordered-preflight](touch-ordered-preflight.md)。
+完成；当时未真机测试，后续touch-only PASS及soc-only FAIL已在上面更新，
+详见[touch-ordered-preflight](touch-ordered-preflight.md)。
 
 下面保留先前理论轮的生产源码身份和未修正重放结果，不能用于描述修正版
 的当前行为。间歇空FIFO根因仍UNKNOWN，QUERY7保持阻断。
