@@ -1,14 +1,27 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08**。范围：同核SoC基础轮触摸FAIL、现场保留与离线排查。
+更新：**2026-11-08**。范围：延迟SoC本轮体验PASS、阶段证据不足及后续门禁。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
-最新真机13:52轮：新核`touchcontrol-b2b99e7`临时boot，用户“都正常了”确认
+最新14:02轮：同核延迟`socdelay240-b2b99e7` SHA7e082de6...临时boot成功。
+用户“现在正常”及两次复测“正常”确认当前UI/中央触摸/电源唤醒触摸PASS；
+确认正常控制iOS经物理电源+音量下进fastboot，初始化等待未碰屏幕。
+但USB14:04:28及14:07:24重新枚举，末UDP14:04:28，随后0有效RX且错误
+增长；用户未主动拔插、怀疑线材，原因UNKNOWN。执行环境重启后capture
+signal提前结束469.53s/600s，314包103834B，日志SHAe89b06c2...；自有
+capture/watch均退出。无scheduled/begin/baseline-end/sample25，**阶段
+对照INCONCLUSIVE，实际SoC执行UNKNOWN**；初次回复观察晚于末UDP，
+不确认探测前PASS。RAW128早达限，40完整批126事件重放0差异；相关16测试
+通过，单条health早于中央动作。证据`../logs/socdelay240-b2b99e7-live-20261108-1401/`。
+保留当前可用手机，不自动重启/恢复；下一测试门禁是稳定数据线及明确授权
+后同镜像完整阶段采集，不加GPU探测。GPU/Metal仍未运行，根因UNKNOWN。
+
+前一真机13:52轮：新核`touchcontrol-b2b99e7`临时boot，用户“都正常了”确认
 主屏幕/中央拖点/边缘/双指/电源熄屏唤醒触摸PASS。前序为失败iOS经物理
 电源+音量下进fastboot，未报告中途Android。420s589包/157985B，日志SHA
 d0722828...；last health18000/events1179/hid_calls1172/errors0，26完整批/
 120事件重放0差异（RAW预算128尾批省略）。采集与自有watcher已结束，
-ECM仍在，未自动重启；延迟候选未启动，等待用户手动回fastboot。
+ECM仍在，未自动重启；当时延迟候选未启动，之后本轮结果如上。
 证据`../logs/touchcontrol-b2b99e7-live-20261108-1347/`。间歇根因仍UNKNOWN。
 
 最新离线推进：新增固定`cephsocdelay=240`基础探测门禁及scheduled/begin/
@@ -19,7 +32,7 @@ baseline-end内核uptime标记，默认45s不变；不新增硬件操作。生�
 CI42450429814 @b2b99e7完整成功，kernel SHAe9f8f3f7...；新核touch-only
 `boot-cepheus-touchcontrol-b2b99e7.img` SHAafdf72c6...，同核延迟版
 `boot-cepheus-socdelay240-b2b99e7.img` SHA7e082de6...，严格配对核验通过。
-当时两者未测；之后新核控制版本轮PASS如上，延迟版仍未测试。
+当时两者未测；之后新核控制PASS、延迟版当前体验PASS但阶段对照无结论。
 流程见[soc-delay-preflight](soc-delay-preflight.md)，根因仍UNKNOWN。
 
 最新12:35轮：`soconly-ordered-60a2dc5`临时boot，触摸FAIL，用户确认中央
@@ -65,7 +78,8 @@ SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段
 [触摸失败理论与重放](touch-failure-theory.md)。下面硬件结论均为历史记录。
 
 > **最重要的现状：iOS 16.7.16 曾多轮成功运行主屏幕、触摸和电源键；
-> 有序touch-only先前PASS；最新同核仅加cephsoc的soc-only轮触摸FAIL，未恢复。
+> 有序touch-only及新核控制PASS；历史45s soc-only触摸FAIL保留。
+> 最新240s延迟轮当前触摸/唤醒PASS，但掉线/中断导致阶段对照INCONCLUSIVE。
 > GPU/Metal硬件加速没有完成，QUERY7开启候选没有启动。
 > 触摸间歇失败根因和PAS13 supported=false原因都没有定位。**
 
@@ -83,7 +97,7 @@ SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段
 | 触摸 | ST-FTS，I²C `0x49`，chip ID `36:39` |
 | GPU | Adreno640，FDT chipid `0x06040001` |
 | iOS | iPhone X材料，16.7.16 / 20H392；研究用SWEET shim |
-| 最近设备观测 | 最新soc-only轮触摸FAIL、主屏幕/电源正常；采集结束ECM仍在，用户选择保留现场 |
+| 最近设备观测 | 最新240s延迟轮当前触摸/唤醒PASS，阶段未知；ECM重枚举后日志断流，保留当前状态 |
 
 证据分为四级，**不得互相替代**：
 
@@ -217,8 +231,9 @@ Apple服务和App Store没有获得可用验收；研究shim不等同SEP或正�
 间歇问题修好，也不证明这次所有触摸硬件损坏。
 
 没有自动复位、重发scan、固件／校准修改或试写电源恢复。手机未由代理重启。
-该历史轮之后曾有有序touch-only恢复验收，最新soc-only再次失败。最新用户
-选择保留现场、先离线排查，不执行恢复启动/现场新命令；详见首页及理论文档。
+该历史轮之后曾有有序touch-only验收，45s soc-only再次失败，当时用户选择
+保留现场、先离线排查。之后经明确授权新核控制PASS、240s延迟轮体验PASS
+但阶段证据不足；当前状态与后续门禁以首页及soc-delay-preflight为准。
 
 ## 6. GPU源码成果与真正缺口
 
@@ -402,7 +417,9 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 
 | 路径 | 内容 |
 |---|---|
-| `../logs/soconly-ordered-60a2dc5-live-20261108-1235/` | 最新触摸FAIL、中央动作确认，ECM现场保留；全量capture/result/replay/receive-timeline |
+| `../logs/socdelay240-b2b99e7-live-20261108-1401/` | 最新当前触摸/唤醒PASS但阶段INCONCLUSIVE；USB断流及signal中断、动作/主机观察/重放/完整SHA结果 |
+| `../logs/touchcontrol-b2b99e7-live-20261108-1347/` | 新核touch-only本轮PASS；420s完整控制采集及结果 |
+| `../logs/soconly-ordered-60a2dc5-live-20261108-1235/` | 历史45s触摸FAIL、中央动作确认，当时ECM现场保留；全量capture/result/replay/receive-timeline |
 | `../logs/touchordered-60a2dc5-live-20261108-0111/` | 先前touch-only本轮用户PASS；raw/capture/包时间/动作指令/result/replay，尾USB变化待确认 |
 | `../logs/allprobes-da8ffc1-scmoff-live-20261107/` | 最近失败boot.log、fastboot.log、identity、result；历史用户触摸FAIL |
 | `../logs/touch-theory-replay-20261108/replay.json` | 10份保存RAW的host原函数重放与顺序模型差异；不是新真机结果 |

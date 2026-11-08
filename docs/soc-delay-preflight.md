@@ -1,8 +1,60 @@
 # SoC delayed basic probe: offline preparation
 
-Updated: 2026-11-08. Control hardware round PASS; delayed candidate NOT TESTED.
+Updated: 2026-11-08. Control hardware round PASS; delayed candidate current
+UI/touch/power-wake PASS, but phase comparison INCONCLUSIVE.
 The user returned the device to fastboot and authorized testing after the offline
 stage. Historical offline preparation and preserved-failure boundaries are below.
+
+## Delayed Hardware Round: Inconclusive Phase Capture
+
+2026-11-08 14:02: verified serial67eea163/product=cepheus, image/kernel SHA and
+strict pair delta; receiver and exact-MAC watcher ready before temporary boot.
+Sending1.590s/booting0.126s OKAY, exit0. User confirmed direct accepted control
+iOS -> physical power/volume-down -> fastboot and no contact during initialization.
+No partition flash, agent reboot/reset, scan resend or power recovery.
+
+Initial central3-drags/5-taps request received "现在正常", first observed by host
+at14:05:07. Current central retest received "正常", observed14:08:45. Final central
+and power blank/wake retest received "正常", observed14:11:07. Current main screen,
+central touch and power-wake-touch are accepted for this boot; final response is
+combined, not separate per-action timestamps. **These are NOT confirmed
+pre-begin/during/after-baseline acceptances.** No SOC phase markers were received,
+and the last UDP packet preceded the first host observation of the initial reply.
+
+Capture planned600s, stopped by signal at469.530239s,14:09:39.384386 after the
+execution environment reported a server restart. Exact signal sender unrecorded;
+both capture and owned watcher absent after restart.314 packets/103834B,
+log SHA256 `e89b06c2f1bd1486047be778a66c7419de3769edf9c666a5f00572725a85dfef`.
+Only packets14:03:02.550769..14:04:28.066009 were received. Host journal shows
+ECM reenumeration14:04:28 and14:07:24; new interface UP/LOWER_UP with correct
+host address, but0 valid RX packets and growing RX errors. User reports no
+deliberate cable/replug/OS change, but suspects the cable. Cause UNKNOWN; do not
+attribute to cable or infer a phone reboot from enumeration alone.
+
+Saved log has ordered ST-FTS initialization,12 HID down/up each, RAW128 reached,
+40 complete batches/126 events production replay0 differences; n127..128 partial
+tail omitted. Prefix down9/move106/up8 is not whole-round delivery. Only one
+health record, polls1000/events3/errors0, predates central actions; it is not a
+post-probe or final-state counter. No scheduled/begin/baseline-end, sample25 or
+basic-probe records received. driverkitd sig9 and two PosterBoard sig5 userspace
+crashes present; no captured kernel panic does not exclude an unseen tail.
+
+Evidence `../logs/socdelay240-b2b99e7-live-20261108-1401/`: preflight/fastboot,
+capture/packets, action timeline, host observations, result, replay and validated
+receive timeline. Receive-timeline5 and touch-replay11 host tests PASS.
+Result SHA256 `07f10791d1ac6229a2d23ac922f9af9968bb36459c1afecef5e5a1d8b0c5bc4f`;
+action timeline SHA256 `e1039cef21d40f2c46350138c81dab5483c1224b1ef40e45ed27d0c14e1dc6a0`;
+host observations SHA256 `76ad0e53ff01c89f54ec11249aab8ba7167222d2ae2ea311fe1d69ba0bffdd33`.
+**Phase comparison INCONCLUSIVE; actual probe execution UNKNOWN.** Wall-clock
+boot age or missing UDP markers cannot substitute for kernel phase timestamps.
+GPU/Metal acceleration remains unexecuted/unaccepted; intermittent root cause
+UNKNOWN. Phone current accepted state preserved; no automatic next boot.
+
+Next gate: a reliable data cable, explicit user authorization to manually enter
+fastboot, repeat the exact verified delayed image with uninterrupted600s capture,
+and separately timed pre-begin/during/after acceptance. If state equivalence is
+not preserved, repeat the control too. Do not add fuse/ARC/GX/SCM/boost/memory or
+GPU startup until this phase capture is complete. Do not repair USB live by reset.
 
 ## Control Hardware Round
 
@@ -25,8 +77,8 @@ RAW128 budget reached;26 complete batches/120 events, production and ordered
 model0 differences. Truncated batch n121..128 omitted. Prefix down3/move112/up2
 is not entire-round delivery; no later RAW after budget. No-contact instruction
 not separately confirmed. UDP/one-boot limits remain; intermittent root cause
-UNKNOWN. Receiver completed, own watcher stopped, ECM still present. Delayed
-candidate remains unbooted, pending user-controlled return to fastboot.
+UNKNOWN. Receiver completed, own watcher stopped, ECM still present. At that
+checkpoint delayed candidate was unbooted; its later round is recorded above.
 
 ## Purpose And Boundary
 
@@ -103,7 +155,7 @@ network-none, UID1000, cap-drop-ALL/no-new-privileges build container.
 | Image under `../dist/` | SHA256 | Hardware |
 |---|---|---|
 | `boot-cepheus-touchcontrol-b2b99e7.img` | `afdf72c6d4159d52d39dc687cfa733dc772c3cc5b717ff4cbfdc213302f65f6c` | 2026-11-08 control PASS |
-| `boot-cepheus-socdelay240-b2b99e7.img` | `7e082de680a9ecd09d4c6fe698ecd6b7d65906eb1b08a50c18692ba7b142747b` | NOT TESTED |
+| `boot-cepheus-socdelay240-b2b99e7.img` | `7e082de680a9ecd09d4c6fe698ecd6b7d65906eb1b08a50c18692ba7b142747b` | 2026-11-08 current touch/wake PASS; phase INCONCLUSIVE |
 
 Control receipt: `boot-cepheus-touchcontrol-b2b99e7.json`, SHA256
 `15dcfb4372e52074d85b4effae2610b2d9cca442ab91dffcad272c27184ffd89`.
@@ -116,6 +168,8 @@ Strict pair receipt: `boot-cepheus-socdelay240-b2b99e7-delta.json`, SHA256
 It proves the same kernel/ADT/other payload/TOML fields, adding only
 `cephsoc=1 cephsocdelay=240`. Firmware/root were not flashed, and no phone was
 used for this offline work. The retained failed runtime was not rebooted.
+These are historical offline-stage statements; later authorized temporary boots
+are recorded above. Original packaging receipts remain packaging-only snapshots.
 
 ## Next Hardware Gate
 

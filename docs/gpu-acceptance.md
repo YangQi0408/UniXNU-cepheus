@@ -4,7 +4,35 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
-## 2026-11-08 13:52：新核touch-only控制版本轮PASS，延迟候选未启动
+## 2026-11-08 14:02：240s延迟轮当前触摸/唤醒PASS，阶段对照无结论
+
+同核`boot-cepheus-socdelay240-b2b99e7.img` SHA
+`7e082de680a9ecd09d4c6fe698ecd6b7d65906eb1b08a50c18692ba7b142747b`，
+kernel e9f8f3f7... /CI42450429814 /b2b99e7；仅新增cephsoc1/cephsocdelay240。
+核对67eea163/product=cepheus、SHA/delta和监听就绪后临时boot成功，
+sending1.590s/booting0.126s OKAY。用户确认控制iOS直接经物理键进fastboot、
+初始化等待未触屏。三段请求反馈“现在正常”/“正常”/“正常”，当前主屏幕/
+中央触摸/电源熄屏唤醒后触摸PASS，最后一条为合并反馈。
+
+但主机14:04:28及14:07:24 USB ECM重新枚举，后0有效RX、错误增长。
+用户无主动拔插/切换系统，怀疑线材，USB原因UNKNOWN。planned600s采集
+执行环境重启后signal结束469.530239s，314包103834B，末包14:04:28.066009，
+早于初次回复主机观察14:05:07。无SOC阶段标记/sample25/基础探测日志；
+**不能确认探测前/中/后验收，阶段INCONCLUSIVE，实际探测执行UNKNOWN。**
+日志SHA `e89b06c2f1bd1486047be778a66c7419de3769edf9c666a5f00572725a85dfef`。
+
+12HID down/up各，RAW128限额，40完整批126事件重放0差异，尾n127..128省略。
+仅1条health1000/events3/errors0早于中央动作，不是末段健康；driverkitd sig9/
+PosterBoard sig5两次保留，未见panic不排除丢失尾段。5时间线+11重放测试PASS。
+证据`../logs/socdelay240-b2b99e7-live-20261108-1401/`含完整本轮结果/动作/
+主机观察/包时序/重放。自有capture/watch均已退出，手机当前可用状态保留。
+无flash/自动重启/reset/scan重发/校准/恢复，无GPU power/DMA/CP/SCM。
+
+下一门禁：稳定数据线、用户明确授权后重跑同一延迟镜像600s完整阶段采集，
+必要时重跑控制；未获阶段证据前不加GPU探测。体验PASS不等于SoC时序因果、
+间歇根因修复或GPU/Metal加速。详见[soc-delay-preflight](soc-delay-preflight.md)。
+
+## 2026-11-08 13:52：新核touch-only控制版本轮PASS，当时延迟候选未启动
 
 67eea163/product=cepheus fastboot核对，控制SHAafdf72c6.../kernel SHAe9f8f3f7...
 核验及日志就绪后临时boot，sending1.584s/booting0.126s OKAY，无flash。
