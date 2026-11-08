@@ -1,7 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 14:44 +08:00**。范围：七次SCM查询完整、PAS13=false及查询后触摸验收。
+更新：**2026-11-08 15:24 +08:00**。范围：ZAP内核准备路径构建完成与此前七次SCM查询验收。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
+
+最新离线153561e已补齐ZAP ELF不可变快照及内核MDT/重定位镜像准备。
+本机MDT6860B、加载段1968B与原件逐字节一致，逻辑镜像4096B、未来分配需求
+1MiB分开保留；不提供PAS PA/XPU保证、不认证、不置zap_loaded。ASan/UBSan
+相关内存生命周期及新路径、9项integration、修改生产单元静态分析通过；
+未重跑完整离线入口或追加手机测试。CI42457537126 @153561e完整成功，kernel
+SHA763d274e.../17414848B，76核心入口/13内存API链接、无unresolved、staged source/
+触摸/PA64核验PASS；产物../inputs/ci-42457537126/kernel.macho，未打包/boot。
+手机仍运行已验收b2b99e7查询版，证据../logs/zap-staging-20261108/。
+详见[ZAP准备实现与缺口](zap-platform-contract.md)。
 
 最新query7-basic-b2b99e7（SHAa060bd43...）临时boot后，sample25四组及七次
 REGS in/out/summary/QUERY7/end均齐全。生产策略核验TRANSCRIPT_COMPLETE，
@@ -158,9 +168,9 @@ GPU识别、命令编码、编译成功、SMC返回或CPU内存自检都不是GP
 | `inputs/gpu-refs-20261106/` | 固定HackiOS、Pong及GPU子模块参考源 |
 | `/home/yangqi/android/kernel/xiaomi/sm8150/` | 本机下游源码参考，固定HEAD `36f369fdb77319a2984a48b89f025ac3e5f97386` |
 
-本轮归档前本地及已推送HEAD为 **`a688daf`**；最近完整构建的生产源码是
-**`b2b99e7`** / CI42450429814。9594ed7仅新增封装/日志核验工具与文档，
-之后为验收记录；本轮未修改生产xnu或重建内核。文档提交不改变内核身份。
+当前生产改动已推送为 **`153561e`**，新增ZAP内核准备路径，CI42457537126
+完整构建及产物核验成功。手机已验收镜像仍对应 **`b2b99e7`** / CI42450429814；新的源码或
+文档提交不改变已验收镜像身份。65f5b96记录此前完整QUERY7实测。
 
 最近提交主线：
 
@@ -179,6 +189,8 @@ GPU识别、命令编码、编译成功、SMC返回或CPU内存自检都不是GP
 | `b2b99e7` | 可选固定240s基础探测等待；本轮复用该内核的默认45s配置 |
 | `9594ed7` | 基础SCM配对封装及生产查询策略日志核验工具 |
 | `a688daf` | 新基础控制PASS，缩减后续真机检查 |
+| `65f5b96` | QUERY7七次完整、PAS13=false及查询后触摸/唤醒PASS |
+| `153561e` | 固定ZAP快照、MDT及重定位CPU镜像准备，未认证/加载 |
 
 ## 3. 启动链与iOS用户态：已经做成的部分
 
@@ -384,13 +396,13 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 - `touch-kernel.yml`：`macos-15-intel`／Xcode16.2，目标arm64而非arm64e。
 - ios-sweet：`45263bee51df4a0f55cdf9c649af886399488ddb`。
 - darwin-xnu-build：`663906528d1cd5ea8fde7de6f16de73db9511549`。
-- 最新完整成功：**42380203110 @ da8ffc1**；输入和日志见第9节。
+- 最新完整构建成功：**42457537126 @153561e**，尚未打包/boot；最近已实测内核为42450429814 @b2b99e7。
 - 逐一核验关键patch未跳过、staged source、linked symbol、无unresolved、
   PA64指令、触摸／QUERY7标记、取消USB代码缺席。
 - 主机无mcopy；打包使用已有 `cepheus-build:latest`，`--network none`、当前UID，
   真实mtools。不是虚假成功工具，不借此改系统软件。
-- 最新完整离线receipt **33 PASS／0 FAIL／0 SKIP**。这是33个检查入口，
-  每个入口可含多个host程序／case，不能混成只有33个单测或33项真机验收。
+- 最近完整离线receipt为QUERY7准备的 **38 PASS／0 FAIL／0 SKIP**，本轮ZAP
+  改动只跑相关检查，不追认其已通过整套38项。每个入口可含多个host程序／case。
 - TZ mapping／RELA RAM-only单测14项；最终本地手工5项负向篡改／缺范围均拒绝。
 
 上游UniXNU/Aloha/DarwinBoot候选已隔离同步及FD构建；CI和本地FD摘要不同，
@@ -447,9 +459,9 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 | allprobes-da8ffc1 | `96fd757773fd876520a7389095258ab3d2da9398e7b451efae1e20029e5cf34d` |
 | query7-da8ffc1 | `645e970bdd3a60592b7f28f46b1ba2457ad8559910bf7958f84ecca7f376637e` |
 
-最新内核 `../inputs/ci-42380203110/kernel.macho`：
+历史da8ffc1内核 `../inputs/ci-42380203110/kernel.macho`：
 `6a03e92c8f3faec7d688c85a9ccbf60819cab9c6e615d6fd079aa6ecd3775e26`。
-最新两镜像ADT均 `6416d6d17b1b65fded10a4dfce1fbf0022216e03b013471aecb6db486703a28a`。
+该历史两镜像ADT均 `6416d6d17b1b65fded10a4dfce1fbf0022216e03b013471aecb6db486703a28a`。
 同名`.json`只描述**打包当时**状态；hardware_tested=false不否定后续实测，
 也不能因为打包PASS而无视后续FAIL。
 
@@ -457,20 +469,26 @@ GitHub仓库：`YangQi0408/UniXNU-cepheus`。GitHub访问使用 `gh`。
 
 | 路径 | 内容 |
 |---|---|
-| `../logs/socdelay240-b2b99e7-live-20261108-1401/` | 最新当前触摸/唤醒PASS但阶段INCONCLUSIVE；USB断流及signal中断、动作/主机观察/重放/完整SHA结果 |
+| `../logs/zap-staging-20261108/` | 153561e ZAP CPU准备、本机MDT/b02比较、ASan/UBSan相关验证与构建记录 |
+| `../inputs/ci-42457537126/`、`../logs/ci-42457537126/` | 新153561e内核及完整构建日志，尚未打包/boot |
+| `../logs/query7-basic-b2b99e7-live-20261108-1436/` | 7次SCM完整、PAS13=false、查询后触摸/唤醒PASS |
+| `../logs/soccontrol-b2b99e7-live-20261108-1426/` | 配对基础控制PASS，无需重复 |
+| `../logs/gpu-offline-query7-basic-20261108/` | QUERY7准备38项完整离线PASS，工具提交前dirty保留 |
+| `../inputs/ci-42450429814/` | 当前真机已验收b2b99e7内核 |
+| `../logs/socdelay240-b2b99e7-live-20261108-1401/` | 历史体验PASS但阶段INCONCLUSIVE；USB断流及signal中断、动作/主机观察/重放/完整SHA结果 |
 | `../logs/touchcontrol-b2b99e7-live-20261108-1347/` | 新核touch-only本轮PASS；420s完整控制采集及结果 |
 | `../logs/soconly-ordered-60a2dc5-live-20261108-1235/` | 历史45s触摸FAIL、中央动作确认，当时ECM现场保留；全量capture/result/replay/receive-timeline |
 | `../logs/touchordered-60a2dc5-live-20261108-0111/` | 先前touch-only本轮用户PASS；raw/capture/包时间/动作指令/result/replay，尾USB变化待确认 |
 | `../logs/allprobes-da8ffc1-scmoff-live-20261107/` | 最近失败boot.log、fastboot.log、identity、result；历史用户触摸FAIL |
 | `../logs/touch-theory-replay-20261108/replay.json` | 10份保存RAW的host原函数重放与顺序模型差异；不是新真机结果 |
 | `../logs/touch-ordered-preflight-20261108/replay.json`、`../logs/gpu-offline-touch-ordered-20261108/` | 修正版10日志0差异及34 PASS/0 FAIL/0 SKIP完整离线回归 |
-| `../inputs/ci-42391773972/`、`../logs/ci-42391773972/` | 最新60a2dc5有序触摸上报内核、SHA/commit、完整构建日志 |
-| `../logs/ci-42380203110/`、`../inputs/ci-42380203110/` | 最新完整内核构建日志、artifact、commit及SHA |
+| `../inputs/ci-42391773972/`、`../logs/ci-42391773972/` | 历史60a2dc5有序触摸上报内核、SHA/commit、完整构建日志 |
+| `../logs/ci-42380203110/`、`../inputs/ci-42380203110/` | 历史da8ffc1完整内核构建日志、artifact、commit及SHA |
 | `../logs/scminfo-a0fa7a5-live-20261107-155024/` | 六次SMC完整in/out及查询后用户UI PASS |
 | `../logs/touchdiag-7ed0427-live-20261107-115339/` | 旧19事件／大量空FIFO触摸失败对照 |
 | `../logs/touch-power-control-20261107-121209/` | 旧触摸基线恢复那一轮，不是最新失败之后已恢复 |
 | `../logs/{touchonly,soconly,socfuse,socfusearc}-*/` | 逐项触摸隔离轮；精确名字由logs目录及gpu-acceptance索引核对 |
-| `../logs/gpu-offline-tz-startup-query7-final-20261107/receipt.json` | 最新33项完整离线PASS |
+| `../logs/gpu-offline-tz-startup-query7-final-20261107/receipt.json` | 历史33项完整离线PASS |
 | `../logs/recovery-tz-acquisition-20261107-clean/` | 4MiB TZ原件、身份、挂载／recovery日志及采集receipt |
 | `../logs/tz-native-ghidra-20261107/` | 私有Ghidra DB、逐轮证据、失败／成功headless日志、verifier输出 |
 | `../logs/pas13-source-audit-20261107/report.json` | 固定原厂加载路径审查 |

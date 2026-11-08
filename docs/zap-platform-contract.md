@@ -10,6 +10,44 @@
 不可用，但false原因与认证能力仍UNKNOWN。后续离线补齐平台资源与加载后端，
 不重复相同查询或控制轮，不将可用性查询当作认证证据。
 
+## 2026-11-08：内核ZAP元数据与重定位镜像准备
+
+153561e新增cepheus_zap_image.h及cepheus_gpu_zap_snapshot_prepare，接入已有
+固件快照池。CE_FW_A640_ZAP只接受14256B及固定ELF SHA74a948e8...，私有副本
+通过digest核验后封存，持有只读引用直到MDT和镜像复制完成；错误kind、陈旧
+handle、损坏文件拒绝。普通可写view和publish仍不允许用于封存固件。
+
+C路径解析有界ELF32 little-endian/DSP6头、hash段和可重定位PT_LOAD，逐项
+验证文件/地址溢出、重叠、入口、对齐与容量后才写输出。生成MDT为原始ELF头/
+phdr加hash段；镜像按最低paddr重定位，BSS与间隙清零。输出缓冲与源、彼此、
+layout结构重叠均拒绝；失败不留下部分复制。该解析器供受限A640容器使用，
+不宣称通用ELF loader；生产入口另要求固定SHA，不信任调用方提供的plan。
+
+本机结果：MDT6860B与现有.mdt逐字节一致，加载段1968B与.b02一致，逻辑镜像
+4096B。allocation_bytes=1048576单独记录为后续PAS分配需求，不拿它替换逻辑
+mem_setup长度，也没有扩大现有GPU池上限或分配PAS区域。生成的缓冲是CPU
+暂存材料，未提供secure PA/cache/XPU保证，不能直接送给PAS或标记zap_loaded。
+
+现有cepheus_gpu_memory.cpp单次最多256KiB、池总额1MiB，且按16KiB主机页
+映射普通Normal-NC内存。新的14KiB固件快照可以使用它，但1MiB PAS驻留区
+需要独立分配/预算与共享状态，不能只放宽该池上限；MDT的secure可访问性、
+XPU粒度、PA范围和失败后隔离/释放证明仍须由PAS后端提供。
+
+依据为固定SM8150 36f369fd的peripheral-loader.c中segment_is_loadable、
+pil_setup_region、pil_alloc_region及已有本机split/MDT字节证据。ASan/UBSan
+覆盖新解析/复制及生产C/C++快照路径，本机真实固件比较PASS；既有GMU/SQE
+相关内存生命周期同次测试通过。9项integration和两个修改生产单元的Clang
+静态分析通过；没有重跑完整离线入口，没有真机操作。证据保存在
+../logs/zap-staging-20261108/。CI42457537126 @153561e已完整成功，下载后核对
+SHA/源码commit及76核心入口、13内存API均链接，无unresolved；staged source、
+触摸有序上报及PA64保留。kernel17414848B，SHA256
+763d274e7220e86e610bc0b57474f894699b87018bd737f5831c4b90ae816341，位于
+../inputs/ci-42457537126/kernel.macho。完整构建日志在../logs/ci-42457537126/，
+本轮build-verification.json保存核验结果；尚未打包/boot，也不为CPU准备安排真机轮。
+
+下一缺口仍为PAS可访问连续内存、crypto带宽、真实认证/停止生命周期，以及
+GPU电源和SMMU平台所有权。本次没有解释PAS13=false，不新增SMC或改变加载门禁。
+
 ## 2026-11-07：PILDxe客户端实物证据不解除PAS门禁
 
 已有本地日志未找到本机ZAP成功记录，指定目录也未取得本机TZ原件。
@@ -107,8 +145,8 @@ hash segment=6860B。实际load段1968B，重定位逻辑mem_setup跨度4KiB，�
 
 ## XNU当前必须补齐而未补齐
 
-1. ExitBootServices之后可用的真实SCM transport/convention发现、返回错误处理、
-   共享buffer cache语义和阻塞/中断策略。UEFI协议存在不证明其运行时可调用。
+1. 固定SCM查询transport/convention已实测，ZAP CPU材料准备已实现；PAS mutation
+   transport、共享buffer cache语义和失败/中断生命周期仍未接入。
 2. PAS/crypto带宽和时钟资源的共享所有者；不能越过现有ARC投票继承问题。
 3. PAS专用连续且对齐内存/MDT、真实PA可访问性、XPU保护粒度和可靠归还路径。
 4. 固件生命周期绑定（已认证ZAP实例、GPU上下文、复位epoch一致）、shutdown证据。

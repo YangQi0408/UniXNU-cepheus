@@ -4,6 +4,20 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-08 15:24：ZAP加载材料内核准备及构建完成，未真机执行
+
+153561e增加固定ZAP固件的sealed snapshot及MDT/重定位CPU镜像生成。
+本机MDT6860B和加载段1968B逐字节吻合已有.mdt/.b02，logical4096B与未来
+allocation1MiB分开；BSS/间隙清零、容量/重叠/溢出/损坏/错误kind/陈旧handle
+拒绝。本机真实固件+生产C/C++内存路径在ASan/UBSan下通过，9项integration及
+两个修改生产单元静态分析通过，证据../logs/zap-staging-20261108/。
+CI42457537126 @153561e完整成功，kernel17414848B，SHA
+763d274e7220e86e610bc0b57474f894699b87018bd737f5831c4b90ae816341；76核心入口/
+13内存API链接、无unresolved、源码staging及触摸/PA64核验通过，
+build-verification.json已保存。未打包/boot；没有重跑完整离线入口或请求
+手机测试。此为CPU暂存准备，不是PAS allocator、认证或GPU执行；PAS13=false
+和手机b2b99e7查询版验收不变，详见[zap-platform-contract](zap-platform-contract.md)。
+
 ## 2026-11-08 14:44：七次查询完整，PAS13=false，查询后触摸/唤醒PASS
 
 核对67eea163/cepheus和镜像SHA、监听先就绪后临时boot
