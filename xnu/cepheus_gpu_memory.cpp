@@ -112,7 +112,7 @@ ceph_gpu_buffer_dispose_cpu(struct ceph_gpu_buffer *b)
          * entry. Restore Device pages before returning them to the allocator;
          * never rely on a future ordinary bzero to tolerate Device mappings. */
         IOMemoryMap *normal=b->memory->createMappingInTask(kernel_task,0,
-            kIOMapAnywhere|kIOMapUnique|kIOMapCopybackCache,0,b->bytes);
+            kIOMapAnywhere|kIOMapUnique|kIOMapCopybackCache|kIOMapPrefault,0,b->bytes);
         bool valid=normal && normal->getLength()==b->bytes &&
             (normal->getMapOptions()&kIOMapCacheMask)==kIOMapCopybackCache && normal->getVirtualAddress();
         for(size_t offset=0;valid && offset<b->bytes;offset+=4096) {
@@ -208,8 +208,10 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes,const struct ce
     printf("CEPHEUS GPU MEM: phase=map_cpu pa=%#llx bytes=%#lx wimg=%#x\n",
         (unsigned long long)b->pa,(unsigned long)bytes,policy->wimg);
     b->restore_cache=policy->cache==kIOMapRealTimeCache;
+    /* AT does not fault pages in. prepare() supplied the UPL; populate the new
+     * mapping before checking translation, without touching Device bytes. */
     b->mapping=b->memory->createMappingInTask(kernel_task,0,
-        kIOMapAnywhere|kIOMapUnique|policy->cache,0,bytes);
+        kIOMapAnywhere|kIOMapUnique|policy->cache|(policy->translate?kIOMapPrefault:0),0,bytes);
     if(!b->mapping || b->mapping->getLength()!=bytes ||
         (b->mapping->getMapOptions()&kIOMapCacheMask)!=policy->cache) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;

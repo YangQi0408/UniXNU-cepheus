@@ -24,7 +24,7 @@ inline std::atomic<int> bad_large_alignment{0};
 inline std::atomic<int> fail_restore{0},bad_restore_par{0},stale_restore_alias{0};
 inline std::atomic<unsigned> translation_calls{0},bad_translation_at{0};
 inline std::atomic<int> translation_fault{0};
-struct map_record {uintptr_t va;size_t bytes;uint64_t pa;unsigned cache;bool untouched;};
+struct map_record {uintptr_t va;size_t bytes;uint64_t pa;unsigned cache;bool untouched,resident;};
 inline std::mutex map_lock;
 inline std::vector<map_record> regions;
 inline void (*after_allocate)()=nullptr; /* deterministic outside-pool-lock fault injection */
@@ -47,6 +47,7 @@ inline uint64_t ceph_zap_translate_write(uintptr_t va)
     unsigned call=++mock_io::translation_calls;
     std::lock_guard<std::mutex> guard(mock_io::map_lock);
     for(auto &m:mock_io::regions)if(va>=m.va && va-m.va<m.bytes) {
+        if(!m.resident)return 1; /* AT cannot service a missing mapping */
         uint64_t attr=m.cache==kIOMapRealTimeCache?0:m.cache==kIOMapCopybackCache?0xff:0x44;
         uint64_t par=(attr<<56)|((m.pa+va-m.va)&~4095ULL);
         if(m.cache==kIOMapCopybackCache)return mock_io::bad_restore_par?par^0x100000000000000ULL:par;
@@ -71,7 +72,7 @@ public:
         std::lock_guard<std::mutex> guard(mock_io::map_lock);
         unsigned cache=flags&kIOMapCacheMask;
         for(auto &m:mock_io::regions)if(m.pa==pa && !(cache==kIOMapCopybackCache && mock_io::stale_restore_alias))m.cache=cache;
-        mock_io::regions.push_back({(uintptr_t)mapped,bytes,pa,cache,false});
+        mock_io::regions.push_back({(uintptr_t)mapped,bytes,pa,cache,false,bool(flags&kIOMapPrefault)});
     }
     uintptr_t getVirtualAddress(){return (uintptr_t)mapped;}
     size_t getLength(){return length;}
@@ -122,7 +123,8 @@ public:
         assert(cepheus_gpu_pa_range_managed(pa,bytes,vm_first_phys,vm_last_phys));
         unsigned cache=flags&kIOMapCacheMask;
         assert(cache==kIOMapWriteCombineCache || cache==kIOMapRealTimeCache || cache==kIOMapCopybackCache);
-        assert(wired && !address && !offset && bytes==length && flags==(kIOMapAnywhere|kIOMapUnique|cache));
+        assert(wired && !address && !offset && bytes==length &&
+            (flags&~kIOMapPrefault)==(kIOMapAnywhere|kIOMapUnique|cache));
         bool fail=cache==kIOMapCopybackCache?bool(mock_io::fail_restore):bool(mock_io::fail_map);
         return (fail || call==mock_io::fail_map_at)?nullptr:new IOMemoryMap(bytes,flags,pa);
     }

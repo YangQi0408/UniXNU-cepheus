@@ -11,6 +11,8 @@
   打开及非0x17编码。与原厂MDT一致的目标类型为Device-nGnRnE。
 - 在映射前核对pmap管理范围、对齐、真实PA和完整连续长度；映射后每个主机页
   查WIMG，每4KiB用AT S1E1W/PAR核对物理地址和有效内存类型，全部通过才写入。
+  ZAP新映射及恢复映射均显式kIOMapPrefault：AT不能触发缺页，不能用“先读写
+  一下”替代验证前建页表。prepare提供UPL，IOKit按既有prefault路径填充映射。
   指令按XNU mmu_kvtop模式保存/恢复DAIF，屏蔽IRQ/FIQ，ISB后读PAR，不改页表。
 - Device元数据只用volatile字节存取，AArch64编译核对只有STRB写入，没有
   memcpy/bzero或向量写。1MiB镜像保留Normal-NC，逻辑长度仍为4096B。
