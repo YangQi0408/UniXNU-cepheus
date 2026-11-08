@@ -12,7 +12,7 @@
 
 18:05后续ZAP CPU预检已收到真实MDT Device属性、镜像Normal-NC属性、读写及
 Copyback恢复成功记录，end result0/retained_pages0。缺初始scheduled标记，
-严格七条日志NOT_PASS；触摸/唤醒反馈尚未回复。它补充CPU内存执行事实，
+严格七条日志NOT_PASS；用户已回复“正常”确认主屏幕/触摸/唤醒。它补充CPU内存执行事实，
 不改变secure PA/XPU未知、PAS13=false或加载门禁，详见
 [ZAP真机记录](zap-memory-preflight.md)。
 

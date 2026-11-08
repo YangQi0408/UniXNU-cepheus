@@ -100,13 +100,15 @@ static inline int ceph_power_start(struct ceph_power_txn *t,struct ceph_power_op
     uint32_t cx,hw,gx,cfg,gmu,rcg,reset;
     if (ceph_power_read(b,CE_PWR_CX,&cx) || ceph_power_read(b,CE_PWR_CX_STATUS,&hw) ||
         ceph_power_read(b,CE_PWR_GX,&gx) || ceph_power_read(b,CE_PWR_CFG_AHB,&cfg) ||
-        ceph_power_read(b,CE_PWR_GMU,&gmu) || ceph_power_read(b,CE_PWR_RCG,&rcg) ||
-        ceph_power_read(b,CE_PWR_CM3_RESET,&reset)) {
+        ceph_power_read(b,CE_PWR_GMU,&gmu) || ceph_power_read(b,CE_PWR_RCG,&rcg)) {
         e=CE_PWR_IO;goto failed;
     }
     if ((cx&7u)!=1u || (hw&(1u<<31)) || (gx&(1u<<31)) || !(gx&1u) ||
         !ceph_gpu_branch_active(cfg) || !(gmu&(1u<<31)) || (gmu&1u) ||
-        !(rcg&(1u<<31)) || (rcg&3u) || reset!=1) { e=CE_PWR_BUSY;goto failed; }
+        !(rcg&(1u<<31)) || (rcg&3u)) { e=CE_PWR_BUSY;goto failed; }
+    /* The CM3 register is inside the collapsed CX domain. Check it only after
+     * power and clocks are live; reading it here can hang the CPU interconnect.
+     * prepare() must prove cold ownership without touching that aperture. */
     t->state=CE_PWR_VOTES;
     const unsigned wanted[]={plan.mx_index,plan.cx_index};
     const unsigned current[]={in.current_mx,in.current_cx};

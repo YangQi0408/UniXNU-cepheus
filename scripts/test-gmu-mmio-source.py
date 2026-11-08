@@ -28,6 +28,7 @@ def main():
     snippet='''#include <assert.h>
 #include "cepheus_gmu_retire_mmio.h"
 #include "cepheus_gmu_upload_mmio.h"
+#include "cepheus_gpu_power_mmio.h"
 static uint32_t gmu[0x30000/4],gpu[0x40000/4];
 static int lease(void *p){(void)p;return 0;}
 static void finish(void *p,int uncertain){(void)p;(void)uncertain;}
@@ -35,6 +36,9 @@ static void finish(void *p,int uncertain){(void)p;(void)uncertain;}
 _Static_assert(sizeof(startup)/sizeof(startup[0])==CE_GMU_REG_COUNT,"startup count");
 _Static_assert(sizeof(park)/sizeof(park[0])==CE_PARK_REG_COUNT,"park count");
 int main(void) {
+ struct ceph_power_mmio power={0};const struct ceph_power_window *window;uint32_t reset;
+ assert(!ceph_power_mmio_register(&power,CE_PWR_CM3_RESET,&window,&reset));
+ assert(window==&power.gmu && reset==startup[0]*4-0x6a000);
  struct ceph_gmu_mmio m={(volatile uint8_t *)gmu,sizeof(gmu),{0x06040001,0x60100000,20480,0x60200000,4096},0x20000001,0,lease};
  for(unsigned r=0;r<CE_GMU_REG_COUNT;++r) {
   uint32_t off,value;assert(!ceph_gmu_register_offset((enum ceph_gmu_reg)r,&off));assert(off==startup[r]*4-0x6a000);

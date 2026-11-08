@@ -38,6 +38,7 @@ class Integration(unittest.TestCase):
             (tree / 'bsd/conf/files').write_text('base\n')
             subprocess.run(['bash', str(ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh')], cwd=tree, check=True)
             for where, name in [('bsd/dev', 'cepheus_gpu_compile.c'), ('bsd/dev', 'cepheus_hfi_boot.h'),
+                                ('bsd/dev', 'cepheus_gpu_power_mmio.h'),
                                 ('bsd/dev', 'cepheus_zap_image.h'),
                                 ('bsd/dev', 'cepheus_zap_memory.h'),
                                 ('iokit/Kernel/arm', 'cepheus_zap_image.h'),

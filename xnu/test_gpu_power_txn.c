@@ -10,7 +10,13 @@ struct mock {
 static int step(struct mock *m) {return ++m->call==m->fail ? -9 : 0;}
 static int prepare(void *p,struct ceph_power_input *in) {struct mock *m=p;int e=step(m);if(e)return e;m->live=1;*in=m->in;return 0;}
 static int valid(void *p) {struct mock *m=p;assert(m->live);int e=step(m);return e?e:m->expired?-9:0;}
-static int readreg(void *p,enum ceph_power_reg r,uint32_t *v) {struct mock *m=p;int e=step(m);if(e)return e;*v=m->reg[r];
+static int readreg(void *p,enum ceph_power_reg r,uint32_t *v) {struct mock *m=p;
+    if(r==CE_PWR_CM3_RESET) {
+        assert(m->reg[CE_PWR_CX_STATUS]&(1u<<31));
+        assert(!(m->reg[CE_PWR_GMU]&(1u<<31)) && !(m->reg[CE_PWR_AHB]&(1u<<31)));
+        assert(!(m->reg[CE_PWR_CXO]&(1u<<31)) && !(m->reg[CE_PWR_RCG]&((1u<<31)|1u)));
+    }
+    int e=step(m);if(e)return e;*v=m->reg[r];
     if(m->expire_after_rcg_read && r==CE_PWR_RCG && m->reg[CE_PWR_RCG_CFG]==0x602)m->expired=1;
     return 0;}
 static int writereg(void *p,enum ceph_power_reg r,uint32_t v)
@@ -88,8 +94,10 @@ int main(void)
     m=fixture();m.timeout=1;b=ops(&m);t=(struct ceph_power_txn){0};
     assert(ceph_power_start(&t,&b)==CE_PWR_TIMEOUT && t.state==CE_PWR_QUARANTINED && m.delays<=501);
     m=fixture();m.reg[CE_PWR_CM3_RESET]=0;b=ops(&m);t=(struct ceph_power_txn){0};
-    assert(ceph_power_start(&t,&b)==CE_PWR_BUSY && t.state==CE_PWR_REFUSED && !t.effects && !m.writes && !m.votes);
-    const enum ceph_power_reg bad[]={CE_PWR_CX,CE_PWR_CX_STATUS,CE_PWR_GX,CE_PWR_CFG_AHB,CE_PWR_GMU,CE_PWR_RCG,CE_PWR_CM3_RESET};
+    assert(ceph_power_start(&t,&b)==CE_PWR_BUSY && t.state==CE_PWR_QUARANTINED && t.effects && m.kept);
+    m=fixture();m.reg[CE_PWR_CM3_RESET]=UINT32_MAX;b=ops(&m);t=(struct ceph_power_txn){0};
+    assert(ceph_power_start(&t,&b)==CE_PWR_BUSY && t.state==CE_PWR_QUARANTINED && m.kept);
+    const enum ceph_power_reg bad[]={CE_PWR_CX,CE_PWR_CX_STATUS,CE_PWR_GX,CE_PWR_CFG_AHB,CE_PWR_GMU,CE_PWR_RCG};
     for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
         m=fixture();m.reg[bad[i]]=UINT32_MAX;b=ops(&m);t=(struct ceph_power_txn){0};
         assert(ceph_power_start(&t,&b)!=0 && !t.effects);

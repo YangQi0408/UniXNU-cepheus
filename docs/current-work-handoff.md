@@ -1,14 +1,34 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 18:09 +08:00**。范围：ZAP CPU预检已真机执行，严格日志缺项，UI待确认。
+更新：**2026-11-08 18:52 +08:00**。范围：修正上电访问顺序并补齐受限MMIO适配层；尚无GPU执行候选。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
+
+用户要求快速推进GPU实测，不重复控制/触摸/内存轮。目标为GPU写scratch并完成
+fence；目前仍缺真实共享资源接管、PAS认证/停止及SMMU平台接入，不能称只差
+打开启动开关。手机保持已验收zapmem-b5006b5，无新设备操作。
+
+本轮修正ceph_power_start在CX/时钟关闭时读取GMU CM3寄存器的问题：改到CX和
+全部访问时钟开启后再确认reset==1；失败保留已发生的资源副作用。新增
+cepheus_gpu_power_mmio.h，固定GCC/GPUCC/GMU窗口、访问时钟门禁、具名寄存器
+及受限写掩码，实际volatile访问和arm64屏障；无映射/电源投票/所有权获取或
+启动hook。空lease不允许通过，不能当作完整平台后端。新增两个链接入口，
+staging/CI/verifier已接入，完整XNU构建待运行，旧内核未包含这些改动。
+
+针对性ASan/UBSan覆盖断电PROT_NONE区域、完整寄存器事务、196个lease失效点、
+超时/异常复位及非法写；真实A640 GMU材料的4种相关bringup场景、9项集成、
+下游CM3偏移比对和两个生产单元静态分析通过。未重跑完整离线入口；证据
+../logs/gpu-power-backend-20261108/receipt.json。固件静态分析找到资源记录getter，
+但仍是缓存且可能在TCS触发前更新，不能当已生效投票；详见
+[RPMh补证](rpmh-firmware-evidence.md)。后续要建立UEFI到XNU的可信资源交接，
+不是再发同样只读查询或把current_cx/current_mx填零。
 
 最新：用户“已进入”后核对67eea163/cepheus，候选zapmem-b5006b5临时boot成功。
 18:05:13收到六条有序执行成功记录：MDT16384B/PA0x184398000/attr0，镜像
 1MiB/PA0x185d00000/attr0x44；4+256页翻译、pattern PASS、MDT恢复attr0xff、
 end result0/retained_pages0。scheduled初始标记缺失，原严格七条判定NOT_PASS，
-未补造日志或放宽标准；90秒时序不能验收。简短触摸/唤醒确认已请求但未回复，
-UI保持PENDING，不能由health errors0推断触摸正常。预检后9条health末events3。
+未补造日志或放宽标准；90秒时序不能验收。用户回复“正常”确认主屏幕/触摸/
+唤醒PASS，主机观察18:16:04，晚于采集结束，不冒称操作已同步采集。
+预检后9条health末events3。用户要求尽快推进GPU实测，不再重复控制或内存轮。
 采集18:07:46自然结束300.000947s/340包/91661B，SHA479b2f82...；主机RX错误/
 丢弃0，自有capture/watch均退出。无自动重启/恢复/重试，手机保持候选运行。
 证据../logs/zapmem-b5006b5-live-20261108-1802/result.json，详见

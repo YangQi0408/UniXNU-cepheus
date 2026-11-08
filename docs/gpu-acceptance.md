@@ -4,15 +4,30 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
-## 2026-11-08 18:09：CPU预检执行成功记录齐全，严格日志NOT_PASS，UI待确认
+## 2026-11-08 18:52：上电访问顺序及MMIO适配层，尚无GPU执行候选
+
+ceph_power_start不再于CX/GMU时钟关闭时读CM3 SYSRESET，改到电源和时钟
+就绪后读取；非reset1保留已写资源。新增固定窗口、具名寄存器、时钟门禁、
+写掩码和每次写前lease确认的真实volatile MMIO适配层。它不取得共享资源
+所有权、不发送ARC投票、不释放reset，没有启动hook。不存在可直接boot的
+GPU执行版；所缺为真实平台资源接管、SMMU和ZAP认证/停止接入。
+
+新增针对性host测试通过：断电区域PROT_NONE、完整事务、196处lease过期、
+超时/复位异常/越权写；相关4种GMU链路、9项staging、下游CM3偏移和两个
+生产单元静态分析通过。证据../logs/gpu-power-backend-20261108/receipt.json。
+staging/CI/verifier新增两入口，完整构建待运行；host结果不代表真机寄存器
+已读写。没有重复完整离线套件或操作手机，不安排新的触摸/控制/内存轮。
+
+## 2026-11-08 18:16：CPU预检执行成功记录齐全，严格日志NOT_PASS，UI正常
 
 zapmem-b5006b5在67eea163/cepheus临时boot成功，18:05:13收到六条执行记录：
 MDT16KiB/4页attr0、镜像1MiB/256页attr0x44且1MiB PA对齐，pattern PASS，
 MDT恢复attr0xff，end result0/retained_pages0。记录及范围检查通过，不证明
 secure可达、PAS认证或GPU执行。最早scheduled标记缺失，严格七条判定仍为
 NOT_PASS，不能追认完整预检PASS或90秒时序，未修改判定规则或补造记录。
-一次简短UI/触摸/唤醒确认尚未收到，保持PENDING；后续health errors0不替代
-功能验收。300.000947秒采集自然到期，340包/91661B，SHA479b2f82...。
+用户回复“正常”确认主屏幕/触摸/唤醒PASS，主机18:16:04观察；回复在采集结束后，
+不追认操作已同步采集，不重跑控制/内存轮。300.000947秒采集自然到期，
+340包/91661B，SHA479b2f82...。
 capture及自有watcher均退出，手机保持候选运行，无自动重启/恢复或加测。
 证据../logs/zapmem-b5006b5-live-20261108-1802/，详见
 [ZAP真机记录](zap-memory-preflight.md)。

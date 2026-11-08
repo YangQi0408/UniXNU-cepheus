@@ -15,6 +15,7 @@ install -m 0644 "$here/cepheus_zap_image.h" "$here/cepheus_zap_memory.h" "$here/
 install -m 0644 "$here/cepheus_qmp_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_retire_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_pdc_mmio.h" bsd/dev/
+install -m 0644 "$here/cepheus_gpu_power_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_fault_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_upload_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_qmp_connect.h" bsd/dev/

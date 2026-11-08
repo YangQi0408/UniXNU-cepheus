@@ -19,6 +19,7 @@ HEADERS += ('cepheus_gpu_config.h',)
 HEADERS += ('cepheus_qmp_mmio.h',)
 HEADERS += ('cepheus_gmu_retire_mmio.h',)
 HEADERS += ('cepheus_pdc_mmio.h',)
+HEADERS += ('cepheus_gpu_power_mmio.h',)
 HEADERS += ('cepheus_gpu_fault_mmio.h',)
 HEADERS += ('cepheus_gmu_upload_mmio.h',)
 HEADERS += ('cepheus_qmp_connect.h',)
@@ -98,6 +99,7 @@ def main():
     required |= {'_cepheus_gpu_zap_snapshot_prepare'}
     required |= {'_cepheus_gpu_qmp_bind'}
     required |= {'_cepheus_gpu_pdc_mmio_bind'}
+    required |= {'_cepheus_gpu_power_mmio_read', '_cepheus_gpu_power_mmio_write'}
     required |= {'_cepheus_gpu_fault_mmio_read'}
     required |= {'_cepheus_gpu_upload_mmio_bind'}
     required |= {'_cepheus_gmu_bringup_retire'}
