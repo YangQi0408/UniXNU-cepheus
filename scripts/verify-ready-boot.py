@@ -14,13 +14,17 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_fuse=False, soc_fuse_arc=False, all_probes=False, scm_info=False, soc_delay=False):
-    assert sum((touch_only, soc_only, soc_fuse, soc_fuse_arc, all_probes)) <= 1, "choose one isolation profile"
+def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_fuse=False, soc_fuse_arc=False, all_probes=False, scm_info=False, soc_delay=False, zap_memory=False):
+    assert sum((touch_only, soc_only, soc_fuse, soc_fuse_arc, all_probes, zap_memory)) <= 1, "choose one isolation profile"
     tokens = line.split()
     names = [t.split("=", 1)[0] for t in tokens]
     assert len(names) == len(set(names)), "duplicate boot arguments"
     assert len(line) <= 1000
     forbidden = {"cephmem", "cephboost", "cephgpu", "cephboot", "cephpower", "sweetfastboot", "sweetgpu", "sweettouchreset"}
+    if zap_memory:
+        assert memory_test is None and not scm_info and not soc_delay
+    else:
+        forbidden.add("cephzapmem")
     if soc_delay:
         assert soc_only and memory_test is None and not scm_info, "SoC delay requires basic-only profile"
     else:
@@ -38,9 +42,11 @@ def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_
                 "sweethidonce=1", "sweetfb_noconsole=1"}
     if scm_info:
         required.add("cephscm=1")
+    if zap_memory:
+        required.add("cephzapmem=1")
     if soc_delay:
         required.add("cephsocdelay=240")
-    if touch_only or soc_only or soc_fuse or soc_fuse_arc or all_probes:
+    if touch_only or soc_only or soc_fuse or soc_fuse_arc or all_probes or zap_memory:
         if all_probes:
             required.add("cephgx=1")
         else:
@@ -53,7 +59,7 @@ def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_
             required.add("cephfuse=1")
         else:
             forbidden.add("cephfuse")
-        if touch_only:
+        if touch_only or zap_memory:
             forbidden.add("cephsoc")
         else:
             required.add("cephsoc=1")
@@ -108,6 +114,8 @@ def main():
     parser.add_argument("--memory-test", type=int, choices=(1, 2),
                         help="explicit CPU-only memory diagnostic profile; default remains disabled")
     isolation = parser.add_mutually_exclusive_group()
+    isolation.add_argument("--zap-memory", action="store_true",
+                        help="require isolated CPU-only ZAP memory preflight; no SoC/SCM/GPU probe")
     isolation.add_argument("--touch-only", action="store_true",
                         help="require bounded touch diagnostics with all cephsoc/GPU probes and memory tests absent")
     isolation.add_argument("--soc-only", action="store_true",
@@ -141,7 +149,11 @@ def main():
         assert files["UniXNU/Payloads/kernel.macho"] == args.kernel.read_bytes()
         config = tomllib.loads(files["UniXNU/unixnu.toml"].decode())
         line = config["entry"][0]["args"]
-        validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc, args.all_probes, args.scm_info, args.soc_delay)
+        validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc, args.all_probes, args.scm_info, args.soc_delay, args.zap_memory)
+        if args.zap_memory:
+            assert all(marker in files["UniXNU/Payloads/kernel.macho"] for marker in
+                       (b"cephzapmem", b"CEPHEUS ZAP TEST: scheduled delay_s=90", b"CEPHEUS ZAP TEST: begin version=1",
+                        b"CEPHEUS ZAP TEST: end result=", b"CEPHEUS ZAP MEM: translated", b"CEPHEUS ZAP MEM: restored")), "missing ZAP preflight markers"
         if args.scm_info:
             assert all(marker in files["UniXNU/Payloads/kernel.macho"] for marker in
                        (b"cephscm", b"CEPHEUS SCM INFO: begin", b"CEPHEUS SCM INFO REGS:",
@@ -162,6 +174,7 @@ def main():
                    "firmware_dtb_boot_header_unchanged": True, "boot_checksum_valid": True,
                    "hardware_tested": False,
                    "memory_test": args.memory_test,
+                   "zap_memory_preflight": args.zap_memory,
                    "touch_only": args.touch_only,
                    "soc_only": args.soc_only,
                    "soc_probe_delay_s": 240 if args.soc_delay else None,
@@ -169,7 +182,7 @@ def main():
                    "soc_fuse_arc": args.soc_fuse_arc,
                    "all_probes": args.all_probes,
                    "scm_info": args.scm_info,
-                   "scope": "Packaging only. Explicit CPU-only memory selftest enabled." if args.memory_test else
+                   "scope": "Packaging only. Explicit CPU-only memory selftest enabled." if args.memory_test or args.zap_memory else
                        "Packaging only. Memory selftest disabled.",
                    "cpu_boost_gpu_startup_disabled": True, "phone_operations": False}
         if args.only_added_arg:

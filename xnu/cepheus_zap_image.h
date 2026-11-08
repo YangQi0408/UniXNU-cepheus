@@ -88,6 +88,11 @@ static inline int ceph_zap_cpu_range(const void *p,size_t n)
 {return p && n && n<=UINTPTR_MAX-(uintptr_t)p;}
 static inline int ceph_zap_cpu_overlap(const void *a,size_t n,const void *b,size_t m)
 {return ceph_zap_overlap((uintptr_t)a,n,(uintptr_t)b,m);}
+static inline void ceph_zap_mdt_copy(uint8_t *dst,const uint8_t *src,size_t bytes)
+{
+    volatile uint8_t *device=dst;
+    for(size_t i=0;i<bytes;++i)device[i]=src[i];
+}
 
 /* Caller owns readable, immutable input and writable disjoint CPU buffers.
  * Validate the entire layout and all capacities/aliases before the first store.
@@ -105,8 +110,8 @@ static inline int ceph_zap_stage(const uint8_t *elf,size_t bytes,uint8_t *mdt,si
         ceph_zap_cpu_overlap(out,sizeof(*out),elf,bytes) || ceph_zap_cpu_overlap(out,sizeof(*out),mdt,mdt_capacity) ||
         ceph_zap_cpu_overlap(out,sizeof(*out),image,image_capacity) || ceph_zap_parse(elf,bytes,&p) ||
         mdt_capacity<p.mdt_bytes || image_capacity<p.logical_bytes)return -1;
-    for(uint32_t i=0;i<p.header_bytes;++i)mdt[i]=elf[i];
-    for(uint32_t i=0;i<p.hash_bytes;++i)mdt[p.header_bytes+i]=elf[p.hash_offset+i];
+    ceph_zap_mdt_copy(mdt,elf,p.header_bytes);
+    ceph_zap_mdt_copy(mdt+p.header_bytes,elf+p.hash_offset,p.hash_bytes);
     for(uint32_t i=0;i<p.logical_bytes;++i)image[i]=0;
     for(unsigned i=0;i<p.segments;++i) {
         const struct ceph_zap_segment *s=&p.load[i];

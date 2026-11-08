@@ -7,7 +7,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 soc = (ROOT / 'xnu/cepheus_soc.c').read_text()
-helpers = 'static bool soc_probe_delay' + soc.split('static bool soc_probe_delay', 1)[1].split('static void soc_scm_probe', 1)[0]
+helpers = 'static bool soc_zap_memory' + soc.split('static bool soc_zap_memory', 1)[1].split('static void soc_scm_probe', 1)[0]
 thread = 'static void soc_thread' + soc.split('static void soc_thread', 1)[1].split('void cepheus_soc_init', 1)[0]
 assert thread.index('soc_probe_delay(&delay)') < thread.index('swait(delay * 1000)') < thread.index('osm_dump(')
 assert thread.index('soc_probe_mark("begin"') < thread.index('osm_dump(')
@@ -26,7 +26,9 @@ typedef uintptr_t vm_offset_t;
 #define NSEC_PER_SEC 1000000000ULL
 #define THREAD_CONTINUE_NULL 0
 static const char *conflicts[] = {"cephfuse", "cepharc", "cephgx", "cephscm", "cephboost", "cephmem"};
-static int delay_present, delay_value, soc_value=1, conflict=-1, conflict_value;
+static int delay_present, delay_value, soc_value=1, soc_present=1, conflict=-1, conflict_value;
+static int zap_present,zap_value;
+static unsigned zap_tests;
 static unsigned waits, first_wait, dumps, gpu, samples, maps, reads, optional, scm, terminated, blocked, marks;
 static unsigned expected_delay, last_sample;
 static uint64_t now;
@@ -36,7 +38,8 @@ static int PE_parse_boot_argn(const char *key, int *value, unsigned bytes)
 {
     assert(bytes == sizeof(*value));
     if (!strcmp(key, "cephsocdelay")) {if (!delay_present) return 0; *value=delay_value; return 1;}
-    if (!strcmp(key, "cephsoc")) {*value=soc_value; return 1;}
+    if (!strcmp(key, "cephsoc")) {*value=soc_value; return soc_present;}
+    if (!strcmp(key, "cephzapmem")) {*value=zap_value; return zap_present;}
     for (unsigned n=0; n<6; ++n) if (!strcmp(key, conflicts[n])) {
         if ((int)n != conflict) return 0;
         *value=conflict_value; return 1;
@@ -71,6 +74,7 @@ static void gpu_gx_probe(void) {++optional;}
 static void cepheus_gpu_arc_probe(void) {++optional;}
 static void cepheus_gpu_memory_selftest(void) {++optional;}
 static void cepheus_gmu_workspace_selftest(void) {++optional;}
+static int cepheus_zap_memory_selftest(void) {assert(first_wait==90000 && waits==1);++zap_tests;return 0;}
 static void osm_sample(unsigned n) {require_begin(); assert(n==samples); ++samples; last_sample=n;}
 static int cpu_temperature(int *t) {require_begin(); *t=35000; return 1;}
 static vm_offset_t ml_io_map(uintptr_t pa, unsigned size) {require_begin(); assert(pa==0x0c265000 && size==0x1000); ++maps; return 1;}
@@ -89,12 +93,13 @@ suffix = r'''
 static void reset(void)
 {
     waits=first_wait=dumps=gpu=samples=maps=reads=optional=scm=terminated=blocked=marks=last_sample=0;
+    zap_tests=0;
     now=17000*NSEC_PER_MSEC;
 }
 static void rejected(void)
 {
     reset(); soc_thread(NULL, 0);
-    assert(!waits && !dumps && !gpu && !samples && !maps && !reads && !optional && !scm && !marks);
+    assert(!waits && !dumps && !gpu && !samples && !maps && !reads && !optional && !scm && !marks && !zap_tests);
     assert(terminated==1 && blocked==1);
 }
 int main(void)
@@ -117,7 +122,18 @@ int main(void)
     soc_value=1;
     for (conflict=0; conflict<6; ++conflict)
         for (conflict_value=0; conflict_value<=2; ++conflict_value) rejected();
+    conflict=-1;delay_present=0;soc_present=0;zap_present=1;zap_value=1;
+    reset();soc_thread(NULL,0);
+    assert(zap_tests==1 && waits==1 && terminated==1 && blocked==1);
+    assert(!dumps && !gpu && !samples && !maps && !reads && !optional && !scm && !marks);
+    for(int invalid=-1;invalid<=2;++invalid)if(invalid!=1){zap_value=invalid;rejected();}
+    zap_value=1;
+    for(soc_value=0;soc_value<=2;++soc_value){soc_present=1;rejected();}soc_present=0;
+    delay_present=1;rejected();delay_present=0;
+    for(conflict=0;conflict<6;++conflict)
+        for(conflict_value=0;conflict_value<=2;++conflict_value)rejected();
     puts("Production SoC delay guard/thread PASS: default45, fixed240, phase order, rejected profiles do no probes (host stubs only)");
+    puts("Production ZAP hook PASS: fixed90 single memory preflight, no SoC/SCM reads, all mixed/invalid profiles refused");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

@@ -16,6 +16,7 @@
 #include "cepheus_cpu_policy.h"
 #include "cepheus_gpu_power.h"
 #include "cepheus_gpu_memory.h"
+#include "cepheus_zap_memory.h"
 #include "cepheus_gpu_bin.h"
 #include "cepheus_scm_discovery.h"
 extern void cepheus_gmu_workspace_selftest(void);
@@ -320,6 +321,27 @@ static void gpu_gx_probe(void)
 	    sr(gx, 0xe0d * 4), sr(gx, 0xe0e * 4));
 	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
 }
+static bool soc_zap_memory(void)
+{
+	int enabled=0,conflict=0;
+	if (!PE_parse_boot_argn("cephzapmem", &enabled, sizeof(enabled))) { return false; }
+	/* An explicit, separate CPU-only path; reject even zero-valued conflicting
+	 * switches so no SoC/SCM/GPU experiment can be silently combined with it. */
+	if (enabled != 1 || PE_parse_boot_argn("cephsoc", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephsocdelay", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephfuse", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cepharc", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephgx", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephscm", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephboost", &conflict, sizeof(conflict)) ||
+	    PE_parse_boot_argn("cephmem", &conflict, sizeof(conflict))) {
+		printf("CEPHEUS ZAP TEST: refused mixed or invalid profile\n");return true;
+	}
+	printf("CEPHEUS ZAP TEST: scheduled delay_s=90\n");
+	swait(90000);
+	(void)cepheus_zap_memory_selftest();
+	return true;
+}
 static bool soc_probe_delay(unsigned *seconds)
 {
 	int delay = 0;
@@ -371,6 +393,9 @@ static void soc_scm_probe(void)
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
+	if (soc_zap_memory()) {
+		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
+	}
 	unsigned delay;
 	if (!soc_probe_delay(&delay)) {
 		(void)thread_terminate(current_thread());
@@ -432,7 +457,9 @@ void cepheus_soc_init(void)
 	int enabled = 0;
 	thread_t thread;
 	PE_parse_boot_argn("cephsoc", &enabled, sizeof(enabled));
-	if (!enabled || started) { return; }
+	int zap=0;
+	bool zap_present=PE_parse_boot_argn("cephzapmem", &zap, sizeof(zap));
+	if ((!enabled && !zap_present) || started) { return; }
 	started = true;
 	if (kernel_thread_start(soc_thread, NULL, &thread) == KERN_SUCCESS) { thread_deallocate(thread); }
 }

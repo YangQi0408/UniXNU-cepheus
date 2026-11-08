@@ -37,6 +37,11 @@ extern uint64_t vm_last_phys;
 #include "cepheus_gpu_memory_private.h"
 #include "cepheus_zap_image.h"
 #include "cepheus_zap_memory.h"
+#include "cepheus_zap_cache.h"
+#if defined(HAS_UCNORMAL_MEM) && HAS_UCNORMAL_MEM
+#error "SWEET ZAP MDT requires VM_WIMG_RT to select Device-nGnRnE"
+#endif
+static_assert(VM_WIMG_RT==0x17,"Unexpected SWEET real-time memory attribute encoding");
 
 struct ceph_gpu_buffer {
     IOBufferMemoryDescriptor *memory;
@@ -45,16 +50,21 @@ struct ceph_gpu_buffer {
     uint64_t pa;
     size_t bytes;
     unsigned *budget;
-    bool prepared,published;
+    bool prepared,published,restore_cache;
 };
 
 /* One-shot selftest counter and bounded outstanding buffer budget. */
 static unsigned ceph_memory_once,ceph_memory_pages;
-static unsigned ceph_zap_pages;
-struct ceph_buffer_policy {size_t alignment,maximum;unsigned *pages,limit;};
-static const struct ceph_buffer_policy ceph_gpu_policy={4096,256*1024,&ceph_memory_pages,256};
-static const struct ceph_buffer_policy ceph_zap_mdt_policy={4096,16384,&ceph_zap_pages,260};
-static const struct ceph_buffer_policy ceph_zap_image_policy={1048576,1048576,&ceph_zap_pages,260};
+static unsigned ceph_zap_pages,ceph_zap_test_once;
+struct ceph_buffer_policy {
+    size_t alignment,maximum;unsigned *pages,limit,cache,wimg,attr;bool translate;
+};
+static const struct ceph_buffer_policy ceph_gpu_policy={4096,256*1024,&ceph_memory_pages,256,
+    kIOMapWriteCombineCache,VM_WIMG_WCOMB,0x44,false};
+static const struct ceph_buffer_policy ceph_zap_mdt_policy={4096,16384,&ceph_zap_pages,260,
+    kIOMapRealTimeCache,VM_WIMG_RT,0,true};
+static const struct ceph_buffer_policy ceph_zap_image_policy={1048576,1048576,&ceph_zap_pages,260,
+    kIOMapWriteCombineCache,VM_WIMG_WCOMB,0x44,true};
 /* Index16 gives the separate workspace a disjoint handle namespace. */
 static struct {
     struct ceph_mem_slot state;
@@ -97,6 +107,33 @@ static void
 ceph_gpu_buffer_dispose_cpu(struct ceph_gpu_buffer *b)
 {
     if (!b->bytes || b->published) return; /* no speculative free after possible DMA */
+    if(b->restore_cache) {
+        /* IOKit changes cache attributes for all aliases through the memory
+         * entry. Restore Device pages before returning them to the allocator;
+         * never rely on a future ordinary bzero to tolerate Device mappings. */
+        IOMemoryMap *normal=b->memory->createMappingInTask(kernel_task,0,
+            kIOMapAnywhere|kIOMapUnique|kIOMapCopybackCache,0,b->bytes);
+        bool valid=normal && normal->getLength()==b->bytes &&
+            (normal->getMapOptions()&kIOMapCacheMask)==kIOMapCopybackCache && normal->getVirtualAddress();
+        for(size_t offset=0;valid && offset<b->bytes;offset+=4096) {
+            if(!(offset&((size_t)page_size-1)) &&
+                (IODefaultCacheBits(b->pa+offset)&VM_WIMG_MASK)!=VM_WIMG_COPYBACK)valid=false;
+            uintptr_t va=(uintptr_t)normal->getVirtualAddress()+offset;
+            if(!ceph_zap_translation_matches(ceph_zap_translate_write(va),va,b->pa+offset,0xff))valid=false;
+            if(b->cpu) {
+                va=(uintptr_t)b->cpu+offset;
+                if(!ceph_zap_translation_matches(ceph_zap_translate_write(va),va,b->pa+offset,0xff))valid=false;
+            }
+        }
+        if(normal)normal->release();
+        if(!valid) {
+            b->published=true;
+            printf("CEPHEUS ZAP MEM: cache restore failed; allocation retained\n");return;
+        }
+        b->restore_cache=false;
+        printf("CEPHEUS ZAP MEM: restored pa=%#llx bytes=%#lx attr=0xff\n",
+            (unsigned long long)b->pa,(unsigned long)b->bytes);
+    }
     if (b->prepared && b->memory->complete(kIODirectionInOut)!=kIOReturnSuccess) {
         b->published=true; /* uncertain completion: retain allocation/accounting */
         printf("CEPHEUS GPU MEM: complete failed; allocation retained\n");
@@ -133,7 +170,7 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes,const struct ce
         (unsigned long long)vm_last_phys,(unsigned long long)window_mask);
     /* Default-cache allocation ONLY. Non-default cache flags cause IOBMD's
      * constructor to create a persistent memory entry and change attributes
-     * before it returns, too early for our PA check. Request Normal-NC only in
+     * before it returns, too early for our PA check. Request cache mode only in
      * the explicit map after validation. MapperNone prevents an IOVA being
      * mistaken for a CPU PA. maxPhys is an upper bound, never a lower bound. */
     b->memory=IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
@@ -166,13 +203,15 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes,const struct ce
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
     /* Allocation cache flags alone do not establish the attributes of the
-     * original getBytesNoCopy VA. Request an explicit NC kernel map and use
+     * original getBytesNoCopy VA. Request an explicit kernel map and use
      * ONLY its VA; XNU performs cache-mode/alias transitions while mapping. */
-    printf("CEPHEUS GPU MEM: phase=map_nc pa=%#llx bytes=%#lx\n",(unsigned long long)b->pa,(unsigned long)bytes);
+    printf("CEPHEUS GPU MEM: phase=map_cpu pa=%#llx bytes=%#lx wimg=%#x\n",
+        (unsigned long long)b->pa,(unsigned long)bytes,policy->wimg);
+    b->restore_cache=policy->cache==kIOMapRealTimeCache;
     b->mapping=b->memory->createMappingInTask(kernel_task,0,
-        kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache,0,bytes);
+        kIOMapAnywhere|kIOMapUnique|policy->cache,0,bytes);
     if(!b->mapping || b->mapping->getLength()!=bytes ||
-        (b->mapping->getMapOptions()&kIOMapCacheMask)!=kIOMapWriteCombineCache) {
+        (b->mapping->getMapOptions()&kIOMapCacheMask)!=policy->cache) {
         ceph_gpu_buffer_dispose_cpu(b);return -1;
     }
     b->cpu=(void *)(uintptr_t)b->mapping->getVirtualAddress();
@@ -185,12 +224,28 @@ ceph_gpu_buffer_alloc_cpu(struct ceph_gpu_buffer *b,size_t bytes,const struct ce
      * Never repair this by forcing attributes on an unowned physical page. */
     for(size_t offset=0;offset<bytes;offset+=host_page) {
         unsigned attrs=IODefaultCacheBits(b->pa+offset)&VM_WIMG_MASK;
-        if(attrs!=VM_WIMG_WCOMB) {
-            printf("CEPHEUS GPU MEM: pmap cache mismatch attrs=%#x expected=%#x; allocation refused\n",attrs,VM_WIMG_WCOMB);
+        if(attrs!=policy->wimg) {
+            printf("CEPHEUS GPU MEM: pmap cache mismatch attrs=%#x expected=%#x; allocation refused\n",attrs,policy->wimg);
             ceph_gpu_buffer_dispose_cpu(b);return -1;
         }
     }
-    bzero(b->cpu,bytes);
+    if(policy->translate) {
+        uint64_t first=0;
+        for(size_t offset=0;offset<bytes;offset+=4096) {
+            uintptr_t va=(uintptr_t)b->cpu+offset;
+            uint64_t par=ceph_zap_translate_write(va);
+            if(!offset)first=par;
+            if(!ceph_zap_translation_matches(par,va,b->pa+offset,policy->attr)) {
+                printf("CEPHEUS ZAP MEM: translation refused offset=%#lx par=%#llx expected_pa=%#llx attr=%#x\n",
+                    (unsigned long)offset,(unsigned long long)par,(unsigned long long)(b->pa+offset),policy->attr);
+                ceph_gpu_buffer_dispose_cpu(b);return -1;
+            }
+        }
+        printf("CEPHEUS ZAP MEM: translated pa=%#llx bytes=%#lx attr=%#x first_par=%#llx pages=%lu\n",
+            (unsigned long long)b->pa,(unsigned long)bytes,policy->attr,(unsigned long long)first,(unsigned long)(bytes/4096));
+    }
+    if(policy->cache==kIOMapRealTimeCache)ceph_zap_device_zero((volatile uint8_t *)b->cpu,bytes);
+    else bzero(b->cpu,bytes);
     ceph_gpu_memory_barrier();
     return 0;
 }
@@ -325,6 +380,14 @@ static void ceph_zap_dispose_cpu(void)
     ceph_gpu_buffer_dispose_cpu(&ceph_zap.mdt);
 }
 
+static int ceph_zap_alloc_cpu(void)
+{
+    int e=ceph_gpu_buffer_alloc_cpu(&ceph_zap.mdt,8192,&ceph_zap_mdt_policy);
+    if(!e)e=ceph_gpu_buffer_alloc_cpu(&ceph_zap.image,1048576,&ceph_zap_image_policy);
+    if(!e && ceph_zap_overlap(ceph_zap.mdt.pa,ceph_zap.mdt.bytes,ceph_zap.image.pa,ceph_zap.image.bytes))e=-1;
+    return e;
+}
+
 extern "C" int
 cepheus_zap_memory_prepare(uint64_t snapshot,uint64_t *handle)
 {
@@ -345,9 +408,7 @@ cepheus_zap_memory_prepare(uint64_t snapshot,uint64_t *handle)
     if(e) { (void)cepheus_gpu_memory_view_put(snapshot);return -1; }
     /* ALLOCATING excludes get/release while IOKit may sleep. The sealed source
      * stays leased throughout both allocations and copies. No PA is published. */
-    e=ceph_gpu_buffer_alloc_cpu(&ceph_zap.mdt,8192,&ceph_zap_mdt_policy);
-    if(!e)e=ceph_gpu_buffer_alloc_cpu(&ceph_zap.image,layout.allocation_bytes,&ceph_zap_image_policy);
-    if(!e && ceph_zap_overlap(ceph_zap.mdt.pa,ceph_zap.mdt.bytes,ceph_zap.image.pa,ceph_zap.image.bytes))e=-1;
+    e=ceph_zap_alloc_cpu();
     if(!e)e=ceph_zap_stage(source.data,source.bytes,(uint8_t *)ceph_zap.mdt.cpu,ceph_zap.mdt.bytes,
         (uint8_t *)ceph_zap.image.cpu,ceph_zap.image.bytes,&ceph_zap.layout);
     if(!e)ceph_gpu_memory_barrier();
@@ -403,6 +464,42 @@ cepheus_zap_memory_release_cpu(uint64_t handle)
     (void)ceph_mem_finish_allocation(&ceph_zap.state,0,retained);
     if(retained)printf("CEPHEUS ZAP MEM: CPU cleanup uncertain; workspace retained\n");
     IOLockUnlock(lock);return retained?-1:0;
+}
+
+extern "C" int
+cepheus_zap_memory_selftest(void)
+{
+    unsigned expected=0;
+    if(!__atomic_compare_exchange_n(&ceph_zap_test_once,&expected,1u,false,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))return -1;
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);
+    int e=ceph_pool_terminal?-1:ceph_mem_reserve(&ceph_zap.state);
+    IOLockUnlock(lock);
+    if(e) {printf("CEPHEUS ZAP TEST: refused occupied or terminal workspace\n");return -1;}
+    printf("CEPHEUS ZAP TEST: begin version=1 cpu_only=1\n");
+    e=ceph_zap_alloc_cpu();
+    if(!e) {
+        volatile uint8_t *mdt=(volatile uint8_t *)ceph_zap.mdt.cpu;
+        volatile uint32_t *image=(volatile uint32_t *)ceph_zap.image.cpu;
+        for(size_t i=0;i<ceph_zap.mdt.bytes;++i)mdt[i]=(uint8_t)(0x5au^i);
+        for(size_t i=0;i<ceph_zap.image.bytes/4;++i)image[i]=0xa6400000u^(uint32_t)i;
+        ceph_gpu_memory_barrier();
+        for(size_t i=0;i<ceph_zap.mdt.bytes;++i)if(mdt[i]!=(uint8_t)(0x5au^i))e=-1;
+        for(size_t i=0;i<ceph_zap.image.bytes/4;++i)if(image[i]!=(0xa6400000u^(uint32_t)i))e=-1;
+        printf("CEPHEUS ZAP TEST: pattern=%s mdt_bytes=%lu image_bytes=%lu logical_bytes=4096\n",
+            e?"FAIL":"PASS",(unsigned long)ceph_zap.mdt.bytes,(unsigned long)ceph_zap.image.bytes);
+        ceph_zap_device_zero(mdt,ceph_zap.mdt.bytes);
+        bzero(ceph_zap.image.cpu,ceph_zap.image.bytes);ceph_gpu_memory_barrier();
+    }
+    ceph_zap_dispose_cpu();
+    IOLockLock(lock);
+    bool retained=ceph_zap.mdt.published || ceph_zap.image.published;
+    if(retained || ceph_pool_terminal)e=-1;
+    (void)ceph_mem_finish_allocation(&ceph_zap.state,0,retained);
+    unsigned pages=__atomic_load_n(&ceph_zap_pages,__ATOMIC_ACQUIRE);
+    if(pages)e=-1;
+    printf("CEPHEUS ZAP TEST: end result=%d retained_pages=%u cpu_only=1\n",e,pages);
+    IOLockUnlock(lock);return e;
 }
 
 extern "C" void

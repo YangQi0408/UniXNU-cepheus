@@ -1,7 +1,8 @@
 /* Private kernel CPU staging workspace, not a PAS allocator or user API.
  * Owns one sealed MDT/image pair under an independent 1MiB+16KiB budget.
- * Both are Normal-NC mappings of managed contiguous DRAM; image PA is 1MiB
- * aligned. This does NOT prove secure PA reachability, XPU/cache compatibility,
+ * MDT uses Device-nGnRnE; image uses Normal-NC and 1MiB PA alignment.
+ * Effective CPU translation/attributes are checked before the first access.
+ * This does NOT prove secure PA reachability, XPU/cache compatibility,
  * crypto ownership or authentication. No publish/SMC/GPU startup path exists.
  * Callers must not hand these PAs to PAS. A future secure backend must establish
  * its own access/cache/ownership contract and retain memory across ambiguity.
@@ -14,7 +15,8 @@
 extern "C" {
 #endif
 struct ceph_zap_memory_view {
-    const uint8_t *mdt,*image;
+    const volatile uint8_t *mdt;
+    const uint8_t *image;
     uint64_t mdt_pa,image_pa;
     size_t mdt_capacity,image_capacity;
     uint32_t mdt_bytes,logical_bytes,entry_offset;
@@ -29,6 +31,9 @@ int cepheus_zap_memory_put(uint64_t handle);
 /* All readonly leases must be returned first. CPU-only release, no assertion
  * of secure shutdown or device quiescence. Never use after hardware exposure. */
 int cepheus_zap_memory_release_cpu(uint64_t handle);
+/* Explicit single CPU-only preflight: same allocator and mapping validation,
+ * bounded patterns, cleanup and retained budget report. No firmware or PAS. */
+int cepheus_zap_memory_selftest(void);
 #ifdef __cplusplus
 }
 #endif

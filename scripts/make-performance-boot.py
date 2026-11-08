@@ -45,6 +45,20 @@ def validate_soc_delay(args, kernel, parser):
             parser.error(f'missing SoC delay guard/phase marker: {marker!r}')
 
 
+def validate_zap_memory(args, kernel, parser):
+    if not args.zap_memory_test:
+        return
+    if (not args.touch_gpio or not args.touch_power or not args.touch_diagnostic or
+            args.touch_probe or args.soc_probe or args.soc_probe_delay is not None or args.scm_info_probe or
+            args.gpu_arc_probe or args.gpu_memory_test or args.gpu_workspace_test or args.gpu_fuse_probe or
+            args.gpu_gx_probe or args.cpu_trial or args.cpu_interactive):
+        parser.error('ZAP memory requires isolated GPIO touch profile; no SoC/SCM/GPU/boost experiments')
+    for marker in (b'cephzapmem', b'CEPHEUS ZAP TEST: scheduled delay_s=90', b'CEPHEUS ZAP TEST: begin version=1',
+                   b'CEPHEUS ZAP TEST: end result=', b'CEPHEUS ZAP MEM: translated', b'CEPHEUS ZAP MEM: restored'):
+        if marker not in kernel:
+            parser.error(f'missing ZAP memory preflight marker: {marker!r}')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('source', type=Path)
@@ -63,6 +77,7 @@ def main():
     p.add_argument('--gpu-arc-probe', action='store_true', help='with soc-probe, read-only ARC voltage tables/TCS snapshot; no votes')
     p.add_argument('--gpu-memory-test', action='store_true', help='with soc-probe, CPU-only IOKit buffer selftest; no GPU DMA')
     p.add_argument('--gpu-workspace-test', action='store_true', help='with soc-probe, CPU-only GMU backing/page-table/HFI workspace test')
+    p.add_argument('--zap-memory-test', action='store_true', help='isolated ZAP MDT/image CPU mapping and cleanup preflight; no SoC/SCM/GPU probe')
     p.add_argument('--gpu-fuse-probe', action='store_true', help='with soc-probe, read-only GPU speed-bin eFuse; no fuse writes')
     p.add_argument('--gpu-gx-probe', action='store_true',
                    help='with soc-probe, read-only GX/CP halted-window snapshot; no writes, no unhalt')
@@ -80,6 +95,7 @@ def main():
     if a.soc_probe and (b'CEPHEUS OSM:' not in kernel or b'CEPHEUS GPU:' not in kernel):
         p.error('missing CPU/GPU diagnostic code')
     validate_soc_delay(a, kernel, p)
+    validate_zap_memory(a, kernel, p)
     if a.scm_info_probe and (not a.soc_probe or a.cpu_trial or a.cpu_interactive or a.gpu_memory_test or a.gpu_workspace_test or
                              b'cephscm' not in kernel or b'CEPHEUS SCM INFO: begin' not in kernel):
         p.error('SCM info probe requires soc-probe, compiled opt-in hook, and no boost or memory test')
@@ -131,6 +147,7 @@ def main():
         if a.gpu_arc_probe: line += ' cepharc=1'
         if a.gpu_memory_test: line += ' cephmem=1'
         if a.gpu_workspace_test: line += ' cephmem=2'
+        if a.zap_memory_test: line += ' cephzapmem=1'
         if a.gpu_fuse_probe: line += ' cephfuse=1'
         if a.gpu_gx_probe: line += ' cephgx=1'
         if a.cpu_trial: line += ' cephboost=1'

@@ -85,11 +85,13 @@ class Integration(unittest.TestCase):
     def test_memory_uses_explicit_nc_mapping(self):
         source = (ROOT / 'xnu/cepheus_gpu_memory.cpp').read_text()
         self.assertIn('createMappingInTask(kernel_task,0,', source)
-        self.assertIn('kIOMapAnywhere|kIOMapUnique|kIOMapWriteCombineCache', source)
+        self.assertIn('kIOMapAnywhere|kIOMapUnique|policy->cache', source)
         self.assertIn('b->mapping->getVirtualAddress()', source)
         self.assertNotIn('b->memory->getBytesNoCopy()', source)
         self.assertIn('IODefaultCacheBits(b->pa+offset)&VM_WIMG_MASK', source)
-        self.assertIn('if(attrs!=VM_WIMG_WCOMB)', source)
+        self.assertIn('if(attrs!=policy->wimg)', source)
+        self.assertIn('kIOMapWriteCombineCache,VM_WIMG_WCOMB,0x44,false', source)
+        self.assertIn('kIOMapRealTimeCache,VM_WIMG_RT,0,true', source)
 
     def test_pa_validation_precedes_cache_transition(self):
         source = (ROOT / 'xnu/cepheus_gpu_memory.cpp').read_text()
@@ -98,7 +100,8 @@ class Integration(unittest.TestCase):
         self.assertNotIn('kIOMapWriteCombineCache', allocation)
         self.assertNotIn('kIOMemoryPersistent', allocation)
         self.assertLess(source.index('cepheus_gpu_pa_aligned_window_mask('), source.index('inTaskWithPhysicalMask('))
-        self.assertLess(source.index('cepheus_gpu_pa_range_managed('), source.index('createMappingInTask('))
+        allocation_body=source.split('ceph_gpu_buffer_alloc_cpu(',1)[1]
+        self.assertLess(allocation_body.index('cepheus_gpu_pa_range_managed('), allocation_body.index('createMappingInTask('))
         self.assertNotIn('0x000000fffffff000', source)
 
     def test_wrappers_compile_without_runtime_backend(self):

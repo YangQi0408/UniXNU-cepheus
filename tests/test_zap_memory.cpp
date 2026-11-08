@@ -96,7 +96,7 @@ int main(int argc,char **argv)
         }
         unsigned maps=mock_io::map_calls;
         mock_io::bad_large_alignment=1;
-        assert(cepheus_zap_memory_prepare(snapshot,&h)<0 && !h && mock_io::map_calls==maps+1);
+        assert(cepheus_zap_memory_prepare(snapshot,&h)<0 && !h && mock_io::map_calls==maps+2);
         mock_io::bad_large_alignment=0;assert_source_only();
     }
     mock_io::after_allocate=during_allocation;
@@ -108,7 +108,8 @@ int main(int argc,char **argv)
     assert(v.mdt_capacity==16384 && v.mdt_bytes==6860 && v.logical_bytes==4096 && !v.entry_offset);
     std::string base=argv[1];base.resize(base.size()-4);
     auto mdt=read_file((base+".mdt").c_str()),load=read_file((base+".b02").c_str());
-    assert(mdt.size()==v.mdt_bytes && !memcmp(v.mdt,mdt.data(),mdt.size()));
+    assert(mdt.size()==v.mdt_bytes);
+    for(size_t i=0;i<mdt.size();++i)assert(v.mdt[i]==mdt[i]);
     assert(!memcmp(v.image,load.data(),load.size()));
     assert(std::all_of(v.mdt+mdt.size(),v.mdt+v.mdt_capacity,[](uint8_t b){return !b;}));
     assert(std::all_of(v.image+load.size(),v.image+v.image_capacity,[](uint8_t b){return !b;}));

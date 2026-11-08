@@ -3,6 +3,12 @@
 更新：**2026-11-08 15:56 +08:00**。范围：独立ZAP内存工作区完整构建与此前七次SCM查询验收。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
+正在推进至真机点：MDT强序映射、逐4KiB AT/PAR检查、Device字节复制、释放
+前Copyback及新旧别名验证已接入，11种无固件预检和5种真实ZAP工作区场景、
+共享内存回归及相关门禁/打包/codegen/日志检查通过。新增cephzapmem=1独立
+90秒后单次CPU预检，不跑SoC/SCM/GPU。完整XNU构建及镜像待完成，不操作手机。
+详见[zap-memory-preflight](zap-memory-preflight.md)，证据../logs/zap-cache-20261108/。
+
 最新离线实现独立ZAP工作区：1MiB连续/PA对齐镜像+16KiB MDT预算，固定快照
 持有到复制完成、全容量清零、只读lease、与GPU池分离的handle和预算、局部
 失败清理及complete失败永久保留。5种真实材料场景ASan/UBSan、相关GPU内存

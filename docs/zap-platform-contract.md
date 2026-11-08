@@ -12,6 +12,11 @@
 
 ## 2026-11-08：独立ZAP内存工作区，仍为CPU准备
 
+后续推进：MDT现已切换到Device-nGnRnE候选映射，并接入实际CPU翻译检查、
+byte-only复制、释放前Copyback恢复与失败保留；新增独立单次CPU内存预检，
+默认关闭。不再使用前一版MDT的Normal-NC实现。下一真机点、离线证据及限制
+见[zap-memory-preflight](zap-memory-preflight.md)。下面为1b34034阶段历史。
+
 新增cepheus_zap_memory_prepare/get/put/release_cpu，接入生产IOKit分配及已封存
 ZAP快照。工作区独占一个MDT/image pair，独立预算1MiB+16KiB；GPU池仍保持
 单块256KiB/总1MiB。镜像要求1MiB连续和PA对齐，MDT按主机页取整（SWEET

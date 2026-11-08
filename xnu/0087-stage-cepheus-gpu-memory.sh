@@ -5,13 +5,13 @@ test -f bsd/conf/files
 mkdir -p iokit/Kernel/arm
 install -m 0644 "$here/cepheus_gpu_memory.cpp" "$here/cepheus_gpu_memory.h" "$here/cepheus_gpu_memory_state.h" "$here/cepheus_gpu_firmware.h" iokit/Kernel/arm/
 install -m 0644 "$here/cepheus_gpu_retire.h" "$here/cepheus_gpu_memory_private.h" iokit/Kernel/arm/
-install -m 0644 "$here/cepheus_zap_image.h" "$here/cepheus_zap_memory.h" iokit/Kernel/arm/
+install -m 0644 "$here/cepheus_zap_image.h" "$here/cepheus_zap_memory.h" "$here/cepheus_zap_cache.h" iokit/Kernel/arm/
 install -m 0644 "$here/cepheus_gpu_memory.h" "$here/cepheus_gpu_compile.c" "$here/cepheus_gpu_compile.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_workspace.c" "$here/cepheus_gmu_workspace.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_retire.c" "$here/cepheus_gpu_retire.h" "$here/cepheus_gpu_memory_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_hfi_link.c" "$here/cepheus_gmu_hfi_link.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_mmio.h" "$here/cepheus_gpu_config.h" bsd/dev/
-install -m 0644 "$here/cepheus_zap_image.h" "$here/cepheus_zap_memory.h" bsd/dev/
+install -m 0644 "$here/cepheus_zap_image.h" "$here/cepheus_zap_memory.h" "$here/cepheus_zap_cache.h" bsd/dev/
 install -m 0644 "$here/cepheus_qmp_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_retire_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_pdc_mmio.h" bsd/dev/
