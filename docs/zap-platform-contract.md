@@ -15,7 +15,10 @@
 后续推进：MDT现已切换到Device-nGnRnE候选映射，并接入实际CPU翻译检查、
 byte-only复制、释放前Copyback恢复与失败保留；新增独立单次CPU内存预检，
 默认关闭。不再使用前一版MDT的Normal-NC实现。下一真机点、离线证据及限制
-见[zap-memory-preflight](zap-memory-preflight.md)。下面为1b34034阶段历史。
+见[zap-memory-preflight](zap-memory-preflight.md)。99c6dba再补齐验证前prefault，
+b5006b5仅修复CI的KDK下载，CI42467907788完整通过。候选zapmem-b5006b5已
+打包、严格核验为同核控制仅加cephzapmem=1，尚未boot，停在一次CPU预检前。
+这仍未建立secure PA/XPU合同或认证能力。下面为1b34034阶段历史。
 
 新增cepheus_zap_memory_prepare/get/put/release_cpu，接入生产IOKit分配及已封存
 ZAP快照。工作区独占一个MDT/image pair，独立预算1MiB+16KiB；GPU池仍保持

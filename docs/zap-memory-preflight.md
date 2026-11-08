@@ -1,6 +1,6 @@
 # ZAP内存预检：下一次真机测试点
 
-2026-11-08离线实现完成，完整XNU构建与镜像打包进行中，尚未真机执行。
+2026-11-08 17:55 +08:00离线实现、完整XNU构建与镜像打包核验均完成，尚未真机执行。
 目标是验证新增的真实IOKit强序映射、CPU翻译属性、1MiB对齐连续分配及清理。
 此前普通小块Normal-NC自检不能替代它；host IOKit/PAR替身也不能证明真实页表。
 用户要求继续直到需要真机，且尽量减少人工测试，因此只准备一次合并预检。
@@ -37,6 +37,41 @@ MDT restored及end result=0/retained_pages=0。analyze-zap-memory-log.py核对
 清单或已完成控制轮。实际操作前核对67eea163/cepheus，采集先启动，仅临时boot。
 本离线阶段不进入fastboot、不启动镜像、不更改目前已验收系统。
 
+下一轮执行时先启动专用USB日志watcher和capture-usb-log.py，确认监听READY后
+再临时boot候选。采集上限300秒；收到完整预检结果并完成一次简短UI确认后
+即可停止自己启动的采集，不为凑满时长继续等待。保存boot.log、packets.jsonl、
+capture.json，使用analyze-zap-memory-log.py生成独立结果；不自动重启或恢复。
+同核touch-only镜像仅供离线严格差异核验，不安排新的控制轮。
+
+## 构建记录
+
+生产实现为99c6dba（包含prefault修正）；构建提交b5006b5仅再修复CI的KDK
+下载。CI42467907788完整成功，下载后核对76核心入口、18内存API、无unresolved、
+staged source、触摸ordered及pmap 64-bit PA均PASS。内核17415576B，SHA256：
+f1b5a674a6ff858f50511f5c6d11a9b126701e6e04bd2a4427f0cc40063a72d1。
+内核见[CI产物](../../inputs/ci-42467907788/kernel.macho)，完整记录见
+[build-verification.json](../../logs/zap-cache-20261108/build-verification.json)。
+
+| 产物 | 字节数 | SHA256 |
+| --- | ---: | --- |
+| [候选boot-cepheus-zapmem-b5006b5.img](../../dist/boot-cepheus-zapmem-b5006b5.img) | 70680576 | 1f986169db84c5a7eec8cd1b208f70811a676aa2bb26a8a5e071b510d663c95d |
+| [仅离线比对用touchcontrol-b5006b5](../../dist/boot-cepheus-touchcontrol-b5006b5.img) | 70680576 | 504f1636fb84d8ce6f8953e0e723c371eb1c2a24529bb7c9a43eb44116e46ea7 |
+
+打包使用现有cepheus-build容器，禁网、普通UID、无设备映射。新控制版相对
+已验收b2b99e7控制镜像的payload仅kernel.macho变化，TOML及其他文件字节
+不变；候选相对新控制版保持同核，仅增加cephzapmem=1，其他TOML字段、
+ADT、固件、DTB及boot头均核验。两份*.verified.json位于dist，额外的
+control-config-verification.json及receipt.json位于上述证据目录。
+两个新镜像均未boot；下一步只需候选单次真机预检，不追加控制轮。
+
+前序CI42465594915被旧GX测试的源码提取边界阻断，fde990f已修复并通过。
+CI42465792206及42467439486均在KDK安装时报image not recognized，尚未进入
+XNU编译，二者为失败而非取消。本机随后复现浏览器下载URL返回HTTP504的
+HTML错误页；release API可读到二进制，SHA256SUM与manifest均给出
+29866842eef039812888daea4176ce493be153b0d6d1b88f90753d69ea51b7d4。
+CI现用gh release download、有限重试、固定SHA256及hdiutil verify后才安装
+相同13.5/22G74 KDK，不改变内核源码或编译目标。失败日志均保留在证据目录。
+
 ## 范围
 
 PASS最多说明本次CPU内存映射/读写/恢复正常，不能证明secure PA可达、XPU保护
@@ -48,4 +83,6 @@ crypto带宽、认证/停止协议及GPU电源/SMMU所有权还需实现。下�
 ZAP工作区场景在ASan/UBSan通过；共享GPU内存回归使用真实GMU/SQE/ZAP通过。
 9项staging、生产线程门禁、参数封装、AArch64字节访问及日志判定测试通过，
 修改C++生产单元静态分析无告警。ASan保留故意隔离场景，关闭leak检测，非无
-泄漏声明。未重复完整validate-gpu-offline入口；完整CI结果另行补录。
+泄漏声明。prefault修正后再次通过针对性host场景与修改单元静态分析，见
+zap-host-prefault.log及static-analysis-prefault.log。未重复完整
+validate-gpu-offline入口；完整CI及镜像核验结果见上，不替代真机证据。

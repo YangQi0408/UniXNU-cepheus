@@ -1,12 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 15:56 +08:00**。范围：独立ZAP内存工作区完整构建与此前七次SCM查询验收。
+更新：**2026-11-08 17:55 +08:00**。范围：独立ZAP CPU内存预检镜像准备完成，停在真机前。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
-正在推进至真机点：MDT强序映射、逐4KiB AT/PAR检查、Device字节复制、释放
+已到单次真机预检点：MDT强序映射、逐4KiB AT/PAR检查、Device字节复制、释放
 前Copyback及新旧别名验证已接入，11种无固件预检和5种真实ZAP工作区场景、
 共享内存回归及相关门禁/打包/codegen/日志检查通过。新增cephzapmem=1独立
-90秒后单次CPU预检，不跑SoC/SCM/GPU。完整XNU构建及镜像待完成，不操作手机。
+90秒后单次CPU预检，不跑SoC/SCM/GPU。99c6dba补齐显式prefault后通过针对性
+host与静态分析；b5006b5修复CI下载KDK错误页的问题，生产代码未再改动。
+CI42467907788完整成功，kernel17415576B/SHAf1b5a674...，76核心入口/18内存API、
+无unresolved、staged source及触摸/PA64核验PASS。候选
+../dist/boot-cepheus-zapmem-b5006b5.img为70680576B/SHA1f986169...，相对同核
+控制版严格只加cephzapmem=1；新控制版相对已验收b2b99e7只换内核，配置不变。
+全部封装核验通过，两个新镜像均未boot，不追加控制轮；手机未操作，仍保留
+上一已验收查询版。下一仅需一次预检后简短触摸/唤醒确认，GPU/Metal尚未执行，
+PAS13=false仍未解。下面为此前阶段记录。
 详见[zap-memory-preflight](zap-memory-preflight.md)，证据../logs/zap-cache-20261108/。
 
 最新离线实现独立ZAP工作区：1MiB连续/PA对齐镜像+16KiB MDT预算，固定快照

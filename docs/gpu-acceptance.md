@@ -4,13 +4,19 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
-## 2026-11-08：MDT强序映射及独立内存预检，构建/打包待完成
+## 2026-11-08 17:55：MDT强序映射及独立内存预检，已到真机点
 
 用户要求继续直到需要真机。已实现Device-nGnRnE MDT、AT/PAR真实翻译检查、
 字节复制和释放前Copyback/别名核验；默认关闭的cephzapmem=1预检共用生产
 分配器，单次验证MDT+1MiB镜像及清理。离线故障/并发/真实固件及相关门禁
-测试通过；无手机操作、新SMC或PAS加载。待完整XNU/镜像完成后停在单次
-真机预检点，详见[zap-memory-preflight](zap-memory-preflight.md)。
+测试通过；99c6dba为新映射和恢复映射增加prefault，针对性host/静态分析再次
+通过。前序GX测试边界失败及两次KDK安装失败均保留，后者由b5006b5改用
+release API下载和固定SHA256校验解决。CI42467907788完整成功，内核
+17415576B/SHAf1b5a674...，76核心入口/18内存API、无unresolved、staged source/
+触摸/PA64核验通过。候选boot-cepheus-zapmem-b5006b5.img为70680576B，
+SHA1f986169...，相对同核控制仅cephzapmem=1；新控制相对b2b99e7只换内核。
+封装和配置核验通过，无手机操作、新SMC或PAS加载。现停在单次真机预检点，
+不再要求控制轮；GPU/Metal未执行，详见[zap-memory-preflight](zap-memory-preflight.md)。
 
 ## 2026-11-08 15:56：ZAP独立内存工作区完整构建完成，未真机执行
 
