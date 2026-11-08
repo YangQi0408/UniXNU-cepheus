@@ -36,6 +36,11 @@ int main(void)
     unchanged(image,64,0xb2);unchanged(image+64,0x2000-64,0);
     unchanged(image+0x2000,64,0xc3);unchanged(image+0x2040,0x3000-0x2040,0);
     unchanged(image+0x3000,16,0x5a);
+    memset(mdt,0x7a,sizeof(mdt));memset(image,0x5a,sizeof(image));
+    assert(!ceph_zap_stage_image(elf,sizeof(elf),image,sizeof(image),&p));
+    unchanged(mdt,sizeof(mdt),0x7a);unchanged(image,64,0xb2);
+    unchanged(image+64,0x2000-64,0);unchanged(image+0x2000,64,0xc3);
+    unchanged(image+0x3000,16,0x5a);
     /* Header order is not load-address order. Allocation follows lowest PA. */
     uint8_t swap[32];memcpy(swap,elf+116,32);memcpy(elf+116,elf+148,32);memcpy(elf+148,swap,32);
     assert(!ceph_zap_parse(elf,sizeof(elf),&p) && p.allocation_bytes==0x100000);
@@ -51,6 +56,7 @@ int main(void)
         fixture(elf);u32(elf+mutations[i].at,mutations[i].value);
         memset(mdt,0x5a,sizeof(mdt));memset(image,0x5a,sizeof(image));memset(&p,0x5a,sizeof(p));
         assert(ceph_zap_stage(elf,sizeof(elf),mdt,sizeof(mdt),image,sizeof(image),&p)<0);
+        assert(ceph_zap_stage_image(elf,sizeof(elf),image,sizeof(image),&p)<0);
         unchanged(mdt,sizeof(mdt),0x5a);unchanged(image,sizeof(image),0x5a);
         unchanged((const uint8_t *)&p,sizeof(p),0x5a);
     }
@@ -67,6 +73,11 @@ int main(void)
     assert(ceph_zap_stage(elf,sizeof(elf),mdt,sizeof(mdt),image,sizeof(image),(struct ceph_zap_image *)image)<0);
     assert(ceph_zap_stage(elf,sizeof(elf),NULL,256,image,sizeof(image),&p)<0);
     assert(ceph_zap_stage(elf,sizeof(elf),mdt,SIZE_MAX,image,sizeof(image),&p)<0);
+    assert(ceph_zap_stage_image(elf,sizeof(elf),image,0x2fff,&p)<0);
+    assert(ceph_zap_stage_image(elf,sizeof(elf),elf,sizeof(elf),&p)<0);
+    assert(ceph_zap_stage_image(elf,sizeof(elf),image,sizeof(image),(struct ceph_zap_image *)image)<0);
+    assert(ceph_zap_stage_image(elf,sizeof(elf),image,SIZE_MAX,&p)<0);
+    assert(ceph_zap_stage_image(elf,sizeof(elf),NULL,4096,&p)<0);
     /* A zero-file BSS load must still create a zeroed memory extent. */
     u32(elf+116+16,0);assert(!ceph_zap_stage(elf,sizeof(elf),mdt,sizeof(mdt),image,sizeof(image),&p));
     unchanged(image,0x2000,0);

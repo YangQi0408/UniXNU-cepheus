@@ -42,6 +42,7 @@ jobs:
           cp cepheus/xnu/cepheus_bcm.h dxb/patches/
           for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
             cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h cepheus_zap_cache.h \
+            cepheus_zap_pas.h cepheus_zap_memory_private.h \
             cepheus_gmu_upload_mmio.h \
             cepheus_gpu_power_mmio.h \
             cepheus_qmp_connect.h \
@@ -90,6 +91,7 @@ jobs:
           python3 cepheus/scripts/test-zap-layout.py
           bash cepheus/scripts/test-gpu-memory-host.sh
           bash cepheus/scripts/test-zap-memory-host.sh
+          bash cepheus/scripts/test-zap-pas-host.sh
           python3 cepheus/scripts/test-zap-preflight-packaging.py
           python3 cepheus/scripts/test-zap-cache-codegen.py
           python3 cepheus/scripts/test-zap-memory-log.py

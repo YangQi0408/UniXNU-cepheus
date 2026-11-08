@@ -17,7 +17,7 @@ assert thread.count('soc_scm_probe();') == 1
 assert thread.index('osm_sample(25);') < thread.index('soc_scm_probe();')
 assert 'cephscm' not in (ROOT/'xnu/cepheus_touch.c').read_text()
 source = (ROOT/'xnu/cepheus_gpu_compile.c').read_text()
-wrapper = source.split('int cepheus_gpu_scm_probe_once',1)[1].split('#endif',1)[0]
+wrapper = source.split('int cepheus_gpu_scm_probe_once',1)[1].split('/* Native PAS entrypoints.',1)[0]
 assert wrapper.count('ceph_scm_discover_pas13(')==1
 assert wrapper.index('ceph_scm_info_attempted=1') < wrapper.index('ceph_scm_discover_pas13(')
 assert 'lck_mtx_lock(&ceph_scm_info_lock)' in wrapper
@@ -30,6 +30,7 @@ prefix = r'''
 #define KERNEL 1
 #include "cepheus_scm_discovery.h"
 static unsigned ceph_scm_info_attempted, calls, locked;
+static struct ceph_scm_discovery ceph_scm_cached;
 static int ceph_scm_info_lock, enabled, bad_context, fail_transport, soc_enabled=1, conflict;
 static void lck_mtx_lock(int *p) {assert(p==&ceph_scm_info_lock && !locked);locked=1;}
 static void lck_mtx_unlock(int *p) {assert(p==&ceph_scm_info_lock && locked);locked=0;}
@@ -75,11 +76,14 @@ int main(void)
     soc_scm_probe();assert(!calls && !ceph_scm_info_attempted && !locked);
     bad_context=0;fail_transport=1;soc_scm_probe();
     assert(calls==1 && ceph_scm_info_attempted && !locked);
+    assert(ceph_scm_cached.terminal && ceph_scm_cached.error && !ceph_scm_cached.supported);
     soc_scm_probe();assert(calls==1 && !locked);
     assert(cepheus_gpu_scm_probe_once(NULL)<0 && calls==1);
     ceph_scm_info_attempted=0;fail_transport=0;
     assert(!cepheus_gpu_scm_probe_once(&result) && result.supported && result.calls==7 && !locked);
+    assert(!memcmp(&result,&ceph_scm_cached,sizeof(result)));
     assert(cepheus_gpu_scm_probe_once(&result)<0 && calls==8 && !locked);
+    assert(ceph_scm_cached.supported==1 && ceph_scm_cached.calls==7);
     puts("Production SCM hook/once wrapper: opt-in1 only, serialization, errors latched and fixed queries PASS (RAM only)");
 }
 '''

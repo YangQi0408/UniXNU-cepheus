@@ -1,7 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 19:14 +08:00**。范围：上电访问顺序/MMIO适配层完整构建通过；尚无GPU执行候选。
+更新：**2026-11-08 19:39 +08:00**。范围：原生PAS生命周期已接实际内存，完整构建待完成；尚无GPU执行候选。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
+
+本轮新增固定PAS13 load/stop/status，复用串行原生SMC和本次启动的查询缓存；
+不会重复查询或覆盖supported=false。实际IOKit pair独占claim、暴露前保留、
+mem_setup后重新复制image且不改MDT、auth双层返回检查、同epoch GPU quiesce及
+PAS6成功后释放均已接入；错误/中断不确定时保留。24种真实固件+RAM transport
+场景、5种CPU工作区相关回归、9项staging、image/查询门禁、native AArch64
+编译、两修改单元静态分析PASS，证据../logs/zap-pas-backend-20261108/receipt.json。
+完整XNU构建尚未完成。无手机操作或新的SMC，未打包/boot；资源acquire/lease/
+quiesce后端、crypto带宽、secure PA/XPU及电源/SMMU接入仍缺，PAS13=false未解，
+无GPU启动hook。详见[zap-platform-contract](zap-platform-contract.md)。
+
+以下19:14为上一轮已完成的上电适配层构建记录。
 
 用户要求快速推进GPU实测，不重复控制/触摸/内存轮。目标为GPU写scratch并完成
 fence；目前仍缺真实共享资源接管、PAS认证/停止及SMMU平台接入，不能称只差

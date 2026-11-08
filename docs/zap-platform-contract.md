@@ -1,5 +1,36 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-08 19:39：原生PAS生命周期已接实际内存，资源后端仍缺
+
+新增 `cepheus_gpu_zap_load/stop/status` 私有内核入口。与现有INFO查询共用同一
+原生SMC回调及互斥锁；只使用本次启动的实际查询缓存，拒绝未查询、错误、
+availability不全或supported=false。没有新增boot参数或启动调用，不会自动
+重复查询，手机继续保持已验收zapmem-b5006b5，未执行PAS mutation或GPU。
+
+`cepheus_zap_pas.h` 直接调用生产IOKit工作区的私有claim/expose/reload/finish，
+按固定PAS13 init1 → mem_setup2 → 重新复制镜像 → auth5顺序执行，分别检查
+transport和secure返回；16次调用限制中断续调，不承诺单次SMC返回时间。
+32-bit ABI拒绝高PA，不截断；mem_setup仍传4096逻辑长度，不传1MiB容量。
+共享前锁住两个buffer及不可变源快照；普通get/release拒绝访问。mem_setup
+后的复制只写image，不再触碰已交付的MDT。成功认证后仍保留MDT/image；只有
+同epoch真实GPU停止/排空及PAS6成功后才尝试IOKit释放。失败、BUSY、中断预算
+耗尽或租约失效均保留内存和共享资源，不能自动重试、释放或声称认证成功。
+
+这些是真实分配器及原生SMC接线，**不是已完成的PAS平台后端**。资源acquire/
+lease/quiesce/release仍无实现：须取得实际crypto带宽/时钟、PAS13/GPU epoch
+所有权，验证该pair的secure PA/XPU/cache合同，以及停止GPU的实际协议。
+接口不提供默认成功实现；现有CPU预检不能充当这些证明。真机PAS13=false
+未解释，因此不会调用init/auth探测或解除CP门禁。
+
+针对性验证：实际a640_zap文件+生产工作区，RAM secure transport下24种场景
+ASan/UBSan PASS（源文件持有、并发CPU拒绝、mem_setup后镜像重载、MDT不改写、
+双层错误、中断续调、租约失效、真实停止前禁止释放及complete失败保留）；
+既有CPU工作区5种相关回归、image边界/别名、9项staging、查询缓存/一次性门禁、
+整个native PAS段AArch64编译及两个修改生产单元静态分析通过。下游调用顺序和
+ABI核对针对固定36f369f；没有重跑完整离线入口。证据
+`../logs/zap-pas-backend-20261108/receipt.json`。完整XNU构建待完成。
+
+
 > 最新状态见[工作交接](current-work-handoff.md)及[TZ证据](tz-native-evidence.md)：
 > 本机TZ原件已经取得，静态表确有PAS13；与真机supported=false仍未解释。
 > 2026-11-08新基础控制与query7-basic均完成；command7 availability=0/1，

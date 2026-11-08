@@ -68,6 +68,8 @@ def main():
              {'CEPHEUS_XNU_REFERENCE':str(a.xnu_reference)} if a.xnu_reference else {}),
             ('fdt-parser',['python3','scripts/test-gpu-fdt.py'],{'CEPHEUS_LIVE_FDT':str(a.fdt)} if a.fdt else {}),
             ('zap-layout',['python3','scripts/test-zap-layout.py'],{'CEPHEUS_ZAP_ELF':str(a.zap)} if a.zap else {}),
+            ('zap-pas',['bash','scripts/test-zap-pas-host.sh'],
+             {'CEPHEUS_ZAP_ELF':str(a.zap),'ASAN_OPTIONS':'detect_leaks=0'} if a.zap else {}),
             ('memory-host',['bash','scripts/test-gpu-memory-host.sh'],{})]
     if a.gmu:
         checks.append(('memory-real-fixtures',['bash','scripts/test-gpu-memory-host.sh',str(a.gmu),str(a.sqe)],

@@ -44,6 +44,8 @@ extern int get_preemption_level(void);
 static LCK_GRP_DECLARE(ceph_scm_info_group,"ceph_scm_info");
 static LCK_MTX_DECLARE(ceph_scm_info_lock,&ceph_scm_info_group);
 static unsigned ceph_scm_info_attempted;
+static struct ceph_scm_discovery ceph_scm_cached;
+static struct ceph_zap_pas ceph_zap_native;
 static int ceph_scm_info_context(void *unused)
 {
     (void)unused;
@@ -52,13 +54,13 @@ static int ceph_scm_info_context(void *unused)
 }
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
-    (void)unused;
+    const char *kind=unused?"PAS":"INFO";
     if(!r || ceph_scm_info_context(NULL))return -1;
-    printf("CEPHEUS SCM INFO REGS: in=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",
+    printf("CEPHEUS SCM %s REGS: in=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",kind,
         (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
         (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
-    /* No indirect UEFI pointers and no shared-buffer address. This callback
-     * is static/private and its sole caller is the fixed discovery engine. */
+    /* Private serialized transport: fixed discovery or PAS13 engine only.
+     * PAS addresses come from its claimed allocator, never a caller FNID/PA. */
     register uint64_t x0 __asm__("x0")=r->x[0],x1 __asm__("x1")=r->x[1];
     register uint64_t x2 __asm__("x2")=r->x[2],x3 __asm__("x3")=r->x[3];
     register uint64_t x4 __asm__("x4")=r->x[4],x5 __asm__("x5")=r->x[5];
@@ -67,7 +69,7 @@ static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
         "+r"(x4),"+r"(x5),"+r"(x6),"+r"(x7) : :
         "x8","x9","x10","x11","x12","x13","x14","x15","x16","x17","cc","memory");
     *r=(struct ceph_scm_regs){{x0,x1,x2,x3,x4,x5,x6,x7}};
-    printf("CEPHEUS SCM INFO REGS: out=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",
+    printf("CEPHEUS SCM %s REGS: out=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",kind,
         (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
         (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
     return 0;
@@ -81,6 +83,7 @@ int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)
     ceph_scm_info_attempted=1; /* also latches errors; no blind repeated SMC */
     struct ceph_scm_discovery_ops b={NULL,ceph_scm_info_context,ceph_scm_info_invoke};
     int e=ceph_scm_discover_pas13(out,&b);
+    ceph_scm_cached=*out;
     lck_mtx_unlock(&ceph_scm_info_lock);
     printf("CEPHEUS SCM INFO: e=%d convention=%u available=%#x supported=%u calls=%u transport=%#llx secure=%#llx; no PAS mutations\n",
         e,(unsigned)out->convention,out->available_mask,out->supported,out->calls,
@@ -88,6 +91,39 @@ int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)
     printf("CEPHEUS SCM QUERY7: confirmed=%u (0 means false/error/not-reached; see REGS); normal64 calls=7; false never overridden; no PAS mutations\n",
         !!(out->available_mask & 0x10u));
     return e;
+}
+/* Native PAS entrypoints. Kept outside the opt-in INFO startup path. */
+int cepheus_gpu_zap_load(uint64_t snapshot,const struct ceph_zap_pas_resources *resources,uint64_t *epoch)
+{
+    if(!epoch || ceph_scm_info_context(NULL))return -1;
+    *epoch=0;lck_mtx_lock(&ceph_scm_info_lock);
+    if(ceph_zap_native.phase!=CE_ZP_NEW) {lck_mtx_unlock(&ceph_scm_info_lock);return -1;}
+    struct ceph_zap_pas_transport t={&ceph_zap_native,ceph_scm_info_invoke};
+    int e=ceph_zap_pas_start(&ceph_zap_native,snapshot,&ceph_scm_cached,resources,&t);
+    *epoch=ceph_zap_native.epoch;
+    printf("CEPHEUS ZAP PAS: load result=%d phase=%u failed=%u calls=%u exposed=%u epoch=%#llx\n",
+        e,(unsigned)ceph_zap_native.phase,(unsigned)ceph_zap_native.failed_phase,
+        ceph_zap_native.calls,ceph_zap_native.exposed,(unsigned long long)*epoch);
+    lck_mtx_unlock(&ceph_scm_info_lock);return e;
+}
+int cepheus_gpu_zap_stop(uint64_t epoch)
+{
+    if(!epoch || ceph_scm_info_context(NULL))return -1;
+    lck_mtx_lock(&ceph_scm_info_lock);
+    if(epoch!=ceph_zap_native.epoch) {lck_mtx_unlock(&ceph_scm_info_lock);return -1;}
+    struct ceph_zap_pas_transport t={&ceph_zap_native,ceph_scm_info_invoke};
+    int e=ceph_zap_pas_stop(&ceph_zap_native,&t);
+    printf("CEPHEUS ZAP PAS: stop result=%d phase=%u failed=%u calls=%u memory=%d epoch=%#llx\n",
+        e,(unsigned)ceph_zap_native.phase,(unsigned)ceph_zap_native.failed_phase,
+        ceph_zap_native.calls,ceph_zap_native.memory_error,(unsigned long long)epoch);
+    lck_mtx_unlock(&ceph_scm_info_lock);return e;
+}
+int cepheus_gpu_zap_status(uint64_t epoch,enum ceph_zap_pas_phase *phase)
+{
+    if(!phase || !epoch || ceph_scm_info_context(NULL))return -1;
+    lck_mtx_lock(&ceph_scm_info_lock);int e=-1;
+    if(epoch==ceph_zap_native.epoch){*phase=ceph_zap_native.phase;e=0;}
+    lck_mtx_unlock(&ceph_scm_info_lock);return e;
 }
 #endif
 #else

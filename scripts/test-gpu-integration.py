@@ -41,8 +41,11 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_gpu_power_mmio.h'),
                                 ('bsd/dev', 'cepheus_zap_image.h'),
                                 ('bsd/dev', 'cepheus_zap_memory.h'),
+                                ('bsd/dev', 'cepheus_zap_pas.h'),
+                                ('bsd/dev', 'cepheus_zap_memory_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_zap_image.h'),
                                 ('iokit/Kernel/arm', 'cepheus_zap_memory.h'),
+                                ('iokit/Kernel/arm', 'cepheus_zap_memory_private.h'),
                                 ('bsd/dev', 'cepheus_smmu_install.h'), ('iokit/Kernel/arm', 'cepheus_gpu_memory.cpp')]:
                 self.assertEqual((tree / where / name).read_bytes(), (ROOT / 'xnu' / name).read_bytes())
             self.assertFalse((tree / 'bsd/dev/sweet_rpmh.c').exists())
@@ -117,7 +120,7 @@ class Integration(unittest.TestCase):
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
                    'cepheus_gpu_submit','ceph_smmu_install_context','cepheus_gpu_zap_snapshot_prepare',
-                   'cepheus_zap_memory_prepare')
+                   'cepheus_zap_memory_prepare','cepheus_gpu_zap_load','cepheus_gpu_zap_stop')
         for name in ('cepheus_soc.c','cepheus_touch.c','cepheus_arc_probe.h'):
             text=(ROOT/'xnu'/name).read_text()
             text=re.sub(r'/\*.*?\*/|//[^\n]*','',text,flags=re.S)

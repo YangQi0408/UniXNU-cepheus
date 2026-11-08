@@ -37,6 +37,7 @@ extern uint64_t vm_last_phys;
 #include "cepheus_gpu_memory_private.h"
 #include "cepheus_zap_image.h"
 #include "cepheus_zap_memory.h"
+#include "cepheus_zap_memory_private.h"
 #include "cepheus_zap_cache.h"
 #if defined(HAS_UCNORMAL_MEM) && HAS_UCNORMAL_MEM
 #error "SWEET ZAP MDT requires VM_WIMG_RT to select Device-nGnRnE"
@@ -65,11 +66,15 @@ static const struct ceph_buffer_policy ceph_zap_mdt_policy={4096,16384,&ceph_zap
     kIOMapRealTimeCache,VM_WIMG_RT,0,true};
 static const struct ceph_buffer_policy ceph_zap_image_policy={1048576,1048576,&ceph_zap_pages,260,
     kIOMapWriteCombineCache,VM_WIMG_WCOMB,0x44,true};
+enum ceph_zap_phase {CE_ZM_NONE,CE_ZM_CLAIMED,CE_ZM_EXPOSED,CE_ZM_COPYING,CE_ZM_IMAGE,CE_ZM_AUTH,CE_ZM_KEEP};
 /* Index16 gives the separate workspace a disjoint handle namespace. */
 static struct {
     struct ceph_mem_slot state;
     struct ceph_gpu_buffer mdt,image;
     struct ceph_zap_image layout;
+    struct ceph_gpu_firmware_view source;
+    uint64_t snapshot;
+    enum ceph_zap_phase phase;
 } ceph_zap;
 static IOLock *ceph_pool_lock;
 static struct {struct ceph_mem_slot state;struct ceph_gpu_buffer buffer;unsigned firmware_kind;size_t firmware_bytes;uint64_t group;} ceph_pool[16];
@@ -465,6 +470,107 @@ cepheus_zap_memory_release_cpu(uint64_t handle)
     bool retained=ceph_zap.mdt.published || ceph_zap.image.published;
     (void)ceph_mem_finish_allocation(&ceph_zap.state,0,retained);
     if(retained)printf("CEPHEUS ZAP MEM: CPU cleanup uncertain; workspace retained\n");
+    IOLockUnlock(lock);return retained?-1:0;
+}
+
+extern "C" int
+ceph_zap_memory_claim(uint64_t snapshot,struct ceph_zap_claim *claim)
+{
+    if(!claim)return -1;
+    *claim={};struct ceph_gpu_firmware_view source={};
+    if(cepheus_gpu_firmware_get(snapshot,CE_FW_A640_ZAP,&source))return -1;
+    uint64_t handle=0;
+    int e=cepheus_zap_memory_prepare(snapshot,&handle);
+    IOLock *lock=ceph_gpu_pool_lock();
+    if(!e) {
+        IOLockLock(lock);
+        if(ceph_pool_terminal || !ceph_mem_matches(&ceph_zap.state,16,handle) ||
+            ceph_zap.state.state!=CE_MEM_SEALED || ceph_zap.state.views)e=-1;
+        else {
+            ceph_zap.state.state=CE_MEM_SHARED;ceph_zap.phase=CE_ZM_CLAIMED;
+            ceph_zap.snapshot=snapshot;ceph_zap.source=source;
+            claim->handle=handle;
+            claim->memory={(const uint8_t *)ceph_zap.mdt.cpu,(const uint8_t *)ceph_zap.image.cpu,
+                ceph_zap.mdt.pa,ceph_zap.image.pa,ceph_zap.mdt.bytes,ceph_zap.image.bytes,
+                ceph_zap.layout.mdt_bytes,ceph_zap.layout.logical_bytes,ceph_zap.layout.entry_offset};
+        }
+        IOLockUnlock(lock);
+    }
+    if(e) {
+        if(handle)(void)cepheus_zap_memory_release_cpu(handle);
+        (void)cepheus_gpu_memory_view_put(snapshot);
+    }
+    return e;
+}
+
+extern "C" int
+ceph_zap_memory_expose(uint64_t handle)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int e=-1;
+    if(!ceph_pool_terminal && ceph_mem_matches(&ceph_zap.state,16,handle) &&
+        ceph_zap.state.state==CE_MEM_SHARED && ceph_zap.phase==CE_ZM_CLAIMED) {
+        ceph_zap.mdt.published=ceph_zap.image.published=true;
+        ceph_zap.phase=CE_ZM_EXPOSED;ceph_gpu_memory_barrier();e=0;
+    }
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int
+ceph_zap_memory_reload(uint64_t handle)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);
+    if(ceph_pool_terminal || !ceph_mem_matches(&ceph_zap.state,16,handle) ||
+        ceph_zap.state.state!=CE_MEM_SHARED || ceph_zap.phase!=CE_ZM_EXPOSED || !ceph_zap.snapshot) {
+        IOLockUnlock(lock);return -1;
+    }
+    ceph_zap.phase=CE_ZM_COPYING;IOLockUnlock(lock);
+    struct ceph_zap_image layout={};
+    int e=ceph_zap_stage_image(ceph_zap.source.data,ceph_zap.source.bytes,
+        (uint8_t *)ceph_zap.image.cpu,ceph_zap.image.bytes,&layout);
+    ceph_gpu_memory_barrier();
+    IOLockLock(lock);
+    if(ceph_pool_terminal)e=-1;
+    ceph_zap.phase=e?CE_ZM_EXPOSED:CE_ZM_IMAGE;
+    IOLockUnlock(lock);return e;
+}
+
+extern "C" int
+ceph_zap_memory_finish(uint64_t handle,enum ceph_zap_memory_result result)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);
+    if(!ceph_mem_matches(&ceph_zap.state,16,handle) || ceph_zap.state.state!=CE_MEM_SHARED ||
+        ceph_zap.phase==CE_ZM_COPYING || result<CE_ZAP_CPU_ABORT || result>CE_ZAP_STOPPED ||
+        (result==CE_ZAP_CPU_ABORT && ceph_zap.phase!=CE_ZM_CLAIMED) ||
+        (result==CE_ZAP_AUTHENTICATED && ceph_zap.phase!=CE_ZM_IMAGE) ||
+        (result==CE_ZAP_STOPPED && ceph_zap.phase!=CE_ZM_AUTH)) {
+        IOLockUnlock(lock);return -1;
+    }
+    int e=0;
+    if(result==CE_ZAP_AUTHENTICATED && ceph_pool_terminal)e=-1;
+    if(ceph_zap.snapshot) {
+        int index=ceph_gpu_pool_index(ceph_zap.snapshot);
+        if(index<0 || ceph_mem_view_put(&ceph_pool[index].state))e=-1;
+        else {ceph_zap.snapshot=0;ceph_zap.source={};}
+    }
+    if(e || result==CE_ZAP_KEEP) {
+        ceph_zap.mdt.published=ceph_zap.image.published=true;
+        ceph_zap.phase=CE_ZM_KEEP;ceph_zap.state.state=CE_MEM_QUARANTINED;
+        IOLockUnlock(lock);return e;
+    }
+    if(result==CE_ZAP_AUTHENTICATED) {
+        ceph_zap.phase=CE_ZM_AUTH;IOLockUnlock(lock);return 0;
+    }
+    /* Only successful shutdown or a never-exposed claim can reach disposal.
+     * Hold ALLOCATING while complete() sleeps to exclude every public API. */
+    ceph_zap.mdt.published=ceph_zap.image.published=false;
+    ceph_zap.state.state=CE_MEM_ALLOCATING;
+    IOLockUnlock(lock);ceph_zap_dispose_cpu();IOLockLock(lock);
+    bool retained=ceph_zap.mdt.published || ceph_zap.image.published;
+    (void)ceph_mem_finish_allocation(&ceph_zap.state,0,retained);
+    ceph_zap.phase=retained?CE_ZM_KEEP:CE_ZM_NONE;
     IOLockUnlock(lock);return retained?-1:0;
 }
 

@@ -3,9 +3,10 @@
  * MDT uses Device-nGnRnE; image uses Normal-NC and 1MiB PA alignment.
  * Effective CPU translation/attributes are checked before the first access.
  * This does NOT prove secure PA reachability, XPU/cache compatibility,
- * crypto ownership or authentication. No publish/SMC/GPU startup path exists.
- * Callers must not hand these PAs to PAS. A future secure backend must establish
- * its own access/cache/ownership contract and retain memory across ambiguity.
+ * crypto ownership or authentication. These public CPU APIs never publish.
+ * Callers must not hand these PAs to PAS. The separate private PAS engine must
+ * acquire a real access/cache/ownership contract before exposing its own claim;
+ * no resource backend or GPU startup hook is installed.
  */
 #ifndef CEPHEUS_ZAP_MEMORY_H
 #define CEPHEUS_ZAP_MEMORY_H

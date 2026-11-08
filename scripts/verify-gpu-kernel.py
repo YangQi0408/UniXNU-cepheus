@@ -14,6 +14,7 @@ HEADERS = ('cepheus_hfi.h', 'cepheus_hfi_boot.h', 'cepheus_hfi_messages.h', 'cep
 HEADERS += ('cepheus_gmu_start.h','cepheus_bcm.h')
 HEADERS += ('cepheus_gpu_ring.h','cepheus_a640_pm4.h','cepheus_sqe.h')
 HEADERS += ('cepheus_zap_image.h','cepheus_zap_memory.h','cepheus_zap_cache.h')
+HEADERS += ('cepheus_zap_pas.h','cepheus_zap_memory_private.h')
 HEADERS += ('cepheus_gpu_bw.h','cepheus_gpu_firmware.h','cepheus_gpu_fault.h')
 HEADERS += ('cepheus_gpu_config.h',)
 HEADERS += ('cepheus_qmp_mmio.h',)
@@ -69,7 +70,7 @@ def main():
         if staged.read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged BSD source mismatch: {name}')
     for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h','cepheus_gpu_firmware.h',
-                 'cepheus_gpu_retire.h','cepheus_gpu_memory_private.h','cepheus_zap_image.h','cepheus_zap_memory.h','cepheus_zap_cache.h'):
+                 'cepheus_gpu_retire.h','cepheus_gpu_memory_private.h','cepheus_zap_image.h','cepheus_zap_memory.h','cepheus_zap_cache.h','cepheus_zap_memory_private.h'):
         if (args.xnu / 'iokit/Kernel/arm' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged IOKit source mismatch: {name}')
     data = args.kernel.read_bytes()
@@ -97,6 +98,7 @@ def main():
                 '_cepheus_gmu_bringup_prepare','_cepheus_gmu_bringup_start'}
     required |= {'_cepheus_gpu_config_build'}
     required |= {'_cepheus_gpu_zap_snapshot_prepare'}
+    required |= {'_cepheus_gpu_zap_load','_cepheus_gpu_zap_stop','_cepheus_gpu_zap_status'}
     required |= {'_cepheus_gpu_qmp_bind'}
     required |= {'_cepheus_gpu_pdc_mmio_bind'}
     required |= {'_cepheus_gpu_power_mmio_read', '_cepheus_gpu_power_mmio_write'}
@@ -135,6 +137,8 @@ def main():
     memory_api |= {'_cepheus_gpu_memory_abandon_workspace'}
     memory_api |= {'_cepheus_zap_memory_prepare','_cepheus_zap_memory_get',
                    '_cepheus_zap_memory_put','_cepheus_zap_memory_release_cpu','_cepheus_zap_memory_selftest'}
+    memory_api |= {'_ceph_zap_memory_claim','_ceph_zap_memory_expose',
+                   '_ceph_zap_memory_reload','_ceph_zap_memory_finish'}
     if memory_api - symbols:
         raise ValueError(f'missing linked memory lifecycle APIs: {sorted(memory_api - symbols)}')
     if subprocess.check_output([nm, '-u', str(args.kernel)], text=True).strip():

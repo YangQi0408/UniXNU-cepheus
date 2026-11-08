@@ -94,6 +94,26 @@ static inline void ceph_zap_mdt_copy(uint8_t *dst,const uint8_t *src,size_t byte
     for(size_t i=0;i<bytes;++i)device[i]=src[i];
 }
 
+/* Reload only the image after PAS mem_setup. The MDT may already belong to
+ * secure world and must not be rewritten as a side effect of this operation. */
+static inline int ceph_zap_stage_image(const uint8_t *elf,size_t bytes,
+    uint8_t *image,size_t capacity,struct ceph_zap_image *out)
+{
+    struct ceph_zap_image p;
+    if(!ceph_zap_cpu_range(elf,bytes) || !ceph_zap_cpu_range(image,capacity) ||
+        !ceph_zap_cpu_range(out,sizeof(*out)) ||
+        ceph_zap_cpu_overlap(elf,bytes,image,capacity) ||
+        ceph_zap_cpu_overlap(out,sizeof(*out),elf,bytes) ||
+        ceph_zap_cpu_overlap(out,sizeof(*out),image,capacity) ||
+        ceph_zap_parse(elf,bytes,&p) || capacity<p.logical_bytes)return -1;
+    for(uint32_t i=0;i<p.logical_bytes;++i)image[i]=0;
+    for(unsigned i=0;i<p.segments;++i) {
+        const struct ceph_zap_segment *s=&p.load[i];
+        for(uint32_t j=0;j<s->filesz;++j)image[s->image_offset+j]=elf[s->file_offset+j];
+    }
+    *out=p;return 0;
+}
+
 /* Caller owns readable, immutable input and writable disjoint CPU buffers.
  * Validate the entire layout and all capacities/aliases before the first store.
  * No untrusted precomputed plan is accepted. Bytes beyond logical lengths stay

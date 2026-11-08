@@ -34,4 +34,24 @@ with tempfile.TemporaryDirectory() as directory:
                      '{return ceph_scm_discover_pas13(s,b);}\n')
     subprocess.run(['clang', '--target=aarch64-none-elf', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
                     '-ffreestanding', '-I', str(root / 'xnu'), '-c', str(query), '-o', str(work / 'query.o')], check=True)
-print('Production SMC callback and fixed query policy: AArch64 compile/assemble PASS; not executed and not a PAS proof')
+    # Compile the actual native PAS integration, including its cached query
+    # gate and one-shot/serialization logic. Only platform declarations are
+    # stand-ins; no device execution is implied by this object file.
+    native = source.split('static LCK_GRP_DECLARE', 1)[1].split('\n#endif', 1)[0]
+    declarations = '''
+#define KERNEL 1
+#include "cepheus_zap_pas.h"
+#define LCK_GRP_DECLARE(n,s) int n __attribute__((unused))
+#define LCK_MTX_DECLARE(n,g) int n __attribute__((unused))
+extern void lck_mtx_lock(int *);
+extern void lck_mtx_unlock(int *);
+extern int ml_get_interrupts_enabled(void);
+extern int ml_at_interrupt_context(void);
+extern int get_preemption_level(void);
+extern int printf(const char *, ...);
+'''
+    path = work / 'pas-native.c'
+    path.write_text(declarations + 'static LCK_GRP_DECLARE' + native)
+    subprocess.run(['clang', '--target=aarch64-none-elf', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+                    '-ffreestanding', '-I', str(root / 'xnu'), '-c', str(path), '-o', str(work / 'pas-native.o')], check=True)
+print('Production SMC callback, query policy and native PAS lifecycle: AArch64 compile/assemble PASS; not executed')
