@@ -71,7 +71,8 @@ def main():
             ('memory-host',['bash','scripts/test-gpu-memory-host.sh'],{})]
     if a.gmu:
         checks.append(('memory-real-fixtures',['bash','scripts/test-gpu-memory-host.sh',str(a.gmu),str(a.sqe)],
-                       {'CEPHEUS_GPU_HOST_ASAN':'1','ASAN_OPTIONS':'detect_leaks=0'}))
+                       {'CEPHEUS_GPU_HOST_ASAN':'1','ASAN_OPTIONS':'detect_leaks=0',
+                        **({'CEPHEUS_ZAP_ELF':str(a.zap)} if a.zap else {})}))
     else:receipt['checks'].append({'name':'memory-real-fixtures','status':'SKIP','reason':'no proprietary GMU/SQE input'})
     if a.patches:checks.append(('arc',['python3','scripts/test-gpu-arc.py',str(a.patches)],{}))
     else:receipt['checks'].append({'name':'arc','status':'SKIP','reason':'no pinned ios-sweet patches'})

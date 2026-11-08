@@ -171,6 +171,16 @@ int cepheus_gpu_sqe_snapshot_copy(uint64_t handle,uint8_t *destination,size_t ca
     if(cepheus_gpu_memory_view_put(handle))return -1;
     return result;
 }
+int cepheus_gpu_zap_snapshot_prepare(uint64_t handle,uint8_t *mdt,size_t mdt_capacity,
+    uint8_t *image,size_t image_capacity,struct ceph_zap_image *layout)
+{
+    struct ceph_gpu_firmware_view view;
+    if(cepheus_gpu_firmware_get(handle,CE_FW_A640_ZAP,&view))return -1;
+    int result=ceph_firmware_verify(CE_FW_A640_ZAP,view.data,view.bytes);
+    if(!result)result=ceph_zap_stage(view.data,view.bytes,mdt,mdt_capacity,image,image_capacity,layout);
+    if(cepheus_gpu_memory_view_put(handle))return -1;
+    return result;
+}
 int cepheus_gpu_vm_build(struct ceph_vm_pool *pool,const struct ceph_vm_region *regions,unsigned count)
 { return ceph_vm_build(pool,regions,count); }
 int cepheus_gpu_vm_lookup(struct ceph_vm_pool *pool,uint64_t va,uint64_t *pa,uint64_t *flags)

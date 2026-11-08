@@ -8,6 +8,7 @@
 #include "cepheus_gmu_start.h"
 #include "cepheus_gpu_ring.h"
 #include "cepheus_sqe.h"
+#include "cepheus_zap_image.h"
 #include "cepheus_gpu_bw.h"
 #include "cepheus_gpu_config.h"
 #include "cepheus_gpu_fault.h"

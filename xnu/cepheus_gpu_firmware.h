@@ -23,7 +23,16 @@ extern "C" {
 #else
 #include <openssl/sha.h>
 #endif
-enum ceph_firmware_kind { CE_FW_A640_GMU,CE_FW_A630_SQE };
+enum ceph_firmware_kind { CE_FW_A640_GMU,CE_FW_A630_SQE,CE_FW_A640_ZAP };
+static inline size_t ceph_firmware_size(unsigned kind)
+{
+    switch(kind) {
+    case CE_FW_A640_GMU:return 37680;
+    case CE_FW_A630_SQE:return 32304;
+    case CE_FW_A640_ZAP:return 14256;
+    default:return 0;
+    }
+}
 static inline int ceph_firmware_sha256(const uint8_t *data,size_t size,uint8_t digest[32])
 {
     if(!data || !size || size>1048576 || !digest)return -1;
@@ -48,9 +57,13 @@ static inline int ceph_firmware_verify(enum ceph_firmware_kind kind,const uint8_
         0x93,0x37,0x93,0x4d,0x0c,0x2c,0xe0,0xb9,0x61,0xef,0x7c,0x43,0x17,0x25,0x91,0xd2};
     static const uint8_t sqe[32]={0xa0,0xe1,0xb5,0x83,0xf6,0x20,0xfa,0xbe,0x32,0x72,0x9c,0xe3,0x67,0x95,0x9d,0x19,
         0x60,0x63,0x86,0x63,0x24,0x4d,0x7d,0x0c,0xfc,0x21,0xb9,0xa5,0x21,0x5a,0x01,0x8b};
+    static const uint8_t zap[32]={0x74,0xa9,0x48,0xe8,0x4f,0x0a,0xac,0x83,0x0b,0x31,0x4e,0xd0,0x5d,0x26,0x00,0x6b,
+        0x35,0x71,0xc9,0xa3,0xf9,0x06,0x00,0xc7,0x08,0xca,0x76,0xc2,0x56,0x12,0x66,0x0d};
+    if(!size || size!=ceph_firmware_size((unsigned)kind))return -1;
     const uint8_t *expected;
-    if(kind==CE_FW_A640_GMU && size==37680)expected=gmu;
-    else if(kind==CE_FW_A630_SQE && size==32304)expected=sqe;
+    if(kind==CE_FW_A640_GMU)expected=gmu;
+    else if(kind==CE_FW_A630_SQE)expected=sqe;
+    else if(kind==CE_FW_A640_ZAP)expected=zap;
     else return -1;
     uint8_t actual[32];if(ceph_firmware_sha256(data,size,actual))return -1;
     unsigned diff=0;for(unsigned i=0;i<32;++i)diff|=actual[i]^expected[i];

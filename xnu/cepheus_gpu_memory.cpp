@@ -221,8 +221,7 @@ cepheus_gpu_firmware_snapshot(unsigned kind,const uint8_t *data,size_t bytes,uin
 {
     if(!handle)return -1;
     *handle=0;
-    if(!data || !((kind==CE_FW_A640_GMU && bytes==37680) ||
-        (kind==CE_FW_A630_SQE && bytes==32304)))return -1;
+    if(!data || !bytes || bytes!=ceph_firmware_size(kind))return -1;
     uint64_t id=0;
     if(cepheus_gpu_memory_alloc((bytes+4095u)&~(size_t)4095u,&id))return -1;
     struct ceph_gpu_memory_view view={};
@@ -244,7 +243,7 @@ cepheus_gpu_firmware_snapshot(unsigned kind,const uint8_t *data,size_t bytes,uin
 extern "C" int
 cepheus_gpu_firmware_get(uint64_t handle,unsigned expected_kind,struct ceph_gpu_firmware_view *view)
 {
-    if(!view || expected_kind>CE_FW_A630_SQE)return -1;
+    if(!view || !ceph_firmware_size(expected_kind))return -1;
     *view={};IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int index=ceph_gpu_pool_index(handle),e=-1;
     if(index>=0 && ceph_pool[index].firmware_bytes && ceph_pool[index].firmware_kind==expected_kind &&

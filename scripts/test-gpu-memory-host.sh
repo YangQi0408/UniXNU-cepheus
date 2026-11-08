@@ -79,3 +79,9 @@ done
     "$tmp/cepheus_gmu_bringup.c.o" "$tmp/cepheus_gpu_compile.c.o" "$tmp/test_gmu_bringup.c.o" \
     -o "$tmp/bringup" "${libs[@]}"
 if [[ $# -ge 1 ]]; then for mode in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22; do "$tmp/bringup" "$1" "$mode"; done; else "$tmp/bringup"; fi
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -Wno-missing-field-initializers -fsanitize="$sanitizers" -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_zap_snapshot.cpp" \
+    "$tmp/workspace.o" "$tmp/retire.o" "$tmp/cepheus_gmu_hfi_link.c.o" "$tmp/cepheus_gpu_compile.c.o" \
+    -o "$tmp/zap" "${libs[@]}"
+if [[ -n ${CEPHEUS_ZAP_ELF:-} ]]; then "$tmp/zap" "$CEPHEUS_ZAP_ELF"; else "$tmp/zap"; fi

@@ -40,7 +40,8 @@ int cepheus_gpu_memory_view_get(uint64_t handle,struct ceph_gpu_memory_view *vie
 int cepheus_gpu_memory_view_put(uint64_t handle);
 int cepheus_gpu_memory_publish(uint64_t handle);
 int cepheus_gpu_memory_release_cpu(uint64_t handle);
-/* Exact-size GMU(kind=0) or SQE(kind=1) firmware snapshot. Input must be a
+/* Exact-size GMU(kind=0), SQE(kind=1) or ZAP ELF(kind=2) snapshot. This storage
+ * is CPU-only source data, NOT a PAS/XPU-compatible allocation. Input must be a
  * readable, pinned KERNEL buffer, never a raw userspace address. Snapshotting
  * hashes the PRIVATE copy, seals mutable views, and stores kind/valid length.
  * Readonly leases block release for the whole hash/use interval. They are not

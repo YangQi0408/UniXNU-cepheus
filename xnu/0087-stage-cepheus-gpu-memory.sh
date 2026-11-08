@@ -10,6 +10,7 @@ install -m 0644 "$here/cepheus_gmu_workspace.c" "$here/cepheus_gmu_workspace.h" 
 install -m 0644 "$here/cepheus_gpu_retire.c" "$here/cepheus_gpu_retire.h" "$here/cepheus_gpu_memory_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_hfi_link.c" "$here/cepheus_gmu_hfi_link.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_mmio.h" "$here/cepheus_gpu_config.h" bsd/dev/
+install -m 0644 "$here/cepheus_zap_image.h" bsd/dev/
 install -m 0644 "$here/cepheus_qmp_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_retire_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_pdc_mmio.h" bsd/dev/
