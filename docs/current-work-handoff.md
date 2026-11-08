@@ -6,8 +6,12 @@
 最新离线推进：新增固定`cephsocdelay=240`基础探测门禁及scheduled/begin/
 baseline-end内核uptime标记，默认45s不变；不新增硬件操作。生产线程host
 测试、4项封装门禁、14项参数及原SCM测试通过，完整离线37 PASS/0 FAIL/
-0 SKIP，receipt `../logs/gpu-offline-socdelay-20261108-r2/receipt.json`，构建待完成。
-需新核touch-only控制版与同核延迟版配对；目前未真机测试，不动保留现场。
+0 SKIP，提交b2b99e7干净树重跑同样通过，receipt
+`../logs/gpu-offline-socdelay-b2b99e7-20261108/receipt.json`。
+CI42450429814 @b2b99e7完整成功，kernel SHAe9f8f3f7...；新核touch-only
+`boot-cepheus-touchcontrol-b2b99e7.img` SHAafdf72c6...，同核延迟版
+`boot-cepheus-socdelay240-b2b99e7.img` SHA7e082de6...，严格配对核验通过。
+两者均未真机测试，停在新核控制版独立验收前；不动保留现场。
 流程见[soc-delay-preflight](soc-delay-preflight.md)，根因仍UNKNOWN。
 
 最新12:35轮：`soconly-ordered-60a2dc5`临时boot，触摸FAIL，用户确认中央

@@ -37,12 +37,60 @@ The first run, `../logs/gpu-offline-socdelay-20261108/receipt.json`, is retained
 as FAIL: the GX host test's neighboring-function extraction included the new
 delay helpers. Its extraction endpoint was corrected; no GX probe changed.
 The timeline now records kernel phase timestamps separately from UDP receive
-timestamps, with 5 host tests passing. Kernel build remains pending.
+timestamps, with 5 host tests passing.
+
+Committed source: `b2b99e7f84cedd6e7d4c6cb058363149786d1a00`, pushed to
+`feat/adreno640`. Clean-tree full rerun also passed 37/0/0:
+`../logs/gpu-offline-socdelay-b2b99e7-20261108/receipt.json`, SHA256
+`63c8edcc2ba81d21f319c55614f7da637a3631dbd03df179f9dbe61804d758a8`.
+
+CI `42450429814` completed successfully on this commit. Pinned ios-sweet
+`45263bee51df4a0f55cdf9c649af886399488ddb`, dxb
+`663906528d1cd5ea8fde7de6f16de73db9511549`; all critical patches, staged source
+cmp, 75 GPU core/13 memory API symbols, no unresolved symbols, ordered-touch
+marker and 16KiB PA64 checks passed. Noncritical pre-existing skipped patches
+remain recorded, not silently described as all patches applied.
+
+Kernel: `../inputs/ci-42450429814/kernel.macho`, 17414536 bytes, SHA256
+`e9f8f3f735e2ab6d3f52fe2817ec51b898502b6f79130687f3b63c214ebd4978`.
+Local evidence: `../logs/ci-42450429814/verification.json` and
+`soc-thread.disasm.txt`; inspected linked 240000/45000 ms waits and guard/clock
+calls corroborate code generation, not exhaustive control-flow or hardware proof.
+Verification receipt SHA256:
+`b4a5dd08c57f371ed98ff69764100d030ba203b7bd33322ac35e78d745803d1c`.
+Build log SHA256:
+`408529329292f6f2e89b0d7462139dad414f9e9a147492628cb11de8e417bbc9`.
+Touch source unchanged SHA256:
+`672ce030f38efc4d8ef4764061f318237e9b67723f9fc27103edc2abb5e3700b`.
+SoC source SHA256:
+`7abbb569c16d35b9cc19c873aed9369d9702e403ade66ae8395d577fc38a0c57`.
 
 Required pair: a new-kernel touch-only control and the same-new-kernel delayed
 basic SoC candidate. The strict delta receipt must prove identical kernel,
 ADT, other payload files and all TOML fields except adding exactly
 `cephsoc=1` and `cephsocdelay=240`. Older PASS images are not overwritten.
+
+## Completed Image Pair
+
+Both images are 70680576 bytes, built with real mtools in the existing
+network-none, UID1000, cap-drop-ALL/no-new-privileges build container.
+
+| Image under `../dist/` | SHA256 | Hardware |
+|---|---|---|
+| `boot-cepheus-touchcontrol-b2b99e7.img` | `afdf72c6d4159d52d39dc687cfa733dc772c3cc5b717ff4cbfdc213302f65f6c` | NOT TESTED |
+| `boot-cepheus-socdelay240-b2b99e7.img` | `7e082de680a9ecd09d4c6fe698ecd6b7d65906eb1b08a50c18692ba7b142747b` | NOT TESTED |
+
+Control receipt: `boot-cepheus-touchcontrol-b2b99e7.json`, SHA256
+`15dcfb4372e52074d85b4effae2610b2d9cca442ab91dffcad272c27184ffd89`.
+Compared with the prior PASS touchordered-60a2dc5 image, control packaging
+preserves ADT/other payload, firmware/header and separately checked all TOML
+fields; only the new kernel changes. This does not inherit prior boot acceptance.
+
+Strict pair receipt: `boot-cepheus-socdelay240-b2b99e7-delta.json`, SHA256
+`dd15fd30fee303d59bdd3ced35b9e573c40c4c3867b9fc174142a214c777aba7`.
+It proves the same kernel/ADT/other payload/TOML fields, adding only
+`cephsoc=1 cephsocdelay=240`. Firmware/root were not flashed, and no phone was
+used for this offline work. The retained failed runtime was not rebooted.
 
 ## Next Hardware Gate
 

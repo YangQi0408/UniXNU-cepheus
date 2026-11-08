@@ -8,8 +8,10 @@
 包括=0混入也拒绝。默认45s与原探测集合不变，仅延迟版增加内核时间标记。
 240s是线程等待，不保证用户已验收；缺pre-begin PASS的轮次不能用于
 判断探测后的触摸变化。当前代码与host测试已实现，完整离线37 PASS/0 FAIL/
-0 SKIP（r2 receipt；首轮GX测试截取范围FAIL保留），新核构建待完成，
-真机未测试。详见[soc-delay-preflight](soc-delay-preflight.md)。
+0 SKIP（首轮GX测试截取范围FAIL保留），b2b99e7干净树全套重跑通过。
+CI42450429814完整成功，新核控制版及同核240s延迟版已封装并严格delta
+核验仅增cephsoc/cephsocdelay；两者真机未测试，停在控制版独立验收前。
+详见[soc-delay-preflight](soc-delay-preflight.md)。
 
 ## 2026-11-08：有序修正版的SoC基础轮仍失败，现场保留
 

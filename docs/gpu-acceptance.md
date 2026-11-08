@@ -4,6 +4,21 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-08：240s基础SoC延迟候选与新核控制版完成，停在真机前
+
+用户明确“完整构建并离线验证，到真机测试前停下”。b2b99e7实现固定240s
+基础profile门禁及内核阶段时间标记，默认45s不变，不新增硬件操作；生产
+touch源码未改。完整离线37 PASS/0 FAIL/0 SKIP，干净提交复跑同样通过；
+CI42450429814全程成功，kernel SHAe9f8f3f7...，75core/13API linked、无
+unresolved、PA64/ordered marker及staged cmp通过。
+
+控制`boot-cepheus-touchcontrol-b2b99e7.img` SHAafdf72c6...，延迟
+`boot-cepheus-socdelay240-b2b99e7.img` SHA7e082de6...，严格delta核验同核/
+ADT/其他payload/TOML仅新增cephsoc=1及cephsocdelay=240。
+**两者未启动，未改变保留的失败现场；不是GPU执行或触摸修复验收。**
+先验收新核touch-only，再在延迟轮begin前/采样中/baseline-end后分别验收。
+完整SHA/receipt及限制见[soc-delay-preflight](soc-delay-preflight.md)。
+
 ## 2026-11-08 12:35：同核SoC基础轮触摸FAIL，现场保留，停止后续探测
 
 用户重新连接67eea163/product=cepheus，核对候选/kernel/delta SHA，先开MAC
