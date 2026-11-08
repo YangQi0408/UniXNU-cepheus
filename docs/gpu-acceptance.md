@@ -4,14 +4,18 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
-## 2026-11-08：ZAP独立内存工作区离线完成，构建待验证
+## 2026-11-08 15:56：ZAP独立内存工作区完整构建完成，未真机执行
 
 生产IOKit路径新增独立ZAP工作区，1MiB连续/PA对齐镜像及16KiB元数据预算。
 固定快照lease、容量/逻辑长度分离、完整清零、只读封存、旧handle拒绝及
 部分失败/complete失败保留已接通。5种真实材料场景ASan/UBSan和相关GPU内存
 host套件通过，9项integration、PA mask及修改C++静态分析通过。首次旧套件
 误用a630 GMU被身份门禁拒绝，更正a640材料后PASS；完整离线入口未重跑。
-证据../logs/zap-memory-20261108/；完整XNU构建待验证。内存仍仅CPU所有，
+证据../logs/zap-memory-20261108/。CI42459697884 @1b34034完整成功，kernel
+17431888B，SHA256
+4ef4961a4e53c421b52feeb52ae8f87ac3de28a0ee64d17263e942028271edc5；76核心入口/
+17内存API、无unresolved、staged source及触摸/PA64核验通过；未打包/boot。
+内存仍仅CPU所有，
 Normal-NC不能视为原厂MDT强序等价或PAS可达证明；没有publish/SMC/认证入口，
 没有手机操作。手机仍为已验收b2b99e7，PAS13=false未解，GPU/Metal尚未执行。
 详见[zap-platform-contract](zap-platform-contract.md)。

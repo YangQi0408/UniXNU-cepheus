@@ -38,7 +38,24 @@ MDT/b02及全容量零填充比对通过。共享分配器有改动，因此运�
 单元静态分析均通过。首次旧套件误传a630_gmu.bin被固定身份检查拒绝，改用
 a640_gmu.bin后通过，原始失败日志保留。ASan关闭故意隔离场景的leak检测，
 不声称无泄漏。没有重跑完整离线入口、没有手机操作；证据
-../logs/zap-memory-20261108/。本阶段完整XNU构建待验证。
+../logs/zap-memory-20261108/。CI42459697884 @1b34034完整XNU构建成功，下载后
+核对76核心入口/17内存API、无unresolved、staged source、触摸及PA64均PASS。
+内核17431888B，SHA256
+4ef4961a4e53c421b52feeb52ae8f87ac3de28a0ee64d17263e942028271edc5，保存在
+../inputs/ci-42459697884/kernel.macho；build-verification.json记录核验结果。
+没有打包或boot，手机仍运行已验收b2b99e7查询版。
+
+同轮继续核对缓存类型：固定SM8150的arch/arm64/mm/dma-mapping.c:48及
+arch/arm64/include/asm/pgtable.h:395将STRONGLY_ORDERED映为Device-nGnRnE，
+WRITE_COMBINE则为Normal-NC，二者源码类型不同。本机XNU参考树的
+IOMemoryDescriptor.cpp:362将kIOInhibitCache映为VM_WIMG_IO，但pmap.c:5652
+对DRAM选择POSTED_COMBINED_REORDERED，proc_reg.h:1106及start.s:767对应
+Device-GRE；因此不能仅换成kIOMapInhibitCache就宣称复现原厂MDT类型。
+kIOMapRealTimeCache/VM_WIMG_RT在HAS_UCNORMAL_MEM关闭的源码分支会选择
+Device-nGnRnE，可作为下一步审查候选；仍需核对实际SWEET构建配置/页表、
+CPU别名转换和Device复制访问的宽度/对齐，再考虑secure PA/XPU与生命周期。
+这些是源码证据，不是手机实际页表或PAS接受证据；没有更改当前Normal-NC。
+源文件SHA与定位保存在../logs/zap-memory-20261108/cache-contract.json。
 
 ## 2026-11-08：内核ZAP元数据与重定位镜像准备
 
