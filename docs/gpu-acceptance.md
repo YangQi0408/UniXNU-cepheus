@@ -4,7 +4,34 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
-## 2026-11-08 14:27：新基础控制PASS，下一直接SCM查询
+## 2026-11-08 14:44：七次查询完整，PAS13=false，查询后触摸/唤醒PASS
+
+核对67eea163/cepheus和镜像SHA、监听先就绪后临时boot
+boot-cepheus-query7-basic-b2b99e7.img成功，sending1.586s/booting0.126s。
+镜像SHA a060bd435ad3581520f29c0bb6886516963cd4f0955b8f40ce2a4cf23e0b5f19；
+同CI42450429814/b2b99e7内核e9f8f3f7...，相对已验收基础控制仅cephscm=1。
+
+sample25四组后，固定7次SMC完整返回：convention2，availability0x1f，
+第6次command7 availability为x0=0/x1=1，QUERY7 confirmed=1；第7次PAS13
+supported为x0=0/x1=0。summary/end一致，transport0/secure0/e-1/calls7。
+生产查询策略重放TRANSCRIPT_COMPLETE；这是完整的false结果，不是支持或
+认证PASS。只排除本轮command7不可用，PAS13=false原因仍UNKNOWN。
+
+用户对简短点按/滑动及熄屏点亮请求回复“正常”，查询后触摸/唤醒PASS。
+SCM end接收14:41:27.818242；之后9条health，events78增至170、errors0，
+收到电源键、blank718us、display on及后续触摸。HID down/up各5，RAW128
+达限，48完整批123事件重放0差异，尾124..128省略。日志接收时间不等于
+物理操作时间，闲置期events不变不能当触摸失败。
+
+420.000939s/495包/164342B，日志SHA
+12dda1d38a2a3a1af98ab44a6db1160100006b79d0974e01e02a8e657c47852f。
+采集14:43:41自然到期，回复观察14:43:57，不能称提前停止；自有capture/
+watcher已退出。证据../logs/query7-basic-b2b99e7-live-20261108-1436/完整保存。
+不追加硬件测试或重跑控制/离线套件，手机保持运行；无flash/自动重启/恢复。
+无PAS mutation、GPU上电/GMU/CP/Metal；下一工作转回离线平台实现及false差异。
+历史240s阶段缺证据与触摸间歇根因保持原结论。详见[查询结果](scm-query7-preflight.md)。
+
+## 2026-11-08 14:27：新基础控制PASS，当时下一直接SCM查询
 
 用户要求“直接下一阶段吧”，完成最小基础SoC/SCM配对准备。复用已验收
 touchcontrol的b2b99e7内核，生产xnu未变；工具提交9594ed7已推送，
@@ -48,7 +75,8 @@ PosterBoard sig5两次保留，未见panic不排除丢失尾段。5时间线+11�
 主机观察/包时序/重放。自有capture/watch均已退出，手机当前可用状态保留。
 无flash/自动重启/reset/scan重发/校准/恢复，无GPU power/DMA/CP/SCM。
 
-下一门禁：稳定数据线、用户明确授权后重跑同一延迟镜像600s完整阶段采集，
+当时下一门禁（后被用户“直接下一阶段吧”替代，不再要求补跑）：稳定数据线、
+用户明确授权后重跑同一延迟镜像600s完整阶段采集，
 必要时重跑控制；未获阶段证据前不加GPU探测。体验PASS不等于SoC时序因果、
 间歇根因修复或GPU/Metal加速。详见[soc-delay-preflight](soc-delay-preflight.md)。
 

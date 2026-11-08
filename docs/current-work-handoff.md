@@ -1,14 +1,27 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08**。范围：延迟SoC本轮体验PASS、阶段证据不足及后续门禁。
+更新：**2026-11-08 14:44 +08:00**。范围：七次SCM查询完整、PAS13=false及查询后触摸验收。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
-最新14:27基础控制轮soccontrol-b2b99e7本轮PASS：用户“都正常”，420s648包/
+最新query7-basic-b2b99e7（SHAa060bd43...）临时boot后，sample25四组及七次
+REGS in/out/summary/QUERY7/end均齐全。生产策略核验TRANSCRIPT_COMPLETE，
+command7 availability=0/1，QUERY7 confirmed=1，PAS13 supported仍0/0=false。
+convention2/available0x1f/calls7/transport0/secure0/e-1；不代表认证失败或成功。
+用户“正常”确认查询后触摸/唤醒PASS；查询后9条health events78增至170/errors0，
+电源、blank/display on及后续触摸事件收到。RAW128，48完整批123事件0差异。
+420.000939s/495包/164342B，日志SHA12dda1d3...，采集14:43:41自然到期，
+回复观察14:43:57，未实际提前停止。自己的capture/watch均退出，手机保持运行。
+证据../logs/query7-basic-b2b99e7-live-20261108-1436/result.json及scm-query.json。
+用户时间紧，本轮不追加真机测试，不重复控制/完整离线；下一离线重点为
+GPU电源/共享资源、SMMU及PAS加载后端和false差异，不放宽门禁。
+GPU/Metal尚未运行；本轮排除command7不可用，触摸间歇和PAS13=false根因未解。
+
+前一14:27基础控制轮soccontrol-b2b99e7本轮PASS：用户“都正常”，420s648包/
 186771B，sample25四组齐全且之后触摸events317增至890/errors0，HID69对。
 日志SHA2a4a5873...，证据../logs/soccontrol-b2b99e7-live-20261108-1426/。
 自有采集/watch均退出。用户明确时间紧、尽可能省测试：不重复控制/离线回归，
-查询出完整结果再一次简短点按/唤醒确认即收尾。已请求手动fastboot，
-下一直接query7-basic-b2b99e7（a060bd43...），尚未启动，不再重复控制。
+查询出完整结果再一次简短点按/唤醒确认即收尾。配对query7-basic随后已完成，
+见上述结果，不再重复控制。
 
 最新指示“直接下一阶段吧”：转入基础SoC采样后的SCM/PAS13固定查询准备，
 不再以补跑240s时序对照阻塞下一阶段；历史缺证据仍不追认PASS。
@@ -18,8 +31,8 @@ query7-basic-b2b99e7 SHAa060bd43...（相对控制只加cephscm1）。
 默认45s基础等待/sample25后查询，不带fuse/ARC/GX/boost/memory/240s延迟。
 新增基于生产策略的RAM日志核验13项、参数15项、时间线6项测试通过；
 完整离线38/0/0，receipt ../logs/gpu-offline-query7-basic-20261108/。
-新基础控制已完成，下一直接配对查询；手机保持iOS，等待物理键fastboot，
-需要稳定数据连接。GPU/Metal尚未运行，细节见[SCM下一阶段](scm-query7-preflight.md)。
+新基础控制及配对查询现均已完成，手机保持查询版iOS运行。
+GPU/Metal尚未运行，细节见[SCM查询结果](scm-query7-preflight.md)。
 
 最新14:02轮：同核延迟`socdelay240-b2b99e7` SHA7e082de6...临时boot成功。
 用户“现在正常”及两次复测“正常”确认当前UI/中央触摸/电源唤醒触摸PASS；
@@ -97,8 +110,9 @@ SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段
 
 > **最重要的现状：iOS 16.7.16 曾多轮成功运行主屏幕、触摸和电源键；
 > 有序touch-only及新核控制PASS；历史45s soc-only触摸FAIL保留。
-> 最新240s延迟轮当前触摸/唤醒PASS，但掉线/中断导致阶段对照INCONCLUSIVE。
-> GPU/Metal硬件加速没有完成，QUERY7开启候选没有启动。
+> 历史240s延迟轮体验PASS，掉线/中断导致阶段对照INCONCLUSIVE。
+> 最新基础控制及QUERY7查询后触摸/唤醒PASS；七次查询完整，command7可用，PAS13=false。
+> GPU/Metal硬件加速没有完成，未尝试PAS认证。
 > 触摸间歇失败根因和PAS13 supported=false原因都没有定位。**
 
 ## 1. 目标、设备和证据分级
@@ -115,7 +129,7 @@ SCM/CPU boost/内存/GPU探测关闭。详见touch-failure-theory最新推进段
 | 触摸 | ST-FTS，I²C `0x49`，chip ID `36:39` |
 | GPU | Adreno640，FDT chipid `0x06040001` |
 | iOS | iPhone X材料，16.7.16 / 20H392；研究用SWEET shim |
-| 最近设备观测 | 最新240s延迟轮当前触摸/唤醒PASS，阶段未知；ECM重枚举后日志断流，保留当前状态 |
+| 最近设备观测 | query7-basic七次查询完整，PAS13=false；查询后触摸/唤醒PASS，采集已结束，手机保持运行 |
 
 证据分为四级，**不得互相替代**：
 
@@ -144,9 +158,9 @@ GPU识别、命令编码、编译成功、SMC返回或CPU内存自检都不是GP
 | `inputs/gpu-refs-20261106/` | 固定HackiOS、Pong及GPU子模块参考源 |
 | `/home/yangqi/android/kernel/xiaomi/sm8150/` | 本机下游源码参考，固定HEAD `36f369fdb77319a2984a48b89f025ac3e5f97386` |
 
-文档整理前GPU本地HEAD为 **`0ffbf3c`**，该提交只记录触摸失败；最近完整
-构建的源码是 **`da8ffc1`**。最近检查远端分支仍为da8ffc1，本地记录不自动推送。
-本交接文档后续提交不会使已有内核变成“对应最新HEAD的新构建”。
+本轮归档前本地及已推送HEAD为 **`a688daf`**；最近完整构建的生产源码是
+**`b2b99e7`** / CI42450429814。9594ed7仅新增封装/日志核验工具与文档，
+之后为验收记录；本轮未修改生产xnu或重建内核。文档提交不改变内核身份。
 
 最近提交主线：
 
@@ -160,7 +174,11 @@ GPU识别、命令编码、编译成功、SMC返回或CPU内存自检都不是GP
 | `cbc4750` | 拒绝有formattable风险的Android取证boot |
 | `41ec3b1` | 本机TZ原件的原生Ghidra PAS查询链证据 |
 | `da8ffc1` | TZ入口／重定位核对、补查command7 availability策略及测试 |
-| `0ffbf3c` | 最新SCM关闭基线触摸FAIL，停止QUERY7开启测试 |
+| `0ffbf3c` | 历史SCM关闭基线触摸FAIL，停止当时QUERY7开启测试 |
+| `60a2dc5` | 整批验证后按FIFO顺序上报触摸 |
+| `b2b99e7` | 可选固定240s基础探测等待；本轮复用该内核的默认45s配置 |
+| `9594ed7` | 基础SCM配对封装及生产查询策略日志核验工具 |
+| `a688daf` | 新基础控制PASS，缩减后续真机检查 |
 
 ## 3. 启动链与iOS用户态：已经做成的部分
 
@@ -284,13 +302,14 @@ GX诊断的word/byte及fault字段缺陷已修，但真机仍被GMU不就绪门�
 
 ### 仍然阻止真实GPU启动的硬条件
 
-1. 触摸基线重新获得本轮独立验收。
-2. PAS13查询false的差异、可信SCM共享buffer、PAS专用XPU内存及crypto带宽租约。
-3. ARC/DRV继承票、共享clock/GDSC、真实DDR bootstrap带宽租约。
-4. SMMU TBU/ACTLR/CB/ASID所有权，cache/TLB/DMA真机一致性。
-5. GMU PDC/RSC/QMP/HFI真实后端，GX完整初始化和热监督。
-6. 真实stop/quarantine与DMA静默证明；失败后不能盲free或降共享票。
-7. 受限scratch/fence通过后才谈绘制；再后才是iOS用户态GLES/Metal接入。
+当前基础控制及查询后触摸已独立验收PASS，间歇根因仍未解；不要求重复本轮控制。
+
+1. PAS13查询false的差异、可信SCM共享buffer、PAS专用XPU内存及crypto带宽租约。
+2. ARC/DRV继承票、共享clock/GDSC、真实DDR bootstrap带宽租约。
+3. SMMU TBU/ACTLR/CB/ASID所有权，cache/TLB/DMA真机一致性。
+4. GMU PDC/RSC/QMP/HFI真实后端，GX完整初始化和热监督。
+5. 真实stop/quarantine与DMA静默证明；失败后不能盲free或降共享票。
+6. 受限scratch/fence通过后才谈绘制；再后才是iOS用户态GLES/Metal接入。
 
 ## 7. PAS13调查、TZ取证与QUERY7候选
 
@@ -333,7 +352,7 @@ count／cache／descriptor ID不与重定位目标重叠，不能排除其他写
 `0x7eb980000`可在启动时更新，**不得按这些地址扫描活RAM**。
 NS↔secure frame全程、初始化其他写入和运行映像选择仍未恢复／验证。
 
-### QUERY7下一候选
+### QUERY7七次查询实测
 
 da8ffc1仅新增一次INFO查询：command7 availability。正常64路径由6次变7次，
 第6次 `0x42000601, arginfo=1, arg=0x02000207` 确认后才发第7次ID13查询。
@@ -344,8 +363,11 @@ da8ffc1仅新增一次INFO查询：command7 availability。正常64路径由6次
 - 即使PAS13=true → 也不自动认证／上电／CP，不直接把旧false解释掉。
 - 最大16次是本地预算，**不能抢占一个不返回的secure调用**。
 
-完整构建及打包已完成，但**SCM关闭基线触摸FAIL，开启候选从未启动**。
-该查询也不能提供运行TZ SHA／实际基址／handler／表内容。
+旧da8ffc1的allprobes关闭基线触摸FAIL，其配对query7-da8ffc1未启动。
+新b2b99e7基础控制已PASS，随后query7-basic实测7次完整：command7 availability
+0/1、PAS13 supported0/0、available0x1f、QUERY7 confirmed1，查询后触摸/唤醒PASS。
+生产策略转录核验通过；排除本轮command7不可用，false根因仍未知。
+该查询不能提供运行TZ SHA／实际基址／handler／表内容，也不证明认证能力。
 
 ### Android取证预检
 
@@ -524,20 +546,20 @@ TZ verifier需显式原件／证据／新output；不在公共CI下载私有材�
 
 | 优先级 | 任务与依赖 | 验收标准 |
 |---|---|---|
-| P0 | **#67／#60：触摸间歇根因** | 同核soc-only最新FAIL，现场保留；先离线排查/分离子探测与时序，不试写恢复 |
-| P1 | **#66：QUERY7候选**，被最新触摸FAIL阻断 | 所有查询开启候选未启动；停止增加探测，必须重新获得同核基线后分轮验收；true不自动auth |
+| 已完成本轮 | **#66：QUERY7固定支持查询** | 新基础控制及查询后触摸PASS；7次转录完整，command7可用而PAS13=false，不追加相同查询 |
 | P1 | **#63：静态PAS13与真机false差异** | 不改现有事实，建立实际conduit／运行映像／参数／表变化的有界证据；无安全通道则保持UNKNOWN |
-| P2 | **#33/#30/#58：ARC、电源、DDR与工作区** | 真实继承／所有权／cache证据，非mock lease；触摸稳定前不混合测试 |
+| P1 | **#33/#30/#58：GPU平台资源与加载后端** | 离线补齐ARC/clock/GDSC、DDR、SMMU及PAS buffer/加载契约；RAM测试不冒充真实资源所有权 |
+| P2 | **#67／#60：触摸间歇根因** | 最新基础控制/查询后PASS，历史FAIL与240s阶段缺证据保留；继续离线调查，不试写恢复或重复整套触摸轮 |
 | P2 | **#45：退休／停止** | 实际GX/CM3及DMA静默；不确定保留隔离资源 |
 | P3 | **#15/#16：GMU→CP→图形前端** | 先真实fence，再绘制，再iOS接入，不能用一步成功代替全部 |
 | 可选 | **#65：RAM-only取证镜像** | 全路径不挂持久FS／不自动写入审查，目前没有已验收候选 |
 
 #62原厂路径审查、#64取得TZ原件已经完成，不再把它们写成材料缺失。
 #63只完成了静态证据部分，原因调查未完成。历史#53标题“一次机会”不再适用。
-用户最新选择保留当前失败现场、先离线排查。已完成soc-only实测FAIL证据、
-6事件重放和接收时间线、基础路径源码核查；不再启动/查询/恢复手机。
-离线下一方向为同核恢复基线及单项子探测/启动先后对照，但未实现新kernel
-候选，未授权自动执行。间歇根因调查不标完成，QUERY7/GPU执行仍未实测。
+用户后续要求直接下一阶段，并尽量省去测试。最新基础控制及查询轮均已结束，
+本轮不追加手机测试或重跑完整离线套件。手机保持当前可用状态，不自动重启/
+恢复；将工作转回离线GPU平台实现与PAS13差异。触摸间歇调查和GPU执行未完成，
+不能因为固定查询完整而声称接近可运行GMU/CP/Metal。
 
 ## 13. 专题文档导航与阅读顺序
 

@@ -2,8 +2,13 @@
 
 > 最新状态见[工作交接](current-work-handoff.md)及[TZ证据](tz-native-evidence.md)：
 > 本机TZ原件已经取得，静态表确有PAS13；与真机supported=false仍未解释。
-> QUERY7新核构建／打包完成，但SCM关闭基线触摸FAIL，开启候选未启动。
+> 2026-11-08新基础控制与query7-basic均完成；command7 availability=0/1，
+> PAS13 supported=0/0，七次记录完整，查询后触摸/唤醒PASS。认证未尝试，GPU未运行。
 > 下文“缺TZ／未发SMC”部分是历史状态，不放宽认证／加载／CP门禁。
+
+完整结果及日志SHA见[QUERY7实测](scm-query7-preflight.md)。本轮排除command7
+不可用，但false原因与认证能力仍UNKNOWN。后续离线补齐平台资源与加载后端，
+不重复相同查询或控制轮，不将可用性查询当作认证证据。
 
 ## 2026-11-07：PILDxe客户端实物证据不解除PAS门禁
 

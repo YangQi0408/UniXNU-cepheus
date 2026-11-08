@@ -1,4 +1,32 @@
-# Command7 availability：下一轮受限测试边界
+# Command7 availability：受限查询结果与边界
+
+## 2026-11-08 14:44：七次查询完整，command7可用，PAS13仍为false
+
+query7-basic-b2b99e7已在67eea163/cepheus临时boot成功，sending1.586s/
+booting0.126s；相对已验收基础控制只加cephscm=1。sample25四组后，
+完整收到7次REGS in/out及summary/QUERY7/end，生产查询引擎RAM重放为
+**TRANSCRIPT_COMPLETE，query7_confirmed=true，pas13_supported=false**。
+第6次command7 availability返回x0=0/x1=1；第7次PAS13 supported返回
+x0=0/x1=0。summary为convention2/available0x1f/calls7/transport0/secure0/
+e-1；e-1是引擎拒绝继续，不是认证错误。本轮没有认证尝试或GPU执行。
+这排除了本轮command7不可用的解释，未解释PAS13=false，也不解除加载门禁。
+
+用户对一次简短点按/滑动及熄屏点亮确认回复“正常”，本轮触摸/唤醒PASS。
+sample25和SCM end主机接收14:41:27.818，之后9条health，events78增至170、
+errors0/hid_calls165，收到电源键、blank718us、display on及后续触摸。
+全程HID down/up各5；RAW128限额，48完整批123事件重放0差异，尾124..128省略。
+时间为主机接收，不是secure执行耗时或物理动作精确时间。
+
+采集14:43:41.344701自然到期，420.000939s/495包/164342B；回复观察14:43:57，
+因此未实际提前结束。日志SHA256：
+12dda1d38a2a3a1af98ab44a6db1160100006b79d0974e01e02a8e657c47852f。
+证据../logs/query7-basic-b2b99e7-live-20261108-1436/中的result.json、scm-query.json、
+action-timeline、capture、packets、receive-timeline和replay。采集exit0，自己的
+bounded watcher exit124，进程检查已退出；手机保持当前运行状态。
+
+本轮结束，不追加真机轮次，不重复已通过控制或完整离线检查。后续离线推进
+GPU电源/共享资源、SMMU、PAS加载平台实现，并继续核对PAS13=false差异。
+GPU/Metal仍未运行；单次触摸PASS不解决间歇根因，240s历史阶段仍INCONCLUSIVE。
 
 ## 2026-11-08：转入新核基础采样后的查询阶段
 
@@ -6,7 +34,8 @@
 时序对照当作所有后续离线工作的前置。其当前触摸/唤醒PASS保留，缺失的
 SoC阶段仍为INCONCLUSIVE，不能追认探测完成或触摸根因修复。
 随后用户要求尽量舍弃测试以节省时间：已完成的控制不重复，离线检查不复跑；
-查询采到完整结果后只做一次简短点按/唤醒确认，即结束采集，不等满固定窗口。
+查询采到完整结果后只做一次简短点按/唤醒确认，计划随后提前结束采集；
+实际回复观察晚于自然截止，最终420s到期，见上述结果。
 
 下一阶段为既有固定INFO/PAS13支持查询，使用已通过新核touch-only控制的
 CI42450429814/b2b99e7内核。没有改生产内核、触摸或SMC策略，也不启动旧
@@ -19,7 +48,7 @@ cephsocdelay与SCM混用仍拒绝，boost/内存/GPU启动参数仍拒绝。
 | 镜像（../dist/） | SHA256 | 配置与状态 |
 |---|---|---|
 | boot-cepheus-soccontrol-b2b99e7.img | b239af44ded8f62e833b023f5983828355995751fad31522bac5848a53e8bc47 | 相对已验收touchcontrol只加cephsoc=1；14:27轮PASS |
-| boot-cepheus-query7-basic-b2b99e7.img | a060bd435ad3581520f29c0bb6886516963cd4f0955b8f40ce2a4cf23e0b5f19 | 相对上行只加cephscm=1；未实测 |
+| boot-cepheus-query7-basic-b2b99e7.img | a060bd435ad3581520f29c0bb6886516963cd4f0955b8f40ce2a4cf23e0b5f19 | 相对上行只加cephscm=1；七次查询完整、PAS13=false，触摸/唤醒PASS |
 
 两张均70680576B，真实mtools离线打包；容器network-none/UID1000/
 cap-drop-ALL/no-new-privileges。同名.json严格核验kernel、ADT、其他payload、
@@ -53,7 +82,7 @@ QUERY7 confirmed=false仍不能单独判“不支持”，须看寄存器。
 ../logs/gpu-offline-query7-basic-20261108/receipt.json。
 该receipt保留本次工具修改未提交时的dirty=true，不能冒充干净树运行。
 
-### 下一真机步骤
+### 已完成的配对真机轮次
 
 14:27新soccontrol已独立验收：用户“都正常”确认UI/触摸/唤醒，sample25
 四组齐全，之后8条health中events317增至890、errors0；HID down/up各69。
@@ -65,18 +94,15 @@ RAW128限额，34完整批124事件重放0差异，末125..128省略；health200
 packets/action-timeline/replay/receive-timeline。用户“是”合并确认从上一正常
 iOS物理键进入fastboot及换线或插稳，具体哪种线材处理未单独确认。
 
-该控制已完成，不再重复。手机当前iOS由用户保留，已请求物理电源+音量下
-进入fastboot后直接临时boot配对query7-basic。监听在boot前就绪，并核对
-67eea163/cepheus和SHA。新查询候选尚未启动。
-查询版应采集sample25、SCM begin、每次REGS in/out、summary/QUERY7/end，
-再记录查询后触摸/唤醒反馈；连接质量不足时只记缺证据，不自动恢复。
-用户怀疑数据线不稳，应以稳定数据连接取得查询返回证据。
+该控制已完成，不再重复。用户随后确认“已进入”fastboot，监听在boot前就绪，
+核对67eea163/cepheus和SHA后临时boot配对query7-basic。sample25、SCM begin、
+每次REGS in/out、summary/QUERY7/end及查询后用户反馈现均已取得，结果见开头。
 
 不flash，不PAS init/mem/auth/stop、不GPU电源/固件上传/CP、不secure活RAM；
 supported=true也不自动进入这些动作。单次SMC可能不返回，本地16次预算
 无法抢占secure world。当前PAS13=false原因仍UNKNOWN，GPU/Metal未运行。
 
-## 当前状态
+## 历史：2026-11-07离线状态
 
 以下至历史实测更新为2026-11-07记录，当前候选以本文开头为准。
 
