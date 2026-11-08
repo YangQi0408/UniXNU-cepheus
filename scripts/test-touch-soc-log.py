@@ -13,6 +13,17 @@ spec.loader.exec_module(timeline)
 
 
 class Timeline(unittest.TestCase):
+    def test_scm_receive_order(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.fixture(root, [b"CEPHEUS OSM: sample25 prime core0\nCEPHEUS SCM INFO: begin query_limit=16\n",
+                                b"CEPHEUS SCM INFO REGS: in=0xc2000601:1:0x82000601:0:0:0:0:0\n",
+                                b"CEPHEUS SCM INFO REGS: out=0:1:0:0:0:0:0:0\nCEPHEUS SCM QUERY7: confirmed=1\n",
+                                b"CEPHEUS SCM INFO: end error=-1 calls=7 supported=0\n"])
+            r = timeline.analyze(root)
+            self.assertEqual([e['receive_elapsed_s'] for e in r['events']], [1, 1, 2, 3, 3, 4])
+            self.assertEqual(r['soc_phases'], [])
+
     def fixture(self, directory, chunks, foreign=False):
         raw = b"".join(chunks)
         (directory / "boot.log").write_bytes(raw)

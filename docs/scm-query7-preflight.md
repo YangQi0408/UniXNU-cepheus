@@ -1,6 +1,72 @@
 # Command7 availability：下一轮受限测试边界
 
+## 2026-11-08：转入新核基础采样后的查询阶段
+
+用户在240s延迟轮结束后明确要求“直接下一阶段吧”。因此不把补跑该延迟
+时序对照当作所有后续离线工作的前置。其当前触摸/唤醒PASS保留，缺失的
+SoC阶段仍为INCONCLUSIVE，不能追认探测完成或触摸根因修复。
+
+下一阶段为既有固定INFO/PAS13支持查询，使用已通过新核touch-only控制的
+CI42450429814/b2b99e7内核。没有改生产内核、触摸或SMC策略，也不启动旧
+allprobes/query7-da8ffc1组合。新配对仅基础SoC采样，可关闭fuse/ARC/GX。
+验证器新增支持显式 --soc-only --scm-info，并检查编译后的QUERY7标记；
+cephsocdelay与SCM混用仍拒绝，boost/内存/GPU启动参数仍拒绝。
+
+### 已完成镜像
+
+| 镜像（../dist/） | SHA256 | 配置与状态 |
+|---|---|---|
+| boot-cepheus-soccontrol-b2b99e7.img | b239af44ded8f62e833b023f5983828355995751fad31522bac5848a53e8bc47 | 相对已验收touchcontrol只加cephsoc=1；未实测 |
+| boot-cepheus-query7-basic-b2b99e7.img | a060bd435ad3581520f29c0bb6886516963cd4f0955b8f40ce2a4cf23e0b5f19 | 相对上行只加cephscm=1；未实测 |
+
+两张均70680576B，真实mtools离线打包；容器network-none/UID1000/
+cap-drop-ALL/no-new-privileges。同名.json严格核验kernel、ADT、其他payload、
+boot header、所有TOML字段不变，仅各自声明的一个参数新增。
+内核SHA256：
+e9f8f3f735e2ab6d3f52fe2817ec51b898502b6f79130687f3b63c214ebd4978。
+本次通过gh核对CI42450429814确为b2b99e7 completed/success；
+复用已构建内核，未触发新内核构建。
+
+**该组合恢复默认45秒基础等待，不是240秒延迟组合。** SoC线程先完成
+sample0..25，再进入一次固定SCM查询；正常64路径7次，异常按既有策略停止。
+延迟轮的体验PASS不替代新基础控制或查询候选的逐次验收。
+
+### 查询日志核验
+
+新增scripts/analyze-scm-query-log.py，离线编译生产cepheus_scm_discovery.h
+查询引擎，把保存的x0..x7输出作为RAM callback返回，逐次核对实际输入、
+中断恢复cookie、32位回退、调用数量、summary/QUERY7/end一致性。
+不链接原生SMC callback，不接触设备。保存新receipt及日志/生产策略SHA。
+13项测试覆盖成功、PAS13=false、QUERY7未确认、传输错误、非布尔值、
+fallback、中断、16次预算、丢失/重复记录和非法输入；参数测试15项、
+接收时间线6项。CI与完整离线入口已加入新测试。
+
+TRANSCRIPT_COMPLETE表示记录与生产查询策略一致，不表示查询成功：
+pas13_supported可为true/false/null，null包括未到达/错误/非布尔返回。
+QUERY7 confirmed=false仍不能单独判“不支持”，须看寄存器。
+旧六次SMC日志回放预期INCOMPLETE，不改旧实测结论；上一轮无SCM日志
+同样INCOMPLETE。主机接收时间不充当内核或物理操作时间。
+
+完整离线38 PASS/0 FAIL/0 SKIP：
+../logs/gpu-offline-query7-basic-20261108/receipt.json。
+该receipt保留本次工具修改未提交时的dirty=true，不能冒充干净树运行。
+
+### 下一真机步骤
+
+手机当前iOS由用户保留；进入fastboot仍使用物理电源+音量下。先完成新
+soccontrol的独立UI/触摸/唤醒验收和sample25四组采集，再在下一启动临时
+boot配对query7-basic。每轮监听在boot前就绪，并核对67eea163/cepheus和SHA。
+查询版应采集sample25、SCM begin、每次REGS in/out、summary/QUERY7/end，
+再记录查询后触摸/唤醒反馈；连接质量不足时只记缺证据，不自动恢复。
+用户怀疑数据线不稳，应以稳定数据连接取得查询返回证据。
+
+不flash，不PAS init/mem/auth/stop、不GPU电源/固件上传/CP、不secure活RAM；
+supported=true也不自动进入这些动作。单次SMC可能不返回，本地16次预算
+无法抢占secure world。当前PAS13=false原因仍UNKNOWN，GPU/Metal未运行。
+
 ## 当前状态
+
+以下至历史实测更新为2026-11-07记录，当前候选以本文开头为准。
 
 只在主机修改查询策略、做 RAM 单测及 AArch64 编译；**尚无本轮完整 XNU
 构建、启动镜像或真机结果**。此前六次 SMC 的 PAS13 `x0=0/x1=0` 不变。

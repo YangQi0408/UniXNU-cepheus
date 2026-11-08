@@ -2,6 +2,9 @@
 
 Updated: 2026-11-08. Control hardware round PASS; delayed candidate current
 UI/touch/power-wake PASS, but phase comparison INCONCLUSIVE.
+Subsequent user instruction: proceed directly to the next stage. The delayed
+comparison remains inconclusive; repeating it is not required before preparing
+the basic SCM query pair in [scm-query7-preflight](scm-query7-preflight.md).
 The user returned the device to fastboot and authorized testing after the offline
 stage. Historical offline preparation and preserved-failure boundaries are below.
 

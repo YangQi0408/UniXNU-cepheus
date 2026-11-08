@@ -47,6 +47,7 @@ def main():
             ('pmap-cache-verifier',['python3','scripts/test-pmap-cache-verifier.py'],{}),
             ('scm-codegen',['python3','scripts/test-scm-codegen.py'],{}),
             ('scm-hook',['python3','scripts/test-scm-hook.py'],{}),
+            ('scm-query-log',['python3','scripts/test-scm-query-log.py'],{}),
             ('soc-delay',['python3','scripts/test-soc-delay.py'],{}),
             ('soc-delay-packaging',['python3','scripts/test-soc-delay-packaging.py'],{}),
             ('pas13-audit-tests',['python3','scripts/test-pas13-audit.py'],{}),

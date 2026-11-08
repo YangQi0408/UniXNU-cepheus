@@ -13,6 +13,24 @@ BASE = ('sweetusb=2 sweettouch=1 sweetkeys=1 sweetkeyspononly=1 '
 
 
 class Args(unittest.TestCase):
+    def test_basic_scm_info(self):
+        baseline = BASE + ' sweettouchdiag=1 cephsoc=1'
+        line = baseline + ' cephscm=1'
+        ready.validate_args(line, soc_only=True, scm_info=True)
+        ready.validate_added_args({'entry': [{'args': line}]},
+                                  {'entry': [{'args': baseline}]}, ['cephscm=1'])
+        for name in ('cephfuse', 'cepharc', 'cephgx', 'cephmem', 'cephboost', 'cephsocdelay'):
+            for value in (0, 1, 240):
+                with self.assertRaises(AssertionError):
+                    ready.validate_args(line + f' {name}={value}', soc_only=True, scm_info=True)
+        for invalid in (baseline, line.replace('cephscm=1', 'cephscm=0'),
+                        line.replace('cephsoc=1', ''), line + ' cephscm=1'):
+            with self.assertRaises(AssertionError):
+                ready.validate_args(invalid, soc_only=True, scm_info=True)
+        for kwargs in ({'touch_only': True}, {'soc_fuse': True}, {'soc_fuse_arc': True}):
+            with self.assertRaises(AssertionError):
+                ready.validate_args(line, scm_info=True, **kwargs)
+
     def test_soc_delay(self):
         line = BASE + ' sweettouchdiag=1 cephsoc=1 cephsocdelay=240'
         ready.validate_args(line, soc_only=True, soc_delay=True)

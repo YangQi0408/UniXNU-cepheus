@@ -26,7 +26,7 @@ def validate_args(line, memory_test=None, touch_only=False, soc_only=False, soc_
     else:
         forbidden.add("cephsocdelay")
     if scm_info:
-        assert all_probes and memory_test is None, "SCM query requires explicit full read-only baseline profile"
+        assert (soc_only or all_probes) and memory_test is None, "SCM query requires explicit basic or full read-only baseline profile"
     else:
         forbidden.add("cephscm")
     if memory_test is not None:
@@ -119,7 +119,7 @@ def main():
     isolation.add_argument("--all-probes", action="store_true",
                         help="require cephsoc/fuse/arc/gx=1 with touch diagnostics; no boost/memory")
     parser.add_argument("--scm-info", action="store_true",
-                        help="with --all-probes, require explicit cephscm=1 fixed INFO/PAS-supported queries")
+                        help="with --soc-only or --all-probes, require explicit cephscm=1 fixed INFO/PAS-supported queries")
     parser.add_argument("--soc-delay", action="store_true",
                         help="with --soc-only, require fixed cephsocdelay=240 and compiled phase markers")
     parser.add_argument("--only-added-arg", action="append", default=[], metavar="TOKEN",
@@ -142,6 +142,10 @@ def main():
         config = tomllib.loads(files["UniXNU/unixnu.toml"].decode())
         line = config["entry"][0]["args"]
         validate_args(line, args.memory_test, args.touch_only, args.soc_only, args.soc_fuse, args.soc_fuse_arc, args.all_probes, args.scm_info, args.soc_delay)
+        if args.scm_info:
+            assert all(marker in files["UniXNU/Payloads/kernel.macho"] for marker in
+                       (b"cephscm", b"CEPHEUS SCM INFO: begin", b"CEPHEUS SCM INFO REGS:",
+                        b"CEPHEUS SCM QUERY7: confirmed=", b"normal64 calls=7")), "missing compiled QUERY7 evidence markers"
         if args.soc_delay:
             kernel = files["UniXNU/Payloads/kernel.macho"]
             assert all(marker in kernel for marker in

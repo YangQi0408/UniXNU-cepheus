@@ -75,6 +75,7 @@ jobs:
           python3 cepheus/scripts/test-touch-sysinfo.py
           python3 cepheus/scripts/test-ready-boot-args.py
           python3 cepheus/scripts/test-scm-hook.py
+          python3 cepheus/scripts/test-scm-query-log.py
           python3 cepheus/scripts/test-soc-delay.py
           python3 cepheus/scripts/test-soc-delay-packaging.py
           python3 cepheus/scripts/test-gpu-arc.py ios-sweet/xnu/patches

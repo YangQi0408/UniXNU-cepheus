@@ -22,7 +22,7 @@ def analyze(directory):
         r"^SWEET TOUCH (?:RAW:|HEALTH:|FIFO:|SYSINFO:|\(cepheus\): "
         r"(?:selected|active scan|powered|probe|report err|GPIO bus err))|"
         r"^SWEET HID: (?:touch|key 0x30)|^SWEET BLANK:|"
-        r"^CEPHEUS (?:SOC:|GPU:|TSENS:|GPU TSENS:|OSM: sample(?:0|25) )")
+        r"^CEPHEUS (?:SCM INFO(?: REGS)?:|SCM QUERY7:|SOC:|GPU:|TSENS:|GPU TSENS:|OSM: sample(?:0|25) )")
     events = []
     packet_index = offset = 0
     packet_end = accepted[0]["bytes"] if accepted else 0
