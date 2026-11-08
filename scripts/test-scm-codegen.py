@@ -26,6 +26,10 @@ with tempfile.TemporaryDirectory() as directory:
     # Return the A6 quirk cookie and input/output values, not stale inputs.
     assert 'x6' in text and 'x7' in text and 'ceph_scm_info_context' in text
     subprocess.run(['clang', '--target=aarch64-none-elf', '-c', str(assembly), '-o', str(work / 'scm.o')], check=True)
+    data = (work / 'scm.o').read_bytes()
+    for kind in ('INFO', 'PAS'):
+        assert ('CEPHEUS SCM ' + kind + ' REGS: in=').encode() in data
+        assert ('CEPHEUS SCM ' + kind + ' REGS: out=').encode() in data
     # Compile the actual query policy too: the callback-only check cannot
     # establish that the new command7 enum/path compiles for the kernel target.
     query = work / 'query.c'

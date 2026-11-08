@@ -54,9 +54,14 @@ static int ceph_scm_info_context(void *unused)
 }
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
-    const char *kind=unused?"PAS":"INFO";
     if(!r || ceph_scm_info_context(NULL))return -1;
-    printf("CEPHEUS SCM %s REGS: in=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",kind,
+    const char *input=unused?
+        "CEPHEUS SCM PAS REGS: in=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n":
+        "CEPHEUS SCM INFO REGS: in=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n";
+    const char *output=unused?
+        "CEPHEUS SCM PAS REGS: out=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n":
+        "CEPHEUS SCM INFO REGS: out=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n";
+    printf(input,
         (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
         (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
     /* Private serialized transport: fixed discovery or PAS13 engine only.
@@ -69,7 +74,7 @@ static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
         "+r"(x4),"+r"(x5),"+r"(x6),"+r"(x7) : :
         "x8","x9","x10","x11","x12","x13","x14","x15","x16","x17","cc","memory");
     *r=(struct ceph_scm_regs){{x0,x1,x2,x3,x4,x5,x6,x7}};
-    printf("CEPHEUS SCM %s REGS: out=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",kind,
+    printf(output,
         (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
         (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
     return 0;
