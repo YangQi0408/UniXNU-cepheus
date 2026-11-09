@@ -1,13 +1,23 @@
 # 小米9 iOS移植：当前全部工作交接
 
-最新 2026-11-09 22:26 +08:00：UEFI/XNU PAS13 配对诊断准备中。e5e7104 的
-CI42627950109 在 GX host fixture 阶段失败，未编译内核；6ce4c7c 修正截取边界，
-CI42632917379 已通过前置/静态分析/AArch64/KDK，完整 XNU 正在编译。
-固件与 FV 已在本机编译/重封装并核验，197 内部文件仅 DarwinBoot 变化；
-本地内核前置检查、9 组配对日志测试、打包端到端 fixture 与 10 个拒绝用例通过。
-最终新核/boot 候选仍待出核；fixture 为合成内核，不能当真机候选。
-新增本地预构建和完整固件/boot 构建入口，详见 [本地构建](local-build.md)及
-[配对诊断](scm-pair-preflight.md)。没有手机操作，PAS13=false 未解，GPU/Metal 未执行。
+最新 2026-11-09 22:51 +08:00：已到 UEFI/XNU PAS13 配对诊断的单次真机测试点。
+CI42632917379 @6ce4c7c 完整成功；kernel17449368B/SHA256
+a2a4837d80a17dfcc2dc8fa5847d03308079cc0c691f7045dfba1e86a7b66c2e。
+81 核心入口、22 内存 API 已链接，无 unresolved，源码/触摸/PA64/实际 CPU
+采集与 preemption/SMC callback 核验 PASS；receipt 为
+out/kernel-verification-ci-42632917379.json，完整日志在
+../logs/scm-pair-ci-42632917379/build.log。固件、FV、FAT/boot 在本机完成，
+四步及独立封装核验全部 PASS；真实候选 out/scm-pair-final-6ce4c7c/boot-scm-pair.img，
+70688768B/SHA256 2c93dc3333665bdbc8f1c835c0e59226f5b2a0cfda2678d4bb121a3fc86903d2。
+197 内部文件仅 DarwinBoot 变化，实际 EFI 与编译件一致，shim/DTB/无关 FAT
+文件不变；cephzapmem=1 仅换为 cephscmpair=1，新增 2656B 零 ADT 槽。
+本地 v4 前置（65 host/7 静态分析）、9 组日志测试、打包 fixture/10 拒绝项通过。
+未 boot 或操作手机；手机保持已验收 zapmem-b5006b5。下一仅一次临时 boot、
+有界日志采集及简短点按/唤醒确认，不重复控制/触摸/内存轮。
+PAS13=false 未解，真实资源/crypto/secure PA/XPU/共享电源/SMMU 后端仍缺；
+GPU scratch/fence 和 Metal 未执行，此候选不启动 GPU。
+详见 [本地构建](local-build.md)及[配对诊断](scm-pair-preflight.md)。
+历史 e5e7104 的 CI42627950109 前置失败保留；最终真实候选不是合成 fixture。
 
 更新：**2026-11-08 20:25 +08:00**。范围：原生PAS生命周期已接实际内存，完整XNU构建成功；尚无GPU执行候选。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。

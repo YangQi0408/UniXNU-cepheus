@@ -16,8 +16,9 @@ This archives ios-sweet commit `45263bee51df4a0f55cdf9c649af886399488ddb`
 into a fresh output directory, stages Cepheus sources, generates patches and
 runs the host checks. It records source hashes, commands, logs and results in
 `receipt.json`. It does not modify the reference checkout. The initial passing
-run is `out/local-kernel-preflight-v2/receipt.json`; the subsequent v3 run also
-includes the missing power-MMIO staging input. Generated patches stay
+run is `out/local-kernel-preflight-v2/receipt.json`; the final v4 run also
+includes the missing power-MMIO staging input and passes 65 host programs
+and seven production-unit static analyses. Generated patches stay
 separate because regression tests reconstruct the untransformed reference.
 
 ## Pair candidate
@@ -42,6 +43,28 @@ zero-filled 2656-byte `/chosen/cepheus-scm-handoff` slot and replaces only
 Each output directory must be new. A failed directory is retained as evidence.
 The kernel input still requires its own compiled-artifact verification; markers
 alone cannot establish that an input is a working XNU build.
+
+The first real end-to-end run completed successfully on 2026-11-09:
+
+```sh
+python3 scripts/verify-ci-scm-pair.py \
+  --run 42632917379 --commit 6ce4c7c \
+  --input ../inputs/ci-42632917379 \
+  --log ../logs/scm-pair-ci-42632917379/build.log \
+  --output out/kernel-verification-ci-42632917379.json
+python3 scripts/build-scm-pair-local.py \
+  --kernel ../inputs/ci-42632917379/kernel.macho \
+  --kernel-receipt out/kernel-verification-ci-42632917379.json \
+  --output out/scm-pair-final-6ce4c7c \
+  --container cepheus-build:latest
+```
+
+These output paths already exist and are evidence; choose new paths to rerun.
+Final boot: `out/scm-pair-final-6ce4c7c/boot-scm-pair.img`, 70688768 bytes,
+SHA256 `2c93dc3333665bdbc8f1c835c0e59226f5b2a0cfda2678d4bb121a3fc86903d2`.
+Its `receipt.json` and independent `boot-verification.json` both pass. No phone
+operations occurred. See [scm-pair-preflight.md](scm-pair-preflight.md) for scope
+and the next hardware point; this is not a GPU execution image.
 
 ## Full Linux XNU
 
