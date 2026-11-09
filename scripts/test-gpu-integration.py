@@ -42,6 +42,7 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_zap_image.h'),
                                 ('bsd/dev', 'cepheus_zap_memory.h'),
                                 ('bsd/dev', 'cepheus_zap_pas.h'),
+                                ('bsd/dev', 'cepheus_scm_handoff.h'),
                                 ('bsd/dev', 'cepheus_zap_memory_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_zap_image.h'),
                                 ('iokit/Kernel/arm', 'cepheus_zap_memory.h'),
@@ -127,9 +128,12 @@ class Integration(unittest.TestCase):
             for call in dangerous:self.assertNotRegex(text,rf'\b{call}\s*\(',name)
             if name != 'cepheus_soc.c':
                 self.assertNotRegex(text,r'\bcepheus_gpu_scm_probe_once\s*\(',name)
-        # The sole boot SCM caller must be the separately tested opt-in helper.
+        # Both diagnostic paths have explicit, mutually exclusive opt-ins.
         soc=(ROOT/'xnu/cepheus_soc.c').read_text()
-        self.assertEqual(soc.count('cepheus_gpu_scm_probe_once('),1)
+        self.assertEqual(soc.count('cepheus_gpu_scm_probe_once('),2)
+        pair=soc.split('static bool soc_scm_pair(void)',1)[1].split('static bool soc_zap_memory',1)[0]
+        self.assertIn('ceph_scm_pair_profile(PE_boot_args())',pair)
+        self.assertLess(pair.index('ceph_scm_handoff_valid('),pair.index('cepheus_gpu_scm_probe_once('))
         helper=soc.split('static void soc_scm_probe(void)',1)[1].split('static void soc_thread',1)[0]
         self.assertIn('cepheus_gpu_scm_probe_once(',helper)
         self.assertIn('if (enabled != 1) { return; }',helper)

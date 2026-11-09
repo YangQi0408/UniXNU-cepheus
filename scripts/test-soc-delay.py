@@ -85,6 +85,7 @@ static void osm_trial_start(void) {require_begin();}
 static void osm_trial_restore(void) {require_begin();}
 static void clock_interval_to_deadline(unsigned n, uint64_t unit, uint64_t *deadline) {*deadline=now+n*unit;}
 static void soc_scm_probe(void) {int v=0; PE_parse_boot_argn("cephscm", &v, sizeof(v)); if (v==1) ++scm;}
+static bool soc_scm_pair(void) {return false;}
 static int current_thread(void) {return 7;}
 static int thread_terminate(int t) {assert(t==7); ++terminated; return 0;}
 static void thread_block(int c) {assert(c==0 && terminated==1); ++blocked;}

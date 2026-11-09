@@ -12,6 +12,7 @@
 #include <kern/sched_prim.h>
 #include <machine/machine_routines.h>
 #include <pexpert/pexpert.h>
+#include <pexpert/device_tree.h>
 #include "cepheus_soc.h"
 #include "cepheus_cpu_policy.h"
 #include "cepheus_gpu_power.h"
@@ -19,6 +20,7 @@
 #include "cepheus_zap_memory.h"
 #include "cepheus_gpu_bin.h"
 #include "cepheus_scm_discovery.h"
+#include "cepheus_scm_handoff.h"
 extern void cepheus_gmu_workspace_selftest(void);
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
@@ -321,6 +323,54 @@ static void gpu_gx_probe(void)
 	    sr(gx, 0xe0d * 4), sr(gx, 0xe0e * 4));
 	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
 }
+static bool soc_scm_pair(void)
+{
+	int profile=ceph_scm_pair_profile(PE_boot_args());
+	if (!profile) { return false; }
+	if (profile!=1) { printf("CEPHEUS SCM PAIR: refused profile\n");return true; }
+	/* Existing USB enumeration and touch initialization run independently.
+	 * This fixed wait is not evidence that the host logger is connected. */
+	printf("CEPHEUS SCM PAIR: scheduled delay_s=90\n");
+	swait(90000);
+	DTEntry chosen;
+	const void *property=NULL;
+	unsigned bytes=0;
+	static struct ceph_scm_handoff handoff;
+	if (SecureDTLookupEntry(NULL,"/chosen",&chosen)!=kSuccess ||
+	    SecureDTGetProperty(chosen,CE_SCM_HANDOFF_PROPERTY,&property,&bytes)!=kSuccess ||
+	    bytes!=sizeof(handoff)) {
+		printf("CEPHEUS SCM PAIR: missing handoff; no XNU query\n");return true;
+	}
+	memcpy(&handoff,property,sizeof(handoff));
+	if (ceph_scm_handoff_valid(&handoff)) {
+		printf("CEPHEUS SCM PAIR: invalid handoff; no XNU query\n");return true;
+	}
+	printf("CEPHEUS SCM PAIR: UEFI e=%d convention=%u available=%#x supported=%u calls=%u ebs=%u checksum=%#llx\n",
+	    handoff.error,handoff.convention,handoff.available_mask,handoff.supported,
+	    handoff.count,handoff.ebs_attempts,(unsigned long long)handoff.checksum);
+	printf("CEPHEUS SCM PAIR: UEFI el=%#llx mpidr=%#llx begin=%#llx end=%#llx\n",
+	    (unsigned long long)handoff.current_el,(unsigned long long)handoff.mpidr,
+	    (unsigned long long)handoff.begin_ticks,(unsigned long long)handoff.end_ticks);
+	for (unsigned i=0;i<handoff.count;++i) {
+		const struct ceph_scm_handoff_call *r=&handoff.calls[i];
+		printf("CEPHEUS SCM PAIR: UEFI call=%u el=%#llx mpidr=%#llx ticks=%#llx invoke=%d\n",i,
+		    (unsigned long long)r->current_el,(unsigned long long)r->mpidr,
+		    (unsigned long long)r->ticks,r->invoke_error);
+		for (unsigned direction=0;direction<2;++direction) {
+			const struct ceph_scm_regs *regs=direction?&r->out:&r->in;
+			printf("CEPHEUS SCM PAIR: UEFI call=%u %s=%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx:%#llx\n",
+			    i,direction?"out":"in",(unsigned long long)regs->x[0],(unsigned long long)regs->x[1],
+			    (unsigned long long)regs->x[2],(unsigned long long)regs->x[3],(unsigned long long)regs->x[4],
+			    (unsigned long long)regs->x[5],(unsigned long long)regs->x[6],(unsigned long long)regs->x[7]);
+		}
+	}
+	printf("CEPHEUS SCM PAIR: XNU begin; fixed INFO/PAS13 queries only\n");
+	struct ceph_scm_discovery result={0};
+	int error=cepheus_gpu_scm_probe_once(&result);
+	printf("CEPHEUS SCM PAIR: end uefi_supported=%u xnu_supported=%u error=%d calls=%u; no GPU execution\n",
+	    handoff.supported,result.supported,error,result.calls);
+	return true;
+}
 static bool soc_zap_memory(void)
 {
 	int enabled=0,conflict=0;
@@ -393,6 +443,9 @@ static void soc_scm_probe(void)
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
+	if (soc_scm_pair()) {
+		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
+	}
 	if (soc_zap_memory()) {
 		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
 	}
@@ -459,7 +512,8 @@ void cepheus_soc_init(void)
 	PE_parse_boot_argn("cephsoc", &enabled, sizeof(enabled));
 	int zap=0;
 	bool zap_present=PE_parse_boot_argn("cephzapmem", &zap, sizeof(zap));
-	if ((!enabled && !zap_present) || started) { return; }
+	int pair=ceph_scm_pair_profile(PE_boot_args());
+	if ((!enabled && !zap_present && !pair) || started) { return; }
 	started = true;
 	if (kernel_thread_start(soc_thread, NULL, &thread) == KERN_SUCCESS) { thread_deallocate(thread); }
 }

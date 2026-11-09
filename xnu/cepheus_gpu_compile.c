@@ -38,6 +38,7 @@ int cepheus_gpu_temperature_sample(struct ceph_gpu_tsens *s,struct ceph_gpu_temp
 #include <sys/systm.h>
 #include <pexpert/arm64/board_config.h>
 #include <kern/locks.h>
+#include <kern/cpu_data.h>
 #include <machine/machine_routines.h>
 #if defined(SWEET) && (defined(__arm64__) || defined(__aarch64__))
 extern int get_preemption_level(void);
@@ -66,14 +67,21 @@ static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
         (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);
     /* Private serialized transport: fixed discovery or PAS13 engine only.
      * PAS addresses come from its claimed allocator, never a caller FNID/PA. */
+    uint64_t current_el,mpidr,ticks;
+    disable_preemption();
     register uint64_t x0 __asm__("x0")=r->x[0],x1 __asm__("x1")=r->x[1];
     register uint64_t x2 __asm__("x2")=r->x[2],x3 __asm__("x3")=r->x[3];
     register uint64_t x4 __asm__("x4")=r->x[4],x5 __asm__("x5")=r->x[5];
     register uint64_t x6 __asm__("x6")=r->x[6],x7 __asm__("x7")=r->x[7];
-    __asm__ volatile("smc #0" : "+r"(x0),"+r"(x1),"+r"(x2),"+r"(x3),
-        "+r"(x4),"+r"(x5),"+r"(x6),"+r"(x7) : :
+    __asm__ volatile("mrs %8, CurrentEL\n\tmrs %9, MPIDR_EL1\n\tmrs %10, CNTPCT_EL0\n\tsmc #0"
+        : "+r"(x0),"+r"(x1),"+r"(x2),"+r"(x3),
+        "+r"(x4),"+r"(x5),"+r"(x6),"+r"(x7),
+          "=&r"(current_el),"=&r"(mpidr),"=&r"(ticks) : :
         "x8","x9","x10","x11","x12","x13","x14","x15","x16","x17","cc","memory");
     *r=(struct ceph_scm_regs){{x0,x1,x2,x3,x4,x5,x6,x7}};
+    enable_preemption();
+    printf("CEPHEUS SCM %s CPU: el=%#llx mpidr=%#llx ticks=%#llx\n",unused?"PAS":"INFO",
+        (unsigned long long)current_el,(unsigned long long)mpidr,(unsigned long long)ticks);
     printf(output,
         (unsigned long long)r->x[0],(unsigned long long)r->x[1],(unsigned long long)r->x[2],(unsigned long long)r->x[3],
         (unsigned long long)r->x[4],(unsigned long long)r->x[5],(unsigned long long)r->x[6],(unsigned long long)r->x[7]);

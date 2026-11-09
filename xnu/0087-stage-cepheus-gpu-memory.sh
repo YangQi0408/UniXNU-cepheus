@@ -32,6 +32,7 @@ install -m 0644 "$here/cepheus_gx_perfcounter.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_gbif.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_llc.h" bsd/dev/
 install -m 0644 "$here/cepheus_scm_discovery.h" bsd/dev/
+install -m 0644 "$here/cepheus_scm_handoff.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_va_layout.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_hwcg.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_unsecure_gate.h" bsd/dev/

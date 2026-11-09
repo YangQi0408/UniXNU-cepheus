@@ -35,6 +35,7 @@ install -m 644 "$ROOT/xnu/0088-cepheus-pmap-cache-pa.patch" "$DEST/xnu/patches/"
 for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
     cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h cepheus_zap_cache.h \
     cepheus_zap_pas.h cepheus_zap_memory_private.h \
+    cepheus_scm_handoff.h \
     cepheus_gmu_upload_mmio.h \
     cepheus_qmp_connect.h \
     cepheus_gpu_tsens.h \

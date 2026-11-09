@@ -12,6 +12,8 @@ typedef unsigned long long uint64_t;
 #define NULL ((void *)0)
 struct ceph_scm_regs { uint64_t x[8]; };
 extern int ceph_scm_info_context(void *);
+extern void disable_preemption(void);
+extern void enable_preemption(void);
 extern int printf(const char *, ...);
 '''
 with tempfile.TemporaryDirectory() as directory:
@@ -52,6 +54,8 @@ extern void lck_mtx_unlock(int *);
 extern int ml_get_interrupts_enabled(void);
 extern int ml_at_interrupt_context(void);
 extern int get_preemption_level(void);
+extern void disable_preemption(void);
+extern void enable_preemption(void);
 extern int printf(const char *, ...);
 '''
     path = work / 'pas-native.c'
