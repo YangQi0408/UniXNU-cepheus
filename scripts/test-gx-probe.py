@@ -13,7 +13,9 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / 'xnu/cepheus_soc.c').read_text()
-body = source.split('static void gpu_gx_probe(void)', 1)[1].split('static bool soc_zap_memory', 1)[0]
+body = source.split('static void gpu_gx_probe(void)', 1)[1]
+body = re.split(r'\nstatic (?:bool|void) \w+\(', body, maxsplit=1)[0]
+assert 'soc_scm_pair' not in body and 'soc_zap_memory' not in body
 assert not re.search(r'\*\s*\(volatile[^\n]+\)\s*=', body)
 assert not any(name+'(' in body for name in ('osm_request', 'rh_send', 'rh_write', 'ceph_gmu_start_cold'))
 assert 'if(gxprobe==1) {gpu_gx_probe();}' in source
