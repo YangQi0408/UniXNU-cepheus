@@ -1,6 +1,6 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
-## 2026-11-08 19:39：原生PAS生命周期已接实际内存，资源后端仍缺
+## 2026-11-08 20:25：原生PAS生命周期已完整构建，资源后端仍缺
 
 新增 `cepheus_gpu_zap_load/stop/status` 私有内核入口。与现有INFO查询共用同一
 原生SMC回调及互斥锁；只使用本次启动的实际查询缓存，拒绝未查询、错误、
@@ -28,7 +28,15 @@ ASan/UBSan PASS（源文件持有、并发CPU拒绝、mem_setup后镜像重载�
 既有CPU工作区5种相关回归、image边界/别名、9项staging、查询缓存/一次性门禁、
 整个native PAS段AArch64编译及两个修改生产单元静态分析通过。下游调用顺序和
 ABI核对针对固定36f369f；没有重跑完整离线入口。证据
-`../logs/zap-pas-backend-20261108/receipt.json`。完整XNU构建待完成。
+`../logs/zap-pas-backend-20261108/receipt.json`。该receipt的6项源码哈希已核对
+属于93093d3，保留其当时的构建PENDING字段；a2c14ba仅修复INFO/PAS固定日志
+literal及相应codegen断言。CI42476845818 @a2c14ba已完整构建成功，内核
+17449096B，SHA256
+af9729b1f8b3df8f13915d6e1a1f6bd79bfc1e60d6e6845ddbafe87611faa65e，位于
+../inputs/ci-42476845818/kernel.macho。81核心入口+22内存API已链接、无
+unresolved，staged source、INFO/PAS日志标记、触摸有序上报及PA64 cache
+callback核验PASS；后续证据为同目录build-verification.json、run.json和
+build-followup.json。未打包/boot，GPU/Metal未执行，资源后端与启动hook仍缺。
 
 
 > 最新状态见[工作交接](current-work-handoff.md)及[TZ证据](tz-native-evidence.md)：

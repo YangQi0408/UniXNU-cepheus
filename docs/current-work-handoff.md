@@ -1,6 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
-更新：**2026-11-08 19:39 +08:00**。范围：原生PAS生命周期已接实际内存，完整构建待完成；尚无GPU执行候选。
+最新 2026-11-09 22:26 +08:00：UEFI/XNU PAS13 配对诊断准备中。e5e7104 的
+CI42627950109 在 GX host fixture 阶段失败，未编译内核；6ce4c7c 修正截取边界，
+CI42632917379 已通过前置/静态分析/AArch64/KDK，完整 XNU 正在编译。
+固件与 FV 已在本机编译/重封装并核验，197 内部文件仅 DarwinBoot 变化；
+本地内核前置检查、9 组配对日志测试、打包端到端 fixture 与 10 个拒绝用例通过。
+最终新核/boot 候选仍待出核；fixture 为合成内核，不能当真机候选。
+新增本地预构建和完整固件/boot 构建入口，详见 [本地构建](local-build.md)及
+[配对诊断](scm-pair-preflight.md)。没有手机操作，PAS13=false 未解，GPU/Metal 未执行。
+
+更新：**2026-11-08 20:25 +08:00**。范围：原生PAS生命周期已接实际内存，完整XNU构建成功；尚无GPU执行候选。
 这是当前状态总览；各专题文档保留按时间追加的历史记录。
 
 本轮新增固定PAS13 load/stop/status，复用串行原生SMC和本次启动的查询缓存；
@@ -9,7 +18,14 @@ mem_setup后重新复制image且不改MDT、auth双层返回检查、同epoch GP
 PAS6成功后释放均已接入；错误/中断不确定时保留。24种真实固件+RAM transport
 场景、5种CPU工作区相关回归、9项staging、image/查询门禁、native AArch64
 编译、两修改单元静态分析PASS，证据../logs/zap-pas-backend-20261108/receipt.json。
-完整XNU构建尚未完成。无手机操作或新的SMC，未打包/boot；资源acquire/lease/
+该receipt的6项源码哈希属于93093d3，其构建PENDING字段保留为当时状态；
+a2c14ba仅修复INFO/PAS固定日志literal及对应codegen断言，CI42476845818已
+完整构建成功。内核17449096B，SHA256
+af9729b1f8b3df8f13915d6e1a1f6bd79bfc1e60d6e6845ddbafe87611faa65e，位于
+../inputs/ci-42476845818/kernel.macho；81核心入口+22内存API已链接、无
+unresolved，staged source、INFO/PAS日志标记、触摸有序上报及PA64 cache
+callback核验PASS。后续证据为同目录build-verification.json、run.json和
+build-followup.json。无手机操作或新的SMC，未打包/boot；资源acquire/lease/
 quiesce后端、crypto带宽、secure PA/XPU及电源/SMMU接入仍缺，PAS13=false未解，
 无GPU启动hook。详见[zap-platform-contract](zap-platform-contract.md)。
 

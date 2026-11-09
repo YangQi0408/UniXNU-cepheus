@@ -1,0 +1,59 @@
+# Local build workflow
+
+The current SWEET XNU 8796 build uses the pinned macOS builder. Firmware
+compilation, patch preparation, host regressions, FV reconstruction, FAT/boot
+packaging and independent artifact verification run locally.
+
+## Kernel preflight
+
+Run from `gpu-work` with the pinned source inputs already present:
+
+```sh
+python3 scripts/local-kernel-preflight.py --output out/kernel-preflight-NEW
+```
+
+This archives ios-sweet commit `45263bee51df4a0f55cdf9c649af886399488ddb`
+into a fresh output directory, stages Cepheus sources, generates patches and
+runs the host checks. It records source hashes, commands, logs and results in
+`receipt.json`. It does not modify the reference checkout. The initial passing
+run is `out/local-kernel-preflight-v2/receipt.json`; the subsequent v3 run also
+includes the missing power-MMIO staging input. Generated patches stay
+separate because regression tests reconstruct the untransformed reference.
+
+## Pair candidate
+
+After obtaining and verifying a compiled pair kernel:
+
+```sh
+python3 scripts/build-scm-pair-local.py \
+  --kernel ../inputs/ci-RUN/kernel.macho \
+  --kernel-receipt out/kernel-verification-NEW.json \
+  --output out/scm-pair-NEW \
+  --container cepheus-build:latest
+```
+
+The command builds DarwinBoot with local EDK2/Clang, reconstructs the accepted
+firmware volume, replaces only DarwinBoot, packages the boot and independently
+verifies its contents. Container packaging uses no network and the current UID.
+It preserves the accepted boot's shim, DTB and unrelated FAT files. It adds one
+zero-filled 2656-byte `/chosen/cepheus-scm-handoff` slot and replaces only
+`cephzapmem=1` with `cephscmpair=1` in the existing boot profile.
+
+Each output directory must be new. A failed directory is retained as evidence.
+The kernel input still requires its own compiled-artifact verification; markers
+alone cannot establish that an input is a working XNU build.
+
+## Full Linux XNU
+
+On 2026-11-09 the host dependency check reported missing `tcsh`, `unifdef`,
+`mformat` and `mcopy`. No configured `mig`, `iig`, Mach-O ld64 or XNU-specific
+Clang toolchain was found. The inspected UniXNU Linux tooling at commit
+`350ddc2a23dcaea7d74d8a469259c2efcec3e4a9` targets XNU 10063/iOS 17; the
+accepted Cepheus kernel uses XNU 8796/SWEET. Its toolchain and SDK preparation
+need adaptation and an actual compile/link check before a local kernel can
+replace the current macOS artifact. The upstream installer also writes shims
+to `/usr/bin`; it has not been executed or installed on this host.
+
+Full XNU remains in CI for this candidate. A future local migration should use
+an isolated prefix/container and retain the current XNU version, board config,
+patch order, SDK ABI and compiled-artifact checks.
