@@ -11,6 +11,9 @@
 未塞入禁止失败前写硬件的power.prepare合同。详见clock-measure-backend.md。
 本轮无手机操作/镜像/新测试，PAS13=false/CP halt不变，GPU/Metal/认证未执行；
 完整XNU编译链接待开始，正常SCM配对版保持。
+19:45更新：6482292已提交推送，CI42809502486失败于macOS ASan不支持
+detect_leaks=1，未进入XNU构建；不是完整build PASS。仅Darwin关闭leak检测、
+保留ASan/UBSan与Linux leak，生产代码不变。新构建待派发，旧失败保留。
 
 最新2026-11-10 19:22：新增实际GCC映射/原生delay的GPLL0父时钟保持接口，
 仅已校准FSM/ACTIVE/LOCK/RUN稳定PLL，apps bit0及GPU分频门bit16只置位，

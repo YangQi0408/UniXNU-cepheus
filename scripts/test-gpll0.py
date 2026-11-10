@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,7 +106,8 @@ def main():
         exe = out/name
         run(name+'-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_gpll0.c'), '-o', str(exe)])
         env = os.environ.copy()
-        env['ASAN_OPTIONS'] = 'detect_leaks=1:halt_on_error=1'
+        # Apple ASan has no LeakSanitizer; keep address/UB checks on both hosts.
+        env['ASAN_OPTIONS'] = ('detect_leaks=0' if sys.platform=='darwin' else 'detect_leaks=1')+':halt_on_error=1'
         run(name+'-run', [str(exe)], env)
         exe = out/(name+'-measure')
         run(name+'-measure-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_clock_measure.c'), '-o', str(exe)])

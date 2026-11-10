@@ -97,3 +97,11 @@ Final four-step source/build preflight:
 Earlier receipts remain historical. This is not complete XNU link or hardware
 acceptance. No new touch/SCM/memory test is needed. GPU scratch/fence, Metal,
 PAS authentication, true shared ownership and SMMU remain uncompleted.
+
+Implementation `6482292` was pushed and full job `42809502486` dispatched at
+19:41:21 CST. It **failed before XNU compilation** at 19:44:54: Apple ASan
+does not support `detect_leaks=1`. Host/staging and production static-analysis
+steps passed; no kernel was built. The test script now disables only leak
+detection on Darwin while retaining ASan/UBSan and Linux leak detection. This
+does not change the production parent/counter code. The failure is not accepted
+as a full build; a replacement run must prove compile/link/artifact acceptance.
