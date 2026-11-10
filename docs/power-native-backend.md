@@ -22,6 +22,57 @@ acquisition without hardware writes, as required by the existing transaction.
 Successful parent/measurement writes must not be hidden inside preparation;
 their lifetime and any uncertainty belong to the preceding real owner state.
 
+## Native Parent Binding (2026-11-11)
+
+The actual native measurement wrapper retains a private copy only after
+successful counter completion. It never accepts a caller-selected sample;
+failure does not publish, and mutation of the returned output cannot change
+the stored observation. GPLL0, measurement and power share their existing lock.
+
+Power now requires this private successful record, the exact native parent,
+HELD plus permanent RPMh/idle retention, and unchanged live GPLL0 snapshots.
+Before preparation, after acquisition and on both sides of every external
+resource guard, it rechecks that actual state. Parent failure is sticky for
+the one-shot power attempt. Parent/measurement APIs must not be called from
+resource callbacks while this shared lock is held.
+
+The raw counts are recomputed and checked against the private rates/quanta;
+both nominal-XO rates must lie within one counter quantum of 300MHz and the
+live nominal-XO configuration must calculate 300MHz. This is a necessary
+consistency prerequisite, NOT reference calibration, frequency stability or
+resource ownership. `prepare` still supplies a separately proven rate and
+live CXO; its `parent_hz=300000000` alone can no longer admit native power.
+No rounding result is promoted to a measured exact rate.
+
+Missing/refused sample or invalid parent rejects before the owner's prepare
+and before mapping. Failure after preparation finishes only the newly
+acquired power resources; parent/RPMh/idle remain permanently retained.
+After attempted power effects the existing QUARANTINED/keep=1 rule applies.
+There is no new owner, startup hook, clock programming, SMC or GPU submission.
+
+`out/power-parent-binding-20261111-final-v1/receipt.json` PASS, SHA256
+`95d9b99414e057fd6cf3712b7baa9b05111869514f619c1c07c5597fa61e4a2e`:
+403 power-owner, 25856 parent-owner and 25856 actual-RPMh scope PROT_NONE
+failure points; copied callbacks, post-prepare/post-guard mutation, missing
+sample, corrupt metadata, sticky refusal, and uncertain power retention.
+The power fault fixture uses an explicitly synthetic sample. Independently,
+`test_clock_measure.c` runs the actual native measurement/publication and
+verifies successful records pass the power gate and failures do not publish;
+its existing 208 guard/15 store faults remain. Host/ASan/UBSan, native AArch64,
+staged native compile and static analyses pass with the pinned vendor clock
+comparison. This is not a phone measurement or complete XNU link.
+An initial test invocation used a nonexistent reference directory and failed
+before acceptance; that directory remains separate. The final run uses
+`/home/yangqi/android/kernel/xiaomi/sm8150` at the pinned commit.
+
+The prior native batch was independently accepted in full CI42874717231
+@091c7ff. Subsequent GPLL0 retention is in the in-flight CI42881254237
+@d5bf1dd; neither kernel contains this later native parent binding.
+Fresh full preflight `out/power-parent-preflight-20261111-final-v1/receipt.json`
+PASS: four prerequisites, 77 host programs, seven production analyses; SHA256
+`208c88886b89e6c0d69acd5097db9aacde0aba8085c699c2f63600ed5988a007`.
+Production source did not change during either final acceptance run.
+
 Native preparation maps only GCC `0x100000/0x90000`, GPUCC
 `0x2c90000/0x9000` and GMU `0x2c6a000/0x30000`. A live owner check encloses
 each map, every individual volatile read/store and each real 1/2 us delay.

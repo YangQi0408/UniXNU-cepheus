@@ -4,6 +4,8 @@
 #include <string.h>
 #include <sys/mman.h>
 #include "cepheus_clock_measure.h"
+#include "cepheus_gpu_power_native.h"
+#include "cepheus_gpu_power_mmio.h"
 #include "../tests/gpll0-scope-fixture.h"
 
 static uint32_t *regs;
@@ -27,6 +29,7 @@ static uint64_t mach_absolute_time(void)
 static void absolutetime_to_nanoseconds(uint64_t value,uint64_t *out){*out=value;}
 #include "cepheus_gpll0_private.h"
 #include "cepheus_clock_measure_private.h"
+#include "cepheus_gpu_power_native_private.h"
 
 /* Independent SM8150 register fixtures, not the adapter's offset helper. */
 static const uint32_t model_offsets[CE_ME_NREG]={
@@ -94,6 +97,8 @@ static void reset(void)
     assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_READ|PROT_WRITE));
     memset(regs,0,CE_GPLL0_BYTES);
     ceph_gpll0_native=(struct ceph_gpll0){0};ceph_measure_native=(struct ceph_clock_measure){0};
+    ceph_measure_native_sample=(struct ceph_clock_sample){0};
+    memset(&ceph_power_native,0,sizeof(ceph_power_native));
     ceph_gpll0_lock=0;
     gpll0_scope_reset();
     checks=expire=finished=kept=effects=model_stores=counters=context_bad=inject_store=0;
@@ -154,6 +159,9 @@ int main(void)
     assert(out.short_hz==299999707 && out.full_hz==299999981);
     assert(out.short_quantum_hz==1171 && out.full_quantum_hz==74);
     assert(out.short_ns && out.full_ns>out.short_ns);
+    assert(!memcmp(&out,&ceph_measure_native_sample,sizeof(out)));
+    assert(!ceph_power_native_parent()); /* Actual native publication, not a supplied sample. */
+    out.full_count=1;assert(ceph_measure_native_sample.full_count==4096217);
     for(unsigned n=0;n<CE_GPLL0_BYTES/4;++n) {
         if(n==0x6203c/4)continue; /* read-only counter retains last data */
         uint32_t mask=n==0x62008/4 || n==0x43008/4?0x0fffffffu:UINT32_MAX;
@@ -164,6 +172,8 @@ int main(void)
         reset();expire=n;memset(&out,0xa5,sizeof(out));
         assert(run(&out));
         assert(out.full_hz==UINT64_C(0xa5a5a5a5a5a5a5a5));
+        assert(!ceph_measure_native_sample.full_count);
+        assert(ceph_power_native_parent());
         assert(finished==(ceph_measure_native.attempted_stores!=0));
         if(finished)assert(kept && ceph_measure_native.phase==CE_ME_POISONED);
         assert(run(&out)==CE_ME_INVALID);

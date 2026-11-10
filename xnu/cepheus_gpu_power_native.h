@@ -7,7 +7,10 @@ struct ceph_power_native_owner {
     /* Same no-writes-on-failure contract as ceph_power_ops.prepare. Acquire
      * cold resources, actual inherited votes, measured parent and live CXO.
      * Called with the GPLL0 lock held: parent hold/measurement must already
-     * be complete; callbacks must not reenter those serialized APIs. */
+     * be complete; callbacks must not reenter those serialized APIs. Native
+     * admission also binds their retained parent and successful counter
+     * record. Nominal-XO counter consistency is necessary, not calibrated
+     * rate proof: prepare still owns that proof and live CXO supervision. */
     int (*prepare)(void *,struct ceph_power_input *);
     int (*validate)(void *);
     int (*vote)(void *,uint32_t,unsigned);

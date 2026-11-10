@@ -5,14 +5,38 @@ static struct {
     struct ceph_power_native_owner owner;
     struct ceph_power_mmio mmio;
     struct ceph_power_txn txn;
-    unsigned attempted,acquired,finished;
+    unsigned attempted,acquired,finished,parent_failed;
 } ceph_power_native;
+static int ceph_power_native_parent(void)
+{
+    if(ceph_power_native.parent_failed)return -1;
+    struct ceph_gpll0 *parent=&ceph_gpll0_native;
+    struct ceph_clock_sample sample=ceph_measure_native_sample;
+    struct ceph_gpll0_snapshot snapshot;
+    int e=parent->phase!=CE_GP_HELD || !parent->scope_retained ||
+        ceph_measure_native.phase!=CE_ME_DONE || ceph_measure_native.parent!=parent ||
+        ceph_measure_counts(&sample) ||
+        sample.short_hz!=ceph_measure_native_sample.short_hz ||
+        sample.full_hz!=ceph_measure_native_sample.full_hz ||
+        sample.short_quantum_hz!=ceph_measure_native_sample.short_quantum_hz ||
+        sample.full_quantum_hz!=ceph_measure_native_sample.full_quantum_hz ||
+        !sample.short_ns || !sample.full_ns || ceph_gpll0_check(parent,&snapshot);
+    if(!e) {
+        uint64_t short_delta=sample.short_hz>300000000?sample.short_hz-300000000:300000000-sample.short_hz;
+        uint64_t full_delta=sample.full_hz>300000000?sample.full_hz-300000000:300000000-sample.full_hz;
+        e=snapshot.configured_div_hz!=300000000 || short_delta>sample.short_quantum_hz ||
+            full_delta>sample.full_quantum_hz;
+    }
+    if(e)ceph_power_native.parent_failed=1;
+    return e?-1:0;
+}
 static int ceph_power_native_lease(void *unused)
 {
     (void)unused;
     return !ceph_power_native.acquired || ceph_power_native.finished ||
-        ceph_scm_info_context(NULL) ||
-        ceph_power_native.owner.validate(ceph_power_native.owner.ctx)?-1:0;
+        ceph_scm_info_context(NULL) || ceph_power_native_parent() ||
+        ceph_power_native.owner.validate(ceph_power_native.owner.ctx) ||
+        ceph_power_native_parent()?-1:0;
 }
 static void ceph_power_native_finish(void *unused,int keep)
 {
@@ -23,9 +47,11 @@ static void ceph_power_native_finish(void *unused,int keep)
 static int ceph_power_native_prepare(void *unused,struct ceph_power_input *in)
 {
     (void)unused;
+    if(ceph_power_native_parent())return CE_PWR_BUSY;
     int e=ceph_power_native.owner.prepare(ceph_power_native.owner.ctx,in);
     if(e)return e;
     ceph_power_native.acquired=1;
+    if(ceph_power_native_parent())goto fail;
     struct ceph_power_mmio *m=&ceph_power_native.mmio;
     m->owner=NULL;m->lease=ceph_power_native_lease;
     struct ceph_power_window *windows[]={&m->gcc,&m->cc,&m->gmu};

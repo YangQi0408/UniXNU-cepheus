@@ -1,5 +1,14 @@
 # GPLL0 Counter Measurement
 
+2026-11-11 follow-on: the native wrapper now privately publishes only a
+successful actual counter record, under its existing GPLL0 lock. Returned
+output mutation cannot change it and failure never publishes. Native power
+requires that same record and retained live parent before mapping and around
+every external resource guard. This is a necessary nominal-XO consistency
+check, not calibrated 300MHz proof; see `power-native-backend.md` for bounds,
+local evidence and the separate missing ownership requirements. The new
+publication/power binding is not contained in CI42881254237 @d5bf1dd.
+
 2026-11-10: `cepheus_gpu_gpll0_measure()` is now a private native building block
 over the **same mapped GCC aperture and serialization as GPLL0 hold/check**.
 No phone operation, frequency measurement on hardware, GPU startup or boot
