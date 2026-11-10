@@ -16,12 +16,34 @@ STAGE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(STAGE)
 
 
+def verify_compiler_options(module, baseline, libraries):
+    def flags(path):
+        text = (path/'GNUmakefile').read_text()
+        result = {}
+        for name in ('CC_FLAGS', 'CC_XIPFLAGS', 'ASM_FLAGS', 'PP_FLAGS',
+                     'DLINK_FLAGS', 'DLINK2_FLAGS', 'DLINK_XIPFLAGS', 'GENFW_FLAGS'):
+            match = re.search(r'^'+name+r' = (.*)$', text, re.MULTILINE)
+            assert match, (path, name)
+            result[name] = match[1].split()
+        return result
+    contracts = {}
+    for name in ['core', *sorted(libraries)]:
+        candidate = module if name == 'core' else module.parents[3]/Path(name).parent.parent
+        accepted = baseline if name == 'core' else baseline.parents[3]/Path(name).parent.parent
+        expected = flags(accepted)
+        actual = flags(candidate)
+        assert actual == expected, f'Compile/link contract differs: {name}'
+        contracts[name] = hashlib.sha256(json.dumps(actual, sort_keys=True).encode()).hexdigest()
+    return contracts
+
+
 def verify_boot_platform(module):
     baseline=ROOT.parent/'uefi/Build/SurfaceDuo1Pkg/RELEASE_CLANGPDB/AARCH64/MdeModulePkg/Core/Dxe/DxeMain'
     digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     assert digest(baseline/'OUTPUT/DxeCore.efi')=='311a20a50632dbabdfcdaa9bc2ed7d08e4712c2c70b8f3f18b66834803812be8'
     libraries=lambda p:set(re.findall(r'\$\(BIN_DIR\)/([^\n]+\.lib)',(p/'GNUmakefile').read_text()))
     assert libraries(module)==libraries(baseline), 'Boot library set differs from accepted core'
+    compiler_contracts = verify_compiler_options(module, baseline, libraries(baseline))
     def generated(p):
         text=(p/'DEBUG/AutoGen.c').read_text().split('// Definition of PCDs used in this module',1)[1]
         # EDK spells the same typed integer as 0U or 0x00U depending on the DSC.
@@ -34,6 +56,8 @@ def verify_boot_platform(module):
         assert name in symbols,name
     return {'baseline_core_sha256':digest(baseline/'OUTPUT/DxeCore.efi'),
             'library_set_equal':True,'pcd_and_constructor_contract_equal':True,
+            'core_and_library_compile_link_flags_equal':True,
+            'compile_link_contracts':compiler_contracts,
             'lzma_crc_handlers_linked':True,'baseline_autogen_sha256':digest(baseline/'DEBUG/AutoGen.c'),
             'autogen_sha256':digest(module/'DEBUG/AutoGen.c'),'baseline_makefile_sha256':digest(baseline/'GNUmakefile')}
 

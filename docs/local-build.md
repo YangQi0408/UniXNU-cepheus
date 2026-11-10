@@ -80,7 +80,7 @@ python3 scripts/build-scm-pair-local.py \
   --kernel-receipt out/kernel-verification-NEW.json \
   --output out/rpmh-tail-NEW --rpmh-tail \
   --firmware-build out/rpmh-tail-loader-20261110-v3 \
-  --core-build out/rpmh-tail-core-platform-20261110-v2 \
+  --core-build out/rpmh-tail-core-platform-20261110-v3 \
   --container cepheus-build:latest
 ```
 
@@ -90,8 +90,15 @@ and unchanged shim/DTB/FAT/touch settings. This remains diagnostic only;
 neither packaging nor offline fixtures prove hardware GPU execution.
 The earlier isolated core build has no boot LZMA handler and is rejected by
 the updated core validator. Use the platform-compatible build above; its
-generated PCD/constructor contract and library set are checked against the
-accepted RELEASE core as part of packaging acceptance.
+generated PCD/constructor contract, library set and exact compile/link options
+for the core and all 40 libraries are checked against the accepted RELEASE
+core as part of packaging acceptance. Platform v2 is also superseded: it lacks
+the accepted 4 KiB runtime granularity definition and is now rejected.
+
+Full tail-aware XNU CI `42835691416 @2bf48ab` and independent local receipt
+`out/kernel-verification-ci-42835691416.json` passed. The genuine kernel is in
+`../inputs/ci-42835691416/kernel.macho`; firmware is built locally. This does
+not establish a successful diagnostic phone boot or GPU execution.
 
 ## Full Linux XNU
 

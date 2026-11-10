@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+22:59更新：完整XNU CI42835691416 @2bf48ab成功，已下载并独立验收PASS；
+kernel17467744B/SHA97df727b22a19ee58ac0a2e83156dc4bedb2477eb3a09b4c93f26786d05a1ca8，
+receipt out/kernel-verification-ci-42835691416.json，86 core/22 memory/无
+unresolved/source/touch/PA64/native SCM/tail helper caller及ABI通过。
+core v2漏基线4KiB runtime宏，不真机用；仅tail DSC补全基线extra flags，
+新v3 core369664B/SHA22c81124c3e8513b1205001900481d463e2043ab1ce114f1071596508ed88ccf；
+accepted-v4.json实际core/EBS/loader/native/sanitizer及core+40库八组编译/
+链接选项严格一致PASS，旧v2被验收器拒绝。首轮SLINK_FLAGS不存在是测试
+夹具错误，已纠正，未追认通过。新FV平台v2 SHA f5b685a13a1cd1c939f512ed51204bdd35ccdd578e520af5af4bec45fb133da5，
+独立合成打包/拒绝通过。无重复CI/手机操作；下一真核本地打包与集中一次
+手动fastboot诊断。GPU/Metal尚未执行，PAS13=false/supported=false/CP halt不绕。
+
 22:50更新：完整XNU CI42835691416 @2bf48ab已进入Build XNU，前置通过；
 不要重复派发。最终四步preflight out/rpmh-tail-preflight-20261110-final/
 receipt.json PASS。复核发现旧isolated core缺LZMA/CRC启动库且RELEASE PCD

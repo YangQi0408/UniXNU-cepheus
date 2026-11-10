@@ -60,10 +60,16 @@
   gEfiMdePkgTokenSpaceGuid.PcdComponentNameDisable|TRUE
   gEfiMdePkgTokenSpaceGuid.PcdComponentName2Disable|TRUE
 
+[BuildOptions]
+  # Match the accepted platform for both the core and every linked library.
+  GCC:*_CLANGPDB_AARCH64_CC_FLAGS = -march=armv8.2-a+crypto+rcpc -DSECURE_BOOT=0 -DUSE_MEMORY_FOR_SERIAL_OUTPUT=0 -DUSE_SCREEN_FOR_SERIAL_OUTPUT=0 -DPLATFORM_HAS_ACTLR_EL1_UNIMPLEMENTED_ERRATA=0 -DPLATFORM_HAS_AMCNTENSET0_EL0_UNIMPLEMENTED_ERRATA=0 -DPLATFORM_HAS_GIC_V3_WITHOUT_IRM_FLAG_SUPPORT_ERRATA=0 -DPLATFORM_HAS_PSCI_MEMPROTECT_FAILING_ERRATA=1 -D __DEPRECATED_AARCH64_4K_RUNTIME_GRANULARITY -DZ_SOLO -DPRODUCT_NAME=\"Andromeda\" -DINIT_BIN=\"/init\" -DENABLE_UPDATE_PARTITIONS_CMDS -DENABLE_BOOT_CMD -DENABLE_DEVICE_CRITICAL_LOCK_UNLOCK_CMDS -DUSERDATA_FS_TYPE=\"ext4\" -Wno-unused-const-variable -Wno-sometimes-uninitialized -Wno-unaligned-access -D CLANG -Wno-ignored-pragma-optimize
+
 [Components]
   MdeModulePkg/Core/Dxe/DxeMain.inf {
     <LibraryClasses>
     NULL|MdeModulePkg/Library/DxeCrc32GuidedSectionExtractLib/DxeCrc32GuidedSectionExtractLib.inf
     NULL|MdeModulePkg/Library/DxeCrc32GuidedSectionExtractLib/DxeCrc32GuidedSectionExtractLib.inf
     NULL|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
+    <BuildOptions>
+    GCC:*_CLANGPDB_AARCH64_DLINK_FLAGS = /ALIGN:0x1000
   }

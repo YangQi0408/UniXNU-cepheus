@@ -7,6 +7,35 @@ Default core staging, DarwinBoot, XNU and the running phone are unchanged.
 
 ## Integration Update
 
+22:59 correction: matching library names and generated PCDs did not cover
+compile-time platform behavior. The v2 platform core omitted
+`__DEPRECATED_AARCH64_4K_RUNTIME_GRANULARITY` and used 64 KiB runtime allocation
+instead of the accepted core's 4 KiB. It is superseded and rejected by the
+updated validator. `RpmhTailCore.dsc` now preserves the accepted platform's
+complete extra compiler flags and core link alignment. The validator compares
+eight compiler/assembler/link/GenFw flag groups, in order, for the core and all
+40 linked libraries, including library-specific flags. Default DSC is unchanged.
+
+Accepted replacement: `out/rpmh-tail-core-platform-20261110-v3/`, 369664 bytes,
+SHA256 `22c81124c3e8513b1205001900481d463e2043ab1ce114f1071596508ed88ccf`.
+`out/rpmh-tail-core-platform-accepted-20261110-v4.json` passes the actual
+collector/EBS/loader, O0/O2 sanitizers, native analysis/assembly, generated PCDs,
+LZMA/CRC registration and exact core/library option checks. The first validator
+attempt requested a nonexistent `SLINK_FLAGS` make variable and failed; that
+test harness error was corrected, not counted as an accepted run.
+Replacement FD: `out/rpmh-tail-fv-platform-20261110-v2/scm-pair.fd`, 3145728 bytes,
+SHA256 `f5b685a13a1cd1c939f512ed51204bdd35ccdd578e520af5af4bec45fb133da5`.
+Independent synthetic-kernel packaging and rejection tests pass. All older
+core/FV references below are historical, not current phone candidates.
+
+Full XNU CI **42835691416 @2bf48ab** completed successfully. Downloaded kernel
+is 17467744 bytes, SHA256
+`97df727b22a19ee58ac0a2e83156dc4bedb2477eb3a09b4c93f26786d05a1ca8`;
+`out/kernel-verification-ci-42835691416.json` independently passes 86 core and
+22 memory symbols, no unresolved symbols, staged source identity, touch, PA64,
+native SCM capture and tail helper/caller/ABI checks. No duplicate CI was run.
+Real-kernel packaging is next; no phone operation or GPU execution has occurred.
+
 22:50 correction: the earlier 422400-byte isolated core lacks the accepted
 boot core's LZMA/CRC registration libraries and uses different RELEASE PCDs.
 It remains host/isolated evidence and must not be used as a phone replacement.
