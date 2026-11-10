@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 19:37：新增实际GPLL0分频源counter测量入口，与父时钟同映射/
+锁，固定GCC selector167/短1000+全10000，fresh DONE/稳定读回/最短窗口/
+25ms poll及100ms整体/独立次数界。干净完成恢复原控制/门/分频/mux字段，
+未知/异常不恢复并保留；不写只读count/PLL/GPUCC。208 lease/15 store变化、
+过早/旧/卡DONE、倒退/停计时、原值恢复、ASan/UBSan、原生/staged编译与
+静态分析通过，最终receipt out/clock-measure-local-20261110-final-v2/。
+四步preflight out/clock-measure-preflight-20261110-final-v2/验收以receipt为准。
+返回相对nominal XO原始频率/量化界，不自动凑300MHz；无真机频率/owner，
+未塞入禁止失败前写硬件的power.prepare合同。详见clock-measure-backend.md。
+本轮无手机操作/镜像/新测试，PAS13=false/CP halt不变，GPU/Metal/认证未执行；
+完整XNU编译链接待开始，正常SCM配对版保持。
+
 最新2026-11-10 19:22：新增实际GCC映射/原生delay的GPLL0父时钟保持接口，
 仅已校准FSM/ACTIVE/LOCK/RUN稳定PLL，apps bit0及GPU分频门bit16只置位，
 500us等待、逐访问owner、共享字变化拒绝、异常保留/终止不重试；无PLL配置/

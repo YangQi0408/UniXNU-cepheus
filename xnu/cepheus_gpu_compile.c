@@ -36,12 +36,14 @@ int cepheus_gpu_temperature_sample(struct ceph_gpu_tsens *s,struct ceph_gpu_temp
 { return ceph_gpu_tsens_sample(s,out); }
 #if defined(KERNEL)
 #include <sys/systm.h>
+#include <kern/clock.h>
 #include <pexpert/arm64/board_config.h>
 #include <kern/locks.h>
 #include <kern/cpu_data.h>
 #include <machine/machine_routines.h>
 #if defined(SWEET) && (defined(__arm64__) || defined(__aarch64__))
 extern int get_preemption_level(void);
+extern vm_offset_t ml_io_map(vm_offset_t,vm_size_t);
 static LCK_GRP_DECLARE(ceph_scm_info_group,"ceph_scm_info");
 static LCK_MTX_DECLARE(ceph_scm_info_lock,&ceph_scm_info_group);
 static unsigned ceph_scm_info_attempted;
@@ -54,6 +56,7 @@ static int ceph_scm_info_context(void *unused)
         get_preemption_level()==0?0:-1;
 }
 #include "cepheus_gpll0_private.h"
+#include "cepheus_clock_measure_private.h"
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
     if(!r || ceph_scm_info_context(NULL))return -1;

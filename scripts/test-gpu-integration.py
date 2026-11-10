@@ -41,6 +41,8 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_gpu_power_mmio.h'),
                                 ('bsd/dev', 'cepheus_gpll0.h'),
                                 ('bsd/dev', 'cepheus_gpll0_private.h'),
+                                ('bsd/dev', 'cepheus_clock_measure.h'),
+                                ('bsd/dev', 'cepheus_clock_measure_private.h'),
                                 ('bsd/dev', 'cepheus_zap_image.h'),
                                 ('bsd/dev', 'cepheus_zap_memory.h'),
                                 ('bsd/dev', 'cepheus_zap_pas.h'),
@@ -121,6 +123,7 @@ class Integration(unittest.TestCase):
         # call. Keep this separate check on actual boot-facing source bodies.
         dangerous=('cepheus_gpu_arc_raise','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
                    'cepheus_gpu_gpll0_hold','cepheus_gpu_gpll0_check','ceph_gpll0_hold',
+                   'cepheus_gpu_gpll0_measure','ceph_clock_measure_run',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
                    'cepheus_gpu_submit','ceph_smmu_install_context','cepheus_gpu_zap_snapshot_prepare',

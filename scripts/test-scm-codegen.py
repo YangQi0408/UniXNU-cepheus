@@ -48,8 +48,11 @@ with tempfile.TemporaryDirectory() as directory:
 #define KERNEL 1
 #include "cepheus_zap_pas.h"
 #include "cepheus_gpll0.h"
+#include "cepheus_clock_measure.h"
 extern void delay(unsigned);
 extern uintptr_t ml_io_map(uint64_t,size_t);
+extern uint64_t mach_absolute_time(void);
+extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
 #define LCK_GRP_DECLARE(n,s) int n __attribute__((unused))
 #define LCK_MTX_DECLARE(n,g) int n __attribute__((unused))
 extern void lck_mtx_lock(int *);

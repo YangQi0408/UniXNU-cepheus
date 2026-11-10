@@ -35,6 +35,11 @@ measured frequency. It must not be used to satisfy the existing power
 gate as selector0x167; actual measurement needs separate shared debug-register,
 CXO and bandwidth ownership. That backend is still absent.
 
+19:37 continuation: the separate bounded counter backend is implemented and
+locally verified; see `clock-measure-backend.md`. Its production owner and
+actual hardware observations are still absent, so this hold API's nominal
+rate must still not satisfy the measured-parent admission contract.
+
 ## Lifetime
 
 The platform must supply actual exclusion for both entire shared vote words
