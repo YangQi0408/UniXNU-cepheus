@@ -2,7 +2,8 @@
  * bytes into owned CPU mappings for GMU VA regions. No physical address casts.
  * Platform constructs these mappings, verifies firmware digest and pins an
  * immutable file snapshot BEFORE calling. begin/end hold exclusive ownership;
- * held_in_reset reads current CM3 state while power/clocks/mappings stay owned.
+ * held_in_reset reads current CM3 state while power/clocks/mappings stay owned,
+ * before and after every destination load/store, including cache backing.
  * publish completes MMIO ordering and cache cleaning before any reset release.
  * This routine never releases reset or frees/unmaps uncertain memory.
  */
@@ -20,6 +21,16 @@ struct ceph_gmu_upload {
     void (*end)(void *,int uncertain);
     unsigned writes;int quarantined;
 };
+static inline void ceph_gmu_upload_order(void)
+{
+#if defined(__aarch64__) || defined(__arm64__)
+    __asm__ volatile("dsb sy" ::: "memory");
+#elif !defined(KERNEL)
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+#else
+#error "GMU upload requires arm64"
+#endif
+}
 static inline int ceph_gmu_upload_target(const struct ceph_gmu_upload *u,
     const struct ceph_gmu_block *b,unsigned *index)
 {
@@ -91,12 +102,22 @@ static inline int ceph_gmu_upload_file(struct ceph_gmu_upload *u,const uint8_t *
         if(b->region==CE_GMU_ITCM || b->region==CE_GMU_DTCM) {
             volatile uint32_t *dst=b->region==CE_GMU_ITCM?u->itcm:u->dtcm;
             unsigned offset=(b->address-(b->region==CE_GMU_ITCM?0u:0x40000u))/4;
-            for(unsigned j=0;j<b->size/4;++j) {dst[offset+j]=ceph_gmu_le32(src+4*j);++u->writes;}
+            for(unsigned j=0;j<b->size/4;++j) {
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+                uint32_t value=ceph_gmu_le32(src+4*j);
+                ++u->writes;ceph_gmu_upload_order();dst[offset+j]=value;ceph_gmu_upload_order();
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+            }
         } else {
             unsigned which=0;
             e=ceph_gmu_upload_target(u,b,&which);if(e)goto done;
-            uint8_t *dst=u->maps[which].cpu+(b->address-u->maps[which].va);
-            for(unsigned j=0;j<b->size;++j) {dst[j]=src[j];++u->writes;}
+            volatile uint8_t *dst=u->maps[which].cpu+(b->address-u->maps[which].va);
+            for(unsigned j=0;j<b->size;++j) {
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+                uint8_t value=src[j];
+                ++u->writes;ceph_gmu_upload_order();dst[j]=value;ceph_gmu_upload_order();
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+            }
         }
     }
     e=u->publish(u->ctx);
@@ -110,11 +131,21 @@ static inline int ceph_gmu_upload_file(struct ceph_gmu_upload *u,const uint8_t *
         if(b->region==CE_GMU_ITCM || b->region==CE_GMU_DTCM) {
             volatile uint32_t *dst=b->region==CE_GMU_ITCM?u->itcm:u->dtcm;
             unsigned offset=(b->address-(b->region==CE_GMU_ITCM?0u:0x40000u))/4;
-            for(unsigned j=0;j<b->size/4;++j)if(dst[offset+j]!=ceph_gmu_le32(src+4*j)){e=-1;goto done;}
+            for(unsigned j=0;j<b->size/4;++j) {
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+                uint32_t actual=dst[offset+j];ceph_gmu_upload_order();
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+                if(actual!=ceph_gmu_le32(src+4*j)){e=-1;goto done;}
+            }
         } else {
             unsigned which=0;e=ceph_gmu_upload_target(u,b,&which);if(e)goto done;
             volatile uint8_t *dst=u->maps[which].cpu+(b->address-u->maps[which].va);
-            for(unsigned j=0;j<b->size;++j)if(dst[j]!=src[j]){e=-1;goto done;}
+            for(unsigned j=0;j<b->size;++j) {
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+                uint8_t actual=dst[j];ceph_gmu_upload_order();
+                e=u->held_in_reset(u->ctx);if(e)goto done;
+                if(actual!=src[j]){e=-1;goto done;}
+            }
         }
     }
     e=u->held_in_reset(u->ctx);

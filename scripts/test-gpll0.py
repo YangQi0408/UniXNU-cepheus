@@ -43,6 +43,10 @@ def main():
              'xnu/cepheus_smmu_mmio.h','xnu/test_smmu_native.c','xnu/test_smmu_mmio.c',
              'xnu/cepheus_gpu_memory.cpp','xnu/cepheus_gpu_memory_private.h','tests/test_smmu_memory_pin.cpp',
              'tests/test_smmu_native_pool.cpp','scripts/test-gpu-memory-host.sh',
+             'xnu/cepheus_gmu_upload_native.h','xnu/cepheus_gmu_upload_native_private.h',
+             'xnu/cepheus_gmu_upload.h','xnu/cepheus_gmu_upload_mmio.h','xnu/test_gmu_upload_native.c',
+             'xnu/test_gmu_upload.c','xnu/test_gmu_upload_mmio.c',
+             'tests/test_upload_memory_pin.cpp','tests/test_upload_native_pool.cpp',
              'xnu/cepheus_gpu_compile.c', 'xnu/cepheus_gpu_compile.h', 'scripts/test-gpll0.py')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
@@ -130,7 +134,7 @@ def main():
         exe = out/(name+'-power-mmio')
         run(name+'-power-mmio-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_gpu_power_mmio.c'), '-o', str(exe)])
         run(name+'-power-mmio-run', [str(exe)], env)
-        for sensor in ('gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio'):
+        for sensor in ('gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
             exe=out/(name+'-'+sensor)
             run(name+'-'+sensor+'-compile', [compiler,*common,*flags,str(ROOT/'xnu'/('test_'+sensor+'.c')),'-o',str(exe)])
             run(name+'-'+sensor+'-run',[str(exe)],env)
@@ -167,6 +171,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gmu_start_cold_native:',
                    'cepheus_gpu_pdc_install_native:',
                    'cepheus_gpu_smmu_install_native:',
+                   'cepheus_gmu_upload_native:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)
@@ -176,7 +181,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                           str(ROOT/'xnu/test_gpll0.c'), '-o', os.devnull])
     run('measure-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                  str(ROOT/'xnu/test_clock_measure.c'), '-o', os.devnull])
-    for name in ('gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio'):
+    for name in ('gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
         run(name+'-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                    str(ROOT/'xnu'/('test_'+name+'.c')), '-o', os.devnull])
     # Stage exactly as the existing local/CI copy manifests do, then compile
@@ -207,7 +212,8 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
     for name in ('cepheus_gpu_tsens.h','cepheus_gpu_tsens_native.h','cepheus_gpu_tsens_native_private.h',
                  'cepheus_gmu_start_native.h','cepheus_gmu_start_native_private.h','cepheus_gmu_mmio.h',
                  'cepheus_gpu_pdc_native.h','cepheus_gpu_pdc_native_private.h','cepheus_pdc_mmio.h',
-                 'cepheus_smmu_native.h','cepheus_smmu_native_private.h','cepheus_smmu_mmio.h','cepheus_gpu_memory_private.h'):
+                 'cepheus_smmu_native.h','cepheus_smmu_native_private.h','cepheus_smmu_mmio.h','cepheus_gpu_memory_private.h',
+                 'cepheus_gmu_upload_native.h','cepheus_gmu_upload_native_private.h','cepheus_gmu_upload.h','cepheus_gmu_upload_mmio.h'):
         if (tree/'bsd/dev'/name).read_bytes()!=(ROOT/'xnu'/name).read_bytes():
             raise SystemExit('Staged native source mismatch: '+name)
     file = out/'staged-native.c'
@@ -218,7 +224,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                                  '-I', str(tree/'bsd/dev'), '-c', str(file), '-o', str(out/'staged-native.o')])
     receipt['result'] = 'PASS'
     (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
-    print('GPLL0/counter/native power/TSENS/CM3/PDC/SMMU local acceptance PASS; no phone measurement or GPU execution')
+    print('GPLL0/counter/native power/TSENS/CM3/PDC/SMMU/upload local acceptance PASS; no phone measurement or GPU execution')
     if args.output:
         print(out/'receipt.json')
     if temporary:

@@ -27,6 +27,15 @@ enum ceph_memory_smmu_result {CE_MEMORY_SMMU_REFUSED,CE_MEMORY_SMMU_INSTALLED,CE
 /* Actual installer result: uncertainty permanently retains/quarantines the
  * real group. Installed ends this temporary pin, not the hardware lease. */
 int ceph_memory_smmu_finish(const struct ceph_gpu_publication *,enum ceph_memory_smmu_result);
+struct ceph_gmu_mapping;
+/* Actual cache destinations, never caller-selected CPU mappings. Separate
+ * temporary upload pin excludes installation, retirement and abandonment.
+ * The platform still owns hardware access and excludes all foreign writers. */
+int ceph_memory_upload_acquire(const struct ceph_gpu_publication *,struct ceph_gmu_start_config *,struct ceph_gmu_mapping *);
+int ceph_memory_upload_validate(const struct ceph_gpu_publication *);
+int ceph_memory_upload_publish(const struct ceph_gpu_publication *);
+enum ceph_memory_upload_result {CE_MEMORY_UPLOAD_REFUSED,CE_MEMORY_UPLOAD_COPIED,CE_MEMORY_UPLOAD_UNCERTAIN};
+int ceph_memory_upload_finish(const struct ceph_gpu_publication *,enum ceph_memory_upload_result);
 #ifdef __cplusplus
 }
 #endif

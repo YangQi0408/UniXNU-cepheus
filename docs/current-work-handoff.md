@@ -1,5 +1,18 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11续推进upload：原生固定三map、copied owner/publication、实际pool
+ICACHE/DCACHE pin及sealed firmware snapshot接通，无caller/startup。逐TCM word/
+cache byte pre/post guard及store前计数，失效sticky，Normal-NC真实发布、final
+reset/retention/fault/lease复核；安装/retire/abandon互斥，失败QUARANTINED不free。
+focused final-v1 PASS，8433 native/51 shared PROT_NONE、ASanUBSan/native/staged/
+analysis，receipt SHAc5528ec2...。real GMU/SQE mixed ASanUBSan实际upload
+pool0..7/native+pool0..5/整链0..22退出0，SHA69a32365...，均模拟硬件非运行。
+全量preflight final-v1四步/75 host/七分析全PASS；下一一次合并完整XNU
+link/产物验收及真实owner/继承/idle。
+无手机操作，旧未boot tail诊断CI42835691416 @2bf48ab/SHA b7d88d435...不变，
+不含近期native；PAS13=false/supported=false/CP halt保持，GPU/Metal未执行。
+详见upload-native-backend.md；目标active不停工。
+
 2026-11-11续推进：原生SMMU/真实六buffer pool pin本地验收收尾通过。
 final-v2 focused receipt SHA c4a53b18...；8122 PROT_NONE、四map及实际
 GMU reset/MEMNOC/DVM gates、live geometry/全stream扫描、SID5 scoped

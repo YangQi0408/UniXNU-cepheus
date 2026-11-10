@@ -30,6 +30,8 @@ install -m 0644 "$here/cepheus_gpu_tsens_native.h" "$here/cepheus_gpu_tsens_nati
 install -m 0644 "$here/cepheus_gmu_start_native.h" "$here/cepheus_gmu_start_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_pdc_native.h" "$here/cepheus_gpu_pdc_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_smmu_native.h" "$here/cepheus_smmu_native_private.h" bsd/dev/
+install -m 0644 "$here/cepheus_gmu_upload_native.h" "$here/cepheus_gmu_upload_native_private.h" bsd/dev/
+install -m 0644 "$here/cepheus_gmu_upload.h" "$here/cepheus_gmu_firmware.h" iokit/Kernel/arm/
 install -m 0644 "$here/cepheus_gpu_va.h" "$here/cepheus_gpu_vm.h" "$here/cepheus_gmu_start.h" iokit/Kernel/arm/
 install -m 0644 "$here/cepheus_cp_ring_config.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_protection.h" bsd/dev/

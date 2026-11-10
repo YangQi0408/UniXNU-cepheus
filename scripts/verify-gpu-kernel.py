@@ -34,6 +34,7 @@ HEADERS += ('cepheus_gpu_tsens_native.h','cepheus_gpu_tsens_native_private.h')
 HEADERS += ('cepheus_gmu_start_native.h','cepheus_gmu_start_native_private.h')
 HEADERS += ('cepheus_gpu_pdc_native.h','cepheus_gpu_pdc_native_private.h')
 HEADERS += ('cepheus_smmu_native.h','cepheus_smmu_native_private.h')
+HEADERS += ('cepheus_gmu_upload_native.h','cepheus_gmu_upload_native_private.h')
 HEADERS += ('cepheus_cp_ring_config.h',)
 HEADERS += ('cepheus_cp_protection.h',)
 HEADERS += ('cepheus_cp_snapshot_mmio.h',)
@@ -84,7 +85,7 @@ def main():
             raise ValueError(f'staged firmware diagnostic ABI mismatch: {name}')
     for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h','cepheus_gpu_firmware.h',
                  'cepheus_gpu_retire.h','cepheus_gpu_memory_private.h','cepheus_zap_image.h','cepheus_zap_memory.h','cepheus_zap_cache.h','cepheus_zap_memory_private.h',
-                 'cepheus_gpu_va.h','cepheus_gpu_vm.h','cepheus_gmu_start.h'):
+                 'cepheus_gpu_va.h','cepheus_gpu_vm.h','cepheus_gmu_start.h','cepheus_gmu_upload.h','cepheus_gmu_firmware.h'):
         if (args.xnu / 'iokit/Kernel/arm' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged IOKit source mismatch: {name}')
     data = args.kernel.read_bytes()
@@ -123,6 +124,7 @@ def main():
     required |= {'_cepheus_gmu_start_cold_native'}
     required |= {'_cepheus_gpu_pdc_install_native'}
     required |= {'_cepheus_gpu_smmu_install_native'}
+    required |= {'_cepheus_gmu_upload_native'}
     required |= {'_cepheus_gpu_arc_raise'}
     required |= {'_cepheus_gpu_bcm_raise'}
     required |= {'_cepheus_gpu_gpll0_hold','_cepheus_gpu_gpll0_check'}
@@ -161,6 +163,7 @@ def main():
                    '_cepheus_gmu_workspace_share','_cepheus_gmu_workspace_retire','_cepheus_gpu_memory_group_status'}
     memory_api |= {'_cepheus_gpu_memory_abandon_workspace'}
     memory_api |= {'_ceph_memory_smmu_acquire','_ceph_memory_smmu_publish','_ceph_memory_smmu_validate','_ceph_memory_smmu_finish'}
+    memory_api |= {'_ceph_memory_upload_acquire','_ceph_memory_upload_publish','_ceph_memory_upload_validate','_ceph_memory_upload_finish'}
     memory_api |= {'_cepheus_zap_memory_prepare','_cepheus_zap_memory_get',
                    '_cepheus_zap_memory_put','_cepheus_zap_memory_release_cpu','_cepheus_zap_memory_selftest'}
     memory_api |= {'_ceph_zap_memory_claim','_ceph_zap_memory_expose',

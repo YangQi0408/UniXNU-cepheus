@@ -6,6 +6,15 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 native upload continuation:
+`out/upload-native-local-20261111-final-v1/receipt.json` accepts fixed native
+maps, 8433 PROT_NONE boundaries, real-pool/snapshot bindings and staged AArch64.
+Explicit GMU/SQE ASan/UBSan native+actual-pool and whole-chain runs pass with
+emulated hardware. See `upload-native-backend.md` for exact hashes and limits.
+Full combined XNU compile/link is the next artifact gate, not GPU execution.
+`out/upload-native-preflight-20261111-final-v1/receipt.json` passes all four
+local prerequisites, 75 host programs and seven production-unit analyses.
+
 2026-11-11 native SMMU continuation:
 `out/smmu-native-preflight-20261111-final-v2/receipt.json` passes all four
 local prerequisites, 74 host programs and seven production-unit analyses.

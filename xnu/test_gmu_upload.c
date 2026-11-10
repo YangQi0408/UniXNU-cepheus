@@ -1,7 +1,9 @@
+#define _DEFAULT_SOURCE 1
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include "cepheus_gmu_upload.h"
 static uint32_t itcm[4096],dtcm[4096];static uint8_t icache[0x3c000],dcache[0x3c000];
 struct mock {unsigned calls,fail,end,uncertain,corrupt;};
@@ -26,6 +28,47 @@ static void verify_block(const uint8_t *file,const struct ceph_gmu_block *b)
         unsigned off=b->address-(b->region==CE_GMU_ICACHE?0x4000:0x44000);
         assert(!memcmp(p+off,want,b->size));
     }
+}
+struct guarded {unsigned calls,expire,failed,ended,uncertain;uint8_t *tcm,*cache;};
+static int guard(void *p)
+{
+    struct guarded *g=p;assert(!g->failed);++g->calls;
+    if(g->calls!=g->expire)return 0;
+    g->failed=1;
+    assert(!mprotect(g->tcm,32768,PROT_NONE));
+    assert(!mprotect(g->cache,8192,PROT_NONE));return -17;
+}
+static void guarded_end(void *p,int uncertain)
+{struct guarded *g=p;++g->ended;g->uncertain=(unsigned)uncertain;}
+static void revoked_destinations(void)
+{
+    uint8_t *tcm=mmap(NULL,32768,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+    uint8_t *cache=mmap(NULL,8192,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+    assert(tcm!=MAP_FAILED && cache!=MAP_FAILED);
+    uint8_t file[80]={0};const unsigned addresses[]={0,0x40000,0x4000,0x44000};
+    for(unsigned i=0;i<4;++i) {
+        le32(file+20*i,addresses[i]);le32(file+20*i+4,4);le32(file+20*i+16,0x12345678+i);
+    }
+    struct ceph_gmu_mapping maps[]={{0x4000,4096,cache,CE_GMU_ICACHE},
+        {0x44000,4096,cache+4096,CE_GMU_DCACHE}};
+    unsigned boundaries=0;
+    for(unsigned expire=0;expire<=boundaries;++expire) {
+        assert(!mprotect(tcm,32768,PROT_READ|PROT_WRITE));assert(!mprotect(cache,8192,PROT_READ|PROT_WRITE));
+        memset(tcm,0,32768);memset(cache,0,8192);
+        struct guarded g={.expire=expire,.tcm=tcm,.cache=cache};
+        struct ceph_gmu_upload u={(volatile uint32_t *)tcm,(volatile uint32_t *)(tcm+16384),
+            4096,4096,maps,2,&g,guard,guard,guard,guarded_end,0,0};
+        struct ceph_gmu_block plan[8];int e=ceph_gmu_upload_file(&u,file,sizeof(file),plan,8);
+        if(!expire) {assert(!e && u.writes==10 && g.ended==1);boundaries=g.calls;}
+        else {
+            assert(e==-17 && g.failed && g.calls==expire);
+            assert(g.ended==(expire==1?0u:1u));assert(g.uncertain==(u.writes!=0));
+            assert(u.quarantined==(u.writes!=0));
+            if(u.writes)assert(ceph_gmu_upload_file(&u,file,sizeof(file),plan,8)<0 && g.calls==expire);
+        }
+    }
+    assert(!munmap(tcm,32768));assert(!munmap(cache,8192));
+    printf("GMU upload: %u PROT_NONE pre/post TCM/cache access boundaries PASS\n",boundaries);
 }
 int main(int argc,char **argv)
 {
@@ -57,6 +100,7 @@ int main(int argc,char **argv)
     assert(ceph_gmu_upload_file(&u,sample,sizeof(sample),(struct ceph_gmu_block *)(void *)itcm,32)<0 && itcm[0]==0xabc && !m.calls);
     struct ceph_gmu_mapping badmaps[2]={maps[0],maps[1]};badmaps[1].region=CE_GMU_BAD;badmaps[1].va=0xf0000000;
     u=config(&m,badmaps);assert(ceph_gmu_upload_file(&u,sample,sizeof(sample),plan,32)<0 && !m.calls);
+    revoked_destinations();
     if(argc==2) {
         FILE *f=fopen(argv[1],"rb");assert(f);assert(!fseek(f,0,SEEK_END));long length=ftell(f);assert(length>0 && length<=1048576);
         rewind(f);uint8_t *file=malloc((size_t)length);assert(file);assert(fread(file,1,(size_t)length,f)==(size_t)length);fclose(f);

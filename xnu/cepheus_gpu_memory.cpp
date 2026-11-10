@@ -36,6 +36,7 @@ extern uint64_t vm_last_phys;
 #include "cepheus_gpu_firmware.h"
 #include "cepheus_gpu_memory_private.h"
 #include "cepheus_gpu_va.h"
+#include "cepheus_gmu_upload.h"
 #include "cepheus_zap_image.h"
 #include "cepheus_zap_memory.h"
 #include "cepheus_zap_memory_private.h"
@@ -84,6 +85,7 @@ static uint64_t ceph_group_generation;
 static unsigned ceph_pool_terminal;
 static unsigned ceph_group_status[16];
 static unsigned ceph_group_installing[16];
+static unsigned ceph_group_uploading[16];
 
 static void ceph_gpu_memory_barrier(void)
 {
@@ -704,7 +706,7 @@ extern "C" int ceph_memory_retire_begin(const struct ceph_gpu_publication *p)
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS],e=-1;
     int group=ceph_memory_group_indices(p,indices);
-    if(group<0 || ceph_group_installing[group])goto done;
+    if(group<0 || ceph_group_installing[group] || ceph_group_uploading[group])goto done;
     for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)if(!ceph_mem_can_retire(&ceph_pool[indices[i]].state))goto done;
     for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_RETIRING;
     ceph_group_status[(unsigned)(p->group&255u)-1]=CE_GPU_GROUP_RETIRING;
@@ -772,7 +774,8 @@ extern "C" int cepheus_gpu_memory_abandon_workspace(const struct ceph_gpu_public
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];
     int group=ceph_memory_group_indices(p,indices);
-    if(group<0 || ceph_group_status[group]!=CE_GPU_GROUP_SHARED || ceph_group_installing[group]) {IOLockUnlock(lock);return -1;}
+    if(group<0 || ceph_group_status[group]!=CE_GPU_GROUP_SHARED ||
+        ceph_group_installing[group] || ceph_group_uploading[group]) {IOLockUnlock(lock);return -1;}
     for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)
         if(ceph_pool[indices[i]].state.state!=CE_MEM_SHARED) {IOLockUnlock(lock);return -1;}
     for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
@@ -813,7 +816,8 @@ extern "C" int ceph_memory_smmu_acquire(const struct ceph_gpu_publication *p,str
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];int group=ceph_memory_smmu_group(p,indices),e=-1;
     struct ceph_gmu_start_config config;
-    if(group>=0 && !ceph_group_installing[group] && !ceph_memory_smmu_tables(p,indices,&config)) {
+    if(group>=0 && !ceph_group_installing[group] && !ceph_group_uploading[group] &&
+        !ceph_memory_smmu_tables(p,indices,&config)) {
         ceph_group_installing[group]=1;*out=config;e=0;
     }
     IOLockUnlock(lock);return e;
@@ -846,6 +850,52 @@ extern "C" int ceph_memory_smmu_finish(const struct ceph_gpu_publication *p,enum
     }
     ceph_group_installing[group]=0;
     if(result==CE_MEMORY_SMMU_UNCERTAIN) {
+        ceph_group_status[group]=CE_GPU_GROUP_UNCERTAIN;ceph_pool_terminal=1;
+        for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
+    }
+    IOLockUnlock(lock);return 0;
+}
+extern "C" int ceph_memory_upload_acquire(const struct ceph_gpu_publication *p,
+    struct ceph_gmu_start_config *out,struct ceph_gmu_mapping maps[2])
+{
+    if(!out || !maps)return -1;
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS],e=-1;
+    int group=ceph_memory_smmu_group(p,indices);struct ceph_gmu_start_config config;
+    if(group>=0 && !ceph_group_installing[group] && !ceph_group_uploading[group] &&
+        !ceph_memory_smmu_tables(p,indices,&config)) {
+        ceph_group_uploading[group]=1;*out=config;
+        maps[0]={0x4000,0x3c000,(uint8_t *)ceph_pool[indices[0]].buffer.cpu,CE_GMU_ICACHE};
+        maps[1]={0x44000,0x3c000,(uint8_t *)ceph_pool[indices[1]].buffer.cpu,CE_GMU_DCACHE};e=0;
+    }
+    IOLockUnlock(lock);return e;
+}
+extern "C" int ceph_memory_upload_validate(const struct ceph_gpu_publication *p)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];int group=ceph_memory_smmu_group(p,indices);
+    int e=group>=0 && ceph_group_uploading[group]?0:-1;
+    IOLockUnlock(lock);return e;
+}
+extern "C" int ceph_memory_upload_publish(const struct ceph_gpu_publication *p)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];int group=ceph_memory_smmu_group(p,indices),e=-1;
+    if(group>=0 && ceph_group_uploading[group] && !ceph_memory_smmu_tables(p,indices,NULL)) {
+        ceph_gpu_memory_barrier();e=0;
+    }
+    IOLockUnlock(lock);return e;
+}
+extern "C" int ceph_memory_upload_finish(const struct ceph_gpu_publication *p,enum ceph_memory_upload_result result)
+{
+    if(result!=CE_MEMORY_UPLOAD_REFUSED && result!=CE_MEMORY_UPLOAD_COPIED && result!=CE_MEMORY_UPLOAD_UNCERTAIN)return -1;
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_GPU_WORKSPACE_BUFFERS];int group=ceph_memory_group_indices(p,indices);
+    if(group<0 || !ceph_group_uploading[group] || ceph_group_status[group]!=CE_GPU_GROUP_SHARED) {
+        IOLockUnlock(lock);return -1;
+    }
+    ceph_group_uploading[group]=0;
+    if(result==CE_MEMORY_UPLOAD_UNCERTAIN) {
         ceph_group_status[group]=CE_GPU_GROUP_UNCERTAIN;ceph_pool_terminal=1;
         for(unsigned i=0;i<CE_GPU_WORKSPACE_BUFFERS;++i)ceph_pool[indices[i]].state.state=CE_MEM_QUARANTINED;
     }

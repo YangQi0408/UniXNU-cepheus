@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include "cepheus_gmu_upload_mmio.h"
 static uint32_t ram[0x30000/4];
-struct host {int blocked,done,uncertain;};
-static int lease(void *p){return ((struct host *)p)->blocked;}
+struct host {int blocked,done,uncertain;unsigned calls;};
+static int lease(void *p){struct host *h=p;++h->calls;return h->blocked;}
 static void finish(void *p,int uncertain){struct host *h=p;h->done++;h->uncertain=uncertain;}
 static void word(uint8_t *p,uint32_t v){for(unsigned i=0;i<4;++i)p[i]=(uint8_t)(v>>(8*i));}
 int main(void)
@@ -24,5 +24,8 @@ int main(void)
     m=(struct ceph_gmu_upload_mmio){&g,&h,finish,0,0};assert(!ceph_gmu_upload_mmio_bind(&m,&u));
     ram[0x1f800-0x1a800]=1;assert(!ceph_gmu_upload_mmio_begin(&m));h.blocked=1;
     assert(ceph_gmu_upload_mmio_publish(&m)<0);ceph_gmu_upload_mmio_end(&m,1);assert(h.uncertain);
+    unsigned calls=h.calls;h.blocked=0;
+    assert(ceph_gmu_upload_mmio_reset(&m)<0 && h.calls==calls && m.terminal);
+    assert(ceph_gmu_upload_mmio_begin(&m)<0 && h.calls==calls);
     puts("GMU upload MMIO: exact TCM subwindows/shared aperture, reset+fault lease and publication barriers PASS (RAM)");
 }

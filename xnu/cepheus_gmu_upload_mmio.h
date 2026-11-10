@@ -17,8 +17,12 @@ struct ceph_gmu_upload_mmio {
 static inline int ceph_gmu_upload_mmio_reset(void *ctx)
 {
     struct ceph_gmu_upload_mmio *m=ctx;uint32_t reset;
-    return !m || !m->active || m->terminal || ceph_gmu_mmio_start_read(m->gmu,CE_GMU_SYSRESET,&reset) ||
-        reset!=1 || ceph_gmu_mmio_fault(m->gmu)?-1:0;
+    if(!m || !m->active || m->terminal)return -1;
+    if(ceph_gmu_mmio_start_read(m->gmu,CE_GMU_SYSRESET,&reset) ||
+        reset!=1 || ceph_gmu_mmio_fault(m->gmu) || ceph_gmu_mmio_ready(m->gmu)) {
+        m->terminal=1;return -1;
+    }
+    return 0;
 }
 static inline int ceph_gmu_upload_mmio_begin(void *ctx)
 {
@@ -31,13 +35,7 @@ static inline int ceph_gmu_upload_mmio_begin(void *ctx)
 static inline int ceph_gmu_upload_mmio_publish(void *ctx)
 {
     if(ceph_gmu_upload_mmio_reset(ctx))return -1;
-#if defined(__aarch64__) || defined(__arm64__)
-    __asm__ volatile("dsb sy" ::: "memory");
-#elif !defined(KERNEL)
-    __atomic_thread_fence(__ATOMIC_SEQ_CST);
-#else
-#error "GMU upload requires arm64"
-#endif
+    ceph_gmu_upload_order();
     return ceph_gmu_upload_mmio_reset(ctx);
 }
 static inline void ceph_gmu_upload_mmio_end(void *ctx,int uncertain)

@@ -57,8 +57,10 @@ with tempfile.TemporaryDirectory() as directory:
 #include "cepheus_pdc_mmio.h"
 #include "cepheus_gpu_pdc_native.h"
 #include "cepheus_smmu_native.h"
+#include "cepheus_gmu_upload_native.h"
 #include "cepheus_smmu_mmio.h"
 #include "cepheus_gpu_memory_private.h"
+extern int cepheus_gpu_upload_snapshot(struct ceph_gmu_upload *,uint64_t,struct ceph_gmu_block *,unsigned);
 extern void delay(unsigned);
 extern uintptr_t ml_io_map(uint64_t,size_t);
 extern uint64_t mach_absolute_time(void);
