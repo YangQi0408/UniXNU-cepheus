@@ -1,5 +1,13 @@
 # 小米9 iOS移植：当前全部工作交接
 
+23:39补充：32da8e4已推送。继续补正null map返回也须post owner guard，
+final-v2 native local receipt PASS，含失败map同时owner撤销；fresh preflight
+final-v2四步/70 host/七分析全部PASS。owner源码边界已核对：SWEET suspend/
+quiesce拒绝不等于普通idle停止，wfi默认1/idle_enable默认开启，NO_MONITOR
+不关WFI；软件rh_lock不排除继承sleep/wake硬件与其他DRV/secure writer。
+详见resource-owner-boundary.md，未改CPU/boot args，不伪造资源lease。
+手机仍未检测到，无手机操作或新CI；GPU/Metal未执行，目标未完成。
+
 23:32更新：用户明确不停工，继续GPU。新增实际SWEET原生CX/GMU电源入口，
 固定GCC/GPUCC/GMU ml_io_map、原生delay及同GPLL0锁，复制owner/boot单次
 终止；逐map/read/store/delay前后validate，GMU每项前置读也逐访问检查，

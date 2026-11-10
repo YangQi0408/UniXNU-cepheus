@@ -37,7 +37,7 @@ static int ceph_power_native_prepare(void *unused,struct ceph_power_input *in)
         if(ceph_power_native_lease(NULL))goto fail;
         *windows[n]=(struct ceph_power_window){
             (volatile uint8_t *)ml_io_map(pa[n],bytes[n]),pa[n],bytes[n]};
-        if(!windows[n]->base || ceph_power_native_lease(NULL))goto fail;
+        if(ceph_power_native_lease(NULL) || !windows[n]->base)goto fail;
     }
     return 0;
 fail:

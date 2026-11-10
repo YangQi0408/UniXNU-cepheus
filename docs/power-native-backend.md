@@ -48,6 +48,14 @@ for the boot lifetime; there is no unsafe unmap on an uncertain path.
 
 ## Local Acceptance
 
+Follow-up acceptance: `out/power-native-local-20261110-final-v2/receipt.json`
+PASS additionally requires the post-map guard even when `ml_io_map` returns
+null, with coincident map-failure/owner-revocation fixtures. final-v1 below is
+the accepted earlier source identity, not this follow-up. The fresh four-step
+`out/power-native-preflight-20261110-final-v2/receipt.json` passes all four
+steps, 70 host programs and seven production-unit analyses. Both v2 receipts
+bind source hashes at dirty parent `32da8e4`, not a complete XNU build.
+
 Final receipt: `out/power-native-local-20261110-final-v1/receipt.json` PASS.
 
 - Actual private native adapter: 403 PROT_NONE owner boundaries, fixed map
@@ -86,6 +94,8 @@ current HEAD. Wait for manual fastboot confirmation before the single
 consolidated exit-tail/read-only GPU diagnostic; do not flash or auto-reboot.
 
 Next is real shared resource ownership and inherited-vote provenance with
-foreign-writer/deep-idle coordination. PAS13 supported=false, secure-memory
+foreign-writer/deep-idle coordination; see `resource-owner-boundary.md` for
+the distinction between suspend refusal, ordinary WFI and inherited hardware
+sleep/wake state. PAS13 supported=false, secure-memory
 permissions/crypto, SMMU admission and authenticated CP startup remain open.
 The rejection gate and CP halt remain; GPU scratch/fence and Metal have not run.

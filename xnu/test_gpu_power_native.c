@@ -112,6 +112,9 @@ int main(void)
     }
     for(unsigned n=1;n<=3;++n) {
         reset();fail_map=n;assert(run(&out)==CE_PWR_IO && maps==n && finished==1 && !kept && !votes && !out.effects);
+        assert(checks==2*n); /* failed maps still perform the post-map guard */
+        reset();fail_map=n;expire=2*n;
+        assert(run(&out)==CE_PWR_IO && maps==n && checks==expire && finished==1 && !kept);
     }
     reset();prepare_error=1;assert(run(&out)==CE_PWR_BUSY && prepare_calls==1 && !maps && !finished && !votes);
     reset();context=1;assert(run(&out)==CE_PWR_INVALID && !prepare_calls && !maps);
