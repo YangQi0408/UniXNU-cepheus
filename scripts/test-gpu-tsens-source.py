@@ -43,7 +43,7 @@ def main():
 '''+ '\n'.join(macros)+'\n'+meta+'''
 static uint32_t tm[2][1024],srot[2][1024];
 static int lease(void *p){(void)p;return 0;}
-static int now(void *p,uint64_t *v){(void)p;*v=123;return 0;}
+static int now(void *p,uint64_t *v){(void)p;static uint64_t ticks;*v=++ticks;return 0;}
 int main(void) {
  struct ceph_gpu_tsens m={{tm[0],tm[1]},{4096,4096},{tm_pa[0],tm_pa[1]},0,lease,now,
                          {srot[0],srot[1]},{4096,4096},{srot_pa[0],srot_pa[1]}};

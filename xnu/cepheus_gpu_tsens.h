@@ -33,48 +33,71 @@ static inline int ceph_gpu_tsens_decode(uint32_t word,int *mc)
     int temperature=code*100;if(temperature < -40000 || temperature>125000)return -1;
     *mc=temperature;return 0;
 }
+static inline int ceph_gpu_tsens_valid(struct ceph_gpu_tsens *m)
+{
+    if(!m || !m->lease || !m->now_ns)return -1;
+    uintptr_t bases[4];
+    for(unsigned i=0;i<2;++i) {
+        bases[i]=(uintptr_t)m->tm[i];bases[i+2]=(uintptr_t)m->srot[i];
+        if(!bases[i] || !bases[i+2] || ((bases[i]|bases[i+2])&3u) ||
+            bases[i]>UINTPTR_MAX-4096u || bases[i+2]>UINTPTR_MAX-4096u ||
+            m->pa[i]!=(i?0xc265000u:0xc263000u) || m->bytes[i]!=4096 ||
+            m->srot_pa[i]!=(i?0xc223000u:0xc222000u) || m->srot_bytes[i]!=4096)return -1;
+    }
+    for(unsigned i=0;i<4;++i)for(unsigned j=i+1;j<4;++j)
+        if(bases[i]<bases[j]+4096u && bases[j]<bases[i]+4096u)return -1;
+    return m->lease(m->owner)?-1:0;
+}
+static inline int ceph_gpu_tsens_load(struct ceph_gpu_tsens *m,unsigned controller,
+    unsigned srot,uint32_t offset,uint32_t *out)
+{
+    if(!out || controller>1 || srot>1 || (offset&3u) || offset>4092u ||
+        ceph_gpu_tsens_valid(m))return -1;
+    volatile uint32_t *base=srot?m->srot[controller]:m->tm[controller];
+    uint32_t value=base[offset/4];ceph_gpu_tsens_order();
+    if(ceph_gpu_tsens_valid(m) || value==UINT32_MAX)return -1;
+    *out=value;return 0;
+}
+static inline int ceph_gpu_tsens_health(struct ceph_gpu_tsens *m,unsigned controller)
+{
+    unsigned sensor=controller?11:15;uint32_t enabled,ready,faults;
+    /* SROT+4 requires ownership of its containing page, not the four-byte
+     * nominal FDT resource. Every status read has independent lease guards. */
+    if(controller>1 || ceph_gpu_tsens_load(m,controller,1,4,&enabled) ||
+        !(enabled&1u) || !(enabled&(1u<<(sensor+3))) ||
+        ceph_gpu_tsens_load(m,controller,0,0xe4,&ready) || !(ready&8u) ||
+        ceph_gpu_tsens_load(m,controller,0,0x14,&faults) ||
+        (faults&((1u<<31)|(1u<<sensor))))return -1;
+    return 0;
+}
+static inline int ceph_gpu_tsens_now(struct ceph_gpu_tsens *m,uint64_t *out)
+{
+    if(!out || ceph_gpu_tsens_valid(m))return -1;
+    uint64_t value;int e=m->now_ns(m->owner,&value);
+    if(ceph_gpu_tsens_valid(m) || e)return -1;
+    *out=value;return 0;
+}
 static inline int ceph_gpu_tsens_sample(void *ctx,struct ceph_gpu_temperature *out)
 {
     if(!out)return -1;
     *out=(struct ceph_gpu_temperature){0};struct ceph_gpu_tsens *m=ctx;
-    if(!m || !m->lease || !m->now_ns || m->lease(m->owner))return -1;
-    for(unsigned i=0;i<2;++i)
-        if(!m->tm[i] || ((uintptr_t)m->tm[i]&3u) || m->pa[i]!=(i?0xc265000u:0xc263000u) || m->bytes[i]!=4096 ||
-            !m->srot[i] || ((uintptr_t)m->srot[i]&3u) || m->srot_pa[i]!=(i?0xc223000u:0xc222000u) || m->srot_bytes[i]!=4096)return -1;
-    if(m->tm[0]==m->tm[1] || m->srot[0]==m->srot[1])return -1;
-    uint64_t start,end;if(m->now_ns(m->owner,&start))return -1;
+    if(ceph_gpu_tsens_valid(m))return -1;
+    uint64_t start,end;if(ceph_gpu_tsens_now(m,&start))return -1;
     struct ceph_gpu_temperature s={0};s.sampled_ns=start;
     for(unsigned i=0;i<2;++i) {
-        /* Downstream tsens2xxx_hw_sensor_en reads SROT+4. FDT gives a4-byte
-         * resource but ioremap covers its containing page; platform must own
-         * the full page explicitly, not claim offset4 is inside a4-byte map. */
-        uint32_t enabled=m->srot[i][1];ceph_gpu_tsens_order();
-        unsigned sensor=i?11:15;
-        if(enabled==UINT32_MAX || !(enabled&1) || !(enabled&(1u<<(sensor+3))))return -1;
-        uint32_t ready=m->tm[i][0xe4/4];ceph_gpu_tsens_order();
-        if(ready==UINT32_MAX || !(ready&8))return -1;
-        uint32_t faults=m->tm[i][0x14/4];ceph_gpu_tsens_order();
-        if(faults==UINT32_MAX || (faults&((1u<<31)|(1u<<sensor))))return -1;
+        if(ceph_gpu_tsens_health(m,i))return -1;
         int value=0,valid=0;
         for(unsigned attempt=0;attempt<3 && !valid;++attempt) {
-            if(m->lease(m->owner))return -1;
-            uint32_t word=m->tm[i][0xa0/4+(i?11:15)];ceph_gpu_tsens_order();
+            uint32_t word;
+            if(ceph_gpu_tsens_load(m,i,0,0xa0+4*(i?11:15),&word))return -1;
             valid=!ceph_gpu_tsens_decode(word,&value);
         }
         if(!valid)return -1;
         if(i)s.gpuss1_mc=value;else s.gpuss0_mc=value;
         s.valid_mask|=1u<<i;
     }
-    for(unsigned i=0;i<2;++i) {
-        uint32_t enabled=m->srot[i][1];ceph_gpu_tsens_order();
-        if(enabled==UINT32_MAX || !(enabled&1) || !(enabled&(1u<<((i?11:15)+3))))return -1;
-        uint32_t ready=m->tm[i][0xe4/4];ceph_gpu_tsens_order();
-        if(ready==UINT32_MAX || !(ready&8))return -1;
-        uint32_t faults=m->tm[i][0x14/4];ceph_gpu_tsens_order();
-        if(faults==UINT32_MAX || (faults&((1u<<31)|(1u<<(i?11:15)))))return -1;
-    }
-    if(m->lease(m->owner) || m->now_ns(m->owner,&end) ||
-        end<start || end-start>100000000ULL)return -1;
+    for(unsigned i=0;i<2;++i)if(ceph_gpu_tsens_health(m,i))return -1;
+    if(ceph_gpu_tsens_now(m,&end) || end<=start || end-start>100000000ULL)return -1;
     *out=s;return 0;
 }
 #endif

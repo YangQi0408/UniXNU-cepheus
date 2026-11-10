@@ -1,5 +1,21 @@
 # 小米9 iOS移植：当前全部工作交接
 
+23:57更新：新增原生TSENS bind/sample/now，固定四TM/SROT请求、真实内核
+时间、独立锁及copied owner；所有map/status/sample/time前后guard，失效
+立即锁存、无retry。通用sampler补每enable/ready/fault读guard、logical VA
+重叠/溢出、时间停滞/倒退拒绝，late health变化保留。actual owner转换/时钟
+健康仍无实现，未启用startup，无传感器配置写。host16KiB映射扩大范围和
+双SROT同physical page合同明确，详见tsens-native-backend.md。
+final-v1 local receipt33 generic/48 native PROT_NONE边界、ASanUBSan/
+native/staged/analysis PASS；四步preflight final-v1全PASS，71 host/七分析。
+原厂宏/captured FDT独立对照PASS；真实GMU/SQE mixed ASanUBSan modes0..22
+主机模拟整链退出0，log SHA aad50b028...，不是GPU/新native真机运行，ZAP
+optional未提供。v1初轮owner撤销后再次回调FAIL保留，立即锁存已修。
+本批及前ARC/power待完整XNU构建链接，无新CI/打包/手机操作。23:55无手机，
+等之前手动fastboot确认；诊断镜像保持CI42835691416 @2bf48ab/SHA b7d88d435...。
+资源owner/继承票/idle协调、PAS13/secure PA/crypto/SMMU仍缺，CP halt保持。
+GPU scratch/fence/认证/Metal尚未执行，目标未完成，继续实际平台接入。
+
 23:39补充：32da8e4已推送。继续补正null map返回也须post owner guard，
 final-v2 native local receipt PASS，含失败map同时owner撤销；fresh preflight
 final-v2四步/70 host/七分析全部PASS。owner源码边界已核对：SWEET suspend/

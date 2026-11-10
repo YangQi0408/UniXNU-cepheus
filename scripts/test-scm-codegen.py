@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory() as directory:
 #include "cepheus_clock_measure.h"
 #include "cepheus_gpu_power_mmio.h"
 #include "cepheus_gpu_power_native.h"
+#include "cepheus_gpu_tsens_native.h"
 extern void delay(unsigned);
 extern uintptr_t ml_io_map(uint64_t,size_t);
 extern uint64_t mach_absolute_time(void);

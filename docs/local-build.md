@@ -6,6 +6,14 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-10 native thermal continuation:
+`out/tsens-native-preflight-20261110-final-v1/receipt.json` passes all four
+local prerequisites, 71 host programs and seven production-unit analyses.
+`out/tsens-native-local-20261110-final-v1/receipt.json` covers the actual native
+TSENS branch and staged-only compilation; `tsens-native-backend.md` records
+the independent downstream/FDT and explicit GMU/SQE host runs. This production
+batch still needs complete XNU link/artifact acceptance before integrated use.
+
 2026-11-10 native power continuation:
 `out/power-native-preflight-20261110-final-v1/receipt.json` passes all four
 local prerequisites, 70 host programs and seven production-unit analyses.
