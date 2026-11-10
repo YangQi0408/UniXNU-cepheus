@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 14:17：DAL ClockRailConfig属性index1→0x1f230四16B记录，
+CX/GX/MMCX/MX默认均0x100；Clock0xaf5c读配置，0x6bec存rail+0xdc并注册
+ResourceAvailable callback0x6a4c。这是消费者默认配置，不是当前票或ARC
+注册证明，不填current_cx/mx。v6原字节核验两模式PASS且相同，24合成测试
+两模式通过；dal-clock-rail-config/clock-rail-consumer-final bundle/snapshot
+与v6 receipt保存既有私有logs目录，详见RPMh文档。14:08批a6a332e已推送。
+仍需实际ARC注册/其他EBS写入顺序/最终快照和唯一XNU所有权，PAS13=false
+根因未解；无生产后端、新核、构建或手机操作，无新GPU测试点，正常配对版
+保持，supported=false/CP halt不绕过，GPU/Metal/认证未执行。
+
 最新2026-11-10 14:08：原件补证RPMh issue slot0x78→0x2cdc共同返回内部
 隐式churn（handle/request_id/1/1），pending轮询HAL IRQ并处理完成；外层
 barrier不支持不能再推断整链缺少等待。找到一个EBS回调0x149c：卸载RPMh

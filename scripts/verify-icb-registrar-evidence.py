@@ -142,6 +142,45 @@ def ebs_clear(blob, segments, reads):
                             'Pre-EBS software vote snapshots do not by themselves prove final XNU ownership']}
 
 
+def rail_config(dal, ds, dr, clock, cs, cr):
+    for address, size in ((0x1d248, 32), (0x1d798, 160), (0x1da10, 156),
+                          (0x1f210, 112), (0x7c18, 74)):
+        need_read(dr, address, size)
+    attr, index = struct.unpack('<II', NPA.span(dal, ds, 0x1da18, 8))
+    require((attr, index) == (0x12800011, 1), 'unexpected ClockRailConfig property')
+    require(cstring(dal, ds, 0x1d798 + 0x40 + (attr & 0x7fffff)) == 'ClockRailConfig',
+            'unexpected ClockRailConfig name')
+    require(struct.unpack('<QQ', NPA.span(dal, ds, 0x1d258, 16)) == (8, 0x1f230),
+            'unexpected ClockRailConfig structure')
+    expected = ('/arc/client/rail_cx', '/vcs/vdd_gx', '/arc/client/rail_mmcx', '/arc/client/rail_mx')
+    entries = []
+    for i, name in enumerate(expected):
+        pointer, value = struct.unpack('<QI4x', NPA.span(dal, ds, 0x1f230 + i * 16, 16))
+        require(cstring(dal, ds, pointer) == name and value == 0x100,
+                'unexpected ClockRailConfig entry')
+        entries.append({'resource': name, 'configured_default': hex(value)})
+    require(NPA.span(dal, ds, 0x1f270, 16) == bytes(16), 'unterminated ClockRailConfig')
+    for address, size in ((0x16453, 16), (0x1b6c, 120), (0xaf5c, 156), (0x6bec, 188)):
+        need_read(cr, address, size)
+    require(cstring(clock, cs, 0x16453) == 'ClockRailConfig', 'unexpected Clock consumer property')
+    checks = ((0xaf84, 'adrp', 'x0, #0x16000'), (0xaf88, 'add', 'x0, x0, #0x453'),
+              (0xaf90, 'bl', '#0x1b6c'), (0xafa4, 'lsl', 'x8, x22, #4'),
+              (0xafa8, 'ldr', 'x0, [x21, x8]'), (0xafac, 'cbz', 'x0, #0xafd0'),
+              (0xafc4, 'ldr', 'w8, [x8, #8]'), (0xafc8, 'str', 'w8, [x19]'),
+              (0x1ba0, 'bl', '#0x93c8'), (0x1ba8, 'ldr', 'x8, [sp, #8]'),
+              (0x1bac, 'str', 'x8, [x19]'), (0x6c20, 'bl', '#0xaf5c'),
+              (0x6c08, 'add', 'x20, x20, #0xa4c'), (0x6c34, 'bl', '#0xa6e0'))
+    decoded = [instruction(clock, cs, *item) for item in checks]
+    return {'property_record': '0x1da18', 'property_name': 'ClockRailConfig',
+            'structure_index': index, 'structure_entry': '0x1d258', 'table': '0x1f230',
+            'entries': entries, 'clock_lookup': '0xaf5c', 'callback': '0x6a4c',
+            'instructions': decoded,
+            'observation': 'DAL provides configured boot defaults; Clock reads them and registers resource-available callbacks',
+            'limitations': ['Configured defaults are not current hardware votes or ARC node registration',
+                            'Numeric units and runtime applicability are not independently verified',
+                            'No resource acquire/lease/quiesce or XNU ownership is established']}
+
+
 def dal_chain(blob, segments):
     def word(address, width=8):
         return int.from_bytes(NPA.span(blob, segments, address, width), 'little')
@@ -235,6 +274,16 @@ def verify(root):
     results['RpmhDxeEbs'] = {'module_sha256': modules['RpmhDxe']['sha256'],
                              'evidence_sha256': hashlib.sha256(ebs_raw).hexdigest(),
                              'read_evidence_ids': list(ebs_reads.values())}
+    rail_reads = {}
+    for name, filename in (('DALSys', 'dal-clock-rail-config-evidence.json'),
+                           ('ClockDxe', 'clock-rail-consumer-final-evidence.json')):
+        raw = (evidence_root / filename).read_bytes()
+        blob, _, _ = binaries[name]
+        _, rail_reads[name] = checked_reads(blob, modules[name]['sha256'], json.loads(raw))
+        results[name + 'RailConfig'] = {'module_sha256': modules[name]['sha256'],
+                                        'evidence_sha256': hashlib.sha256(raw).hexdigest(),
+                                        'read_evidence_ids': list(rail_reads[name].values())}
+    rails = rail_config(dal, ds, rail_reads['DALSys'], clock, cs, rail_reads['ClockDxe'])
     return {'status': 'PASS_STATIC_BYTES_ONLY', 'boot_sha256': boot_receipt['boot_sha256'],
             'modules': boot_receipt['modules'], 'evidence': results, 'dal_chain': chain,
             'clock_plugin': {'address': '0x432a0', 'fields_u64': [hex(x) for x in plugin]},
@@ -243,6 +292,7 @@ def verify(root):
                              'authority': 'original bytes; name correlated with pinned EFIRpmh.h'},
             'rpmh_implicit_churn': churn,
             'rpmh_ebs_clear': ebs,
+            'clock_rail_config': rails,
             'exact_instructions': decoded,
             'observations': ['DAL supplies the /icb/arbiter definition via /icb/arb -> icb_info -> structure 20',
                              'Clock 0xc520 installs the ICB plugin and forwards node definitions to NPA slot 0x20',

@@ -243,5 +243,59 @@ class CompletionTests(unittest.TestCase):
                     VERIFY.ebs_clear(blob, segments, self.reads(self.EBS_READS))
 
 
+class RailConfigTests(unittest.TestCase):
+    DAL_READS = ((0x1d248, 32), (0x1d798, 160), (0x1da10, 156), (0x1f210, 112), (0x7c18, 74))
+    CLOCK_READS = ((0x16453, 16), (0x1b6c, 120), (0xaf5c, 156), (0x6bec, 188))
+
+    def fixture(self):
+        blob, put = DalChainTests().fixture()
+        put(0x1d258, struct.pack('<QQ', 8, 0x1f230))
+        put(0x1da18, struct.pack('<II', 0x12800011, 1))
+        put(0x1d798 + 0x40 + 0x11, b'ClockRailConfig\0')
+        put(0x16453, b'ClockRailConfig\0')
+        for i, name in enumerate(('/arc/client/rail_cx', '/vcs/vdd_gx',
+                                   '/arc/client/rail_mmcx', '/arc/client/rail_mx')):
+            pointer = 0x2000 + i * 64
+            put(pointer, name.encode('ascii') + b'\0')
+            put(0x1f230 + i * 16, struct.pack('<QI4x', pointer, 0x100))
+        return blob, put, VERIFY.NPA.pe_segments(blob)
+
+    def run_config(self, blob, segments, dr=None, cr=None):
+        with patch.object(VERIFY, 'instruction', side_effect=CompletionTests().capture):
+            return VERIFY.rail_config(blob, segments,
+                                      dr if dr is not None else CompletionTests().reads(self.DAL_READS),
+                                      blob, segments,
+                                      cr if cr is not None else CompletionTests().reads(self.CLOCK_READS))
+
+    def test_defaults_are_not_current_votes(self):
+        blob, _, segments = self.fixture()
+        result = self.run_config(blob, segments)
+        self.assertEqual(len(result['entries']), 4)
+        self.assertTrue(all(x['configured_default'] == '0x100' for x in result['entries']))
+        self.assertIn('Configured defaults are not current hardware votes or ARC node registration',
+                      result['limitations'])
+
+    def test_reject_config_mutations(self):
+        for address, data in ((0x1da18, struct.pack('<II', 0x12800011, 2)),
+                               (0x1d258, struct.pack('<QQ', 8, 0x1f240)),
+                               (0x1f238, struct.pack('<I', 0)),
+                               (0x1f270, struct.pack('<Q', 0x2000)),
+                               (0x2000, b'/wrong\0')):
+            blob, put, segments = self.fixture()
+            put(address, data)
+            with self.assertRaises(ValueError):
+                self.run_config(blob, segments)
+
+    def test_requires_config_and_consumer_evidence(self):
+        blob, _, segments = self.fixture()
+        for ranges, side in ((self.DAL_READS, 'dal'), (self.CLOCK_READS, 'clock')):
+            for missing in ranges:
+                reads = CompletionTests().reads(ranges)
+                del reads[missing]
+                with self.assertRaisesRegex(ValueError, 'missing'):
+                    self.run_config(blob, segments, reads if side == 'dal' else None,
+                                    reads if side == 'clock' else None)
+
+
 if __name__ == '__main__':
     unittest.main()

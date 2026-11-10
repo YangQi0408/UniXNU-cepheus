@@ -1,5 +1,29 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 14:17：DAL默认电压配置与Clock消费者绑定
+
+复用已验收patched DALSys/ClockDxe身份，只读原件与REA记录。DAL PropBin
+0x1da18为packed属性`0x12800011,index=1`，名称`ClockRailConfig`；sized entry
+0x1d258（size8）指向0x1f230。该16B记录表依次是`/arc/client/rail_cx`、
+`/vcs/vdd_gx`、`/arc/client/rail_mmcx`、`/arc/client/rail_mx`，每项默认值
+`0x100`，后有NULL/0终止记录。没有单位或当前硬件状态证明。
+
+Clock0xaf5c经0x1b6c取`ClockRailConfig`，按16B步长比较资源名、读记录+8
+并写输出。0x6bec调用该helper，将默认值放入本地rail结构+0xdc，再以
+callback0x6a4c调用ResourceAvailable wrapper0xa6e0。这进一步绑定了
+**默认配置的消费者路径**，没有找到ARC节点注册者，也不能据此把current_cx/
+current_mx填成0x100。Pmic/DAL动态命名、外部协议或其他初始化仍待追查。
+读取“没有xrefs”的工具结果不作为不可达证明。
+
+私有证据`dal-clock-rail-config-evidence.json`（25 records）和
+`clock-rail-consumer-final-evidence.json`（57 records）及对应snapshot。
+`verify-icb-registrar-evidence.py`增加属性/结构/四默认值/终止边界、14条
+Clock读取与可用回调指令核验；v6普通/优化receipt PASS且相同，SHA256
+`d50ad73ff9aaea7bcb0d903e26b3544f65b1ca48977127800aac8503def56e15`。
+24合成测试普通/优化均通过，v1-v5均保留。没有内核/UEFI代码改动或构建，
+手机保持正常配对版，无新测试点；PAS13=false与资源/SMMU接管尚未解决，
+GPU/Metal/认证未执行。14:08批已提交推送`a6a332e`，本节为后续追加。
+
 ## 2026-11-10 14:08：内部隐式等待与EBS清理补证
 
 同一已验收RpmhDxe原件SHA03ccd266...，REA/Ghidra12.1.2与本机Capstone
