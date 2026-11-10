@@ -40,6 +40,7 @@ jobs:
           cp cepheus/xnu/cepheus_gpu_power.h dxb/patches/
           cp cepheus/xnu/cepheus_arc.h cepheus/xnu/cepheus_arc_probe.h dxb/patches/
           cp cepheus/xnu/cepheus_arc_active.h cepheus/xnu/cepheus_arc_active_private.h dxb/patches/
+          cp cepheus/xnu/cepheus_bcm_active.h cepheus/xnu/cepheus_bcm_active_private.h cepheus/xnu/cepheus_rpmh_active_private.h dxb/patches/
           cp cepheus/xnu/cepheus_bcm.h dxb/patches/
           for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
             cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h cepheus_zap_cache.h \
@@ -171,6 +172,7 @@ jobs:
           python3 cepheus/scripts/test-scm-codegen.py
           python3 cepheus/scripts/test-gpll0.py
           python3 cepheus/scripts/test-arc-active-native.py ios-sweet/xnu/patches
+          python3 cepheus/scripts/test-bcm-active.py --patches ios-sweet/xnu/patches
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_scm_discovery.c -o /tmp/ceph-scm-discovery
           /tmp/ceph-scm-discovery
       - name: Install verified KDK 13.5

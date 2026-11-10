@@ -43,6 +43,9 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_gpll0_private.h'),
                                 ('bsd/dev', 'cepheus_clock_measure.h'),
                                 ('bsd/dev', 'cepheus_clock_measure_private.h'),
+                                ('bsd/dev', 'cepheus_bcm_active.h'),
+                                ('bsd/dev', 'cepheus_bcm_active_private.h'),
+                                ('bsd/dev', 'cepheus_rpmh_active_private.h'),
                                 ('bsd/dev', 'cepheus_zap_image.h'),
                                 ('bsd/dev', 'cepheus_zap_memory.h'),
                                 ('bsd/dev', 'cepheus_zap_pas.h'),
@@ -121,7 +124,7 @@ class Integration(unittest.TestCase):
     def test_boot_sources_do_not_invoke_gpu_engines(self):
         # A build can accidentally retain all symbols AND introduce a startup
         # call. Keep this separate check on actual boot-facing source bodies.
-        dangerous=('cepheus_gpu_arc_raise','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
+        dangerous=('cepheus_gpu_arc_raise','cepheus_gpu_bcm_raise','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
                    'cepheus_gpu_gpll0_hold','cepheus_gpu_gpll0_check','ceph_gpll0_hold',
                    'cepheus_gpu_gpll0_measure','ceph_clock_measure_run',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',

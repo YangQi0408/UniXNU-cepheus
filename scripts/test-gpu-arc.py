@@ -24,14 +24,16 @@ class ArcIntegrationTests(unittest.TestCase):
             (tree / "bsd/conf/files").write_text("base XNU inventory\n")
             subprocess.run(["bash", str(ROOT / "xnu/0086-stage-cepheus-gpu-arc.sh")],
                            cwd=tree, check=True)
-            for name in ("cepheus_arc.h", "cepheus_arc_probe.h", "cepheus_arc_active.h", "cepheus_arc_active_private.h"):
+            for name in ("cepheus_arc.h", "cepheus_arc_probe.h", "cepheus_arc_active.h", "cepheus_arc_active_private.h",
+                         "cepheus_bcm_active.h", "cepheus_bcm_active_private.h", "cepheus_rpmh_active_private.h"):
                 self.assertEqual((tree / "bsd/dev" / name).read_bytes(), (ROOT / "xnu" / name).read_bytes())
             self.assertFalse((tree / "bsd/dev/sweet_rpmh.c").exists())
 
     def test_native_files_in_both_copy_manifests(self):
         for path in ('scripts/build-kernel-patches.sh', '.github/workflows/touch-kernel.yml'):
             text = (ROOT / path).read_text()
-            for name in ('cepheus_arc_active.h', 'cepheus_arc_active_private.h'):
+            for name in ('cepheus_arc_active.h', 'cepheus_arc_active_private.h',
+                         'cepheus_bcm_active.h', 'cepheus_bcm_active_private.h', 'cepheus_rpmh_active_private.h'):
                 self.assertIn(name, text, path)
 
     def test_real_patch_after_touch_enable_only(self):
@@ -54,7 +56,7 @@ class ArcIntegrationTests(unittest.TestCase):
             after = file.read_text()
             self.assertEqual(after.count('#include "cepheus_arc_probe.h"'), 1)
             added = ('#include "cepheus_arc_probe.h"\nextern int get_preemption_level(void);\n'
-                     '#include "cepheus_arc_active_private.h"\n')
+                     '#include "cepheus_arc_active_private.h"\n#include "cepheus_bcm_active_private.h"\n')
             self.assertEqual(after.replace(added, ''), before)
             self.assertTrue(after.rstrip().endswith(added + '#endif /* ARM64_BOARD_CONFIG_SWEET */'))
 

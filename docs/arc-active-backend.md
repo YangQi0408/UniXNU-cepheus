@@ -107,3 +107,12 @@ Independent local acceptance at 17:52 CST:
 
 The fixed kernel is a verified building block, not an executable GPU profile.
 No image packaging, boot, PAS authentication, or GPU execution followed.
+
+20:49 continuation: ARC now uses the shared private ACTIVE sender also used by
+the new fixed GPU-route BCM backend. Reads check owners before and after MMIO,
+all normal banks are rechecked after masking the selected IRQ, and ARC retains
+its one WRITE_ACK/14-store behavior. Revised ARC RAM coverage is 153 lease
+boundaries; native/staged compilation and sanitizers pass. See
+`bcm-active-backend.md`. This changes production code: the earlier accepted
+`bba0314`/`aa585f5` kernels do not contain the revised sender. Genuine owners and
+final inherited votes are still absent; no startup or phone operation was added.

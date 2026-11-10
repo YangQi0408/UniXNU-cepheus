@@ -3,6 +3,7 @@
 
 Platform declarations stand in for XNU headers. No firmware, MMIO or SMC runs.
 """
+import argparse
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -10,7 +11,11 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PINNED = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT.parent / 'inputs/ios-sweet-ordered-touch/xnu/patches'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('patches', type=Path, nargs='?', default=ROOT.parent/'inputs/ios-sweet-ordered-touch/xnu/patches')
+parser.add_argument('--headers', type=Path, default=ROOT/'xnu')
+args = parser.parse_args()
+PINNED = args.patches.resolve()
 if not PINNED.is_dir():
     raise SystemExit('Supply the pinned ios-sweet patch directory')
 spec = importlib.util.spec_from_file_location('power', ROOT / 'scripts/prepare-touch-power-patch.py')
@@ -55,15 +60,15 @@ with tempfile.TemporaryDirectory() as directory:
     source.write_text(declarations + body + '\n')
     command = ['clang', '--target=aarch64-none-elf', '-std=c11', '-O2', '-ffreestanding',
                '-Wall', '-Wextra', '-Werror', '-DARM64_BOARD_CONFIG_SWEET=1',
-               '-I', str(ROOT/'xnu')]
+               '-I', str(args.headers.resolve())]
     assembly = tree/'rpmh.s'
     subprocess.run(command + ['-S', str(source), '-o', str(assembly)], check=True)
     text = assembly.read_text()
-    if 'cepheus_gpu_arc_raise:' not in text or 'dsb\tosh' not in text or 'dmb\tosh' not in text:
-        raise SystemExit('Missing native ARC symbol or actual MMIO barriers')
+    if any(symbol not in text for symbol in ('cepheus_gpu_arc_raise:', 'cepheus_gpu_bcm_raise:', 'dsb\tosh', 'dmb\tosh')):
+        raise SystemExit('Missing native ARC/BCM symbol or actual MMIO barriers')
     subprocess.run(command + ['-c', str(source), '-o', str(tree/'rpmh.o')], check=True)
     analysis = subprocess.run(command + ['--analyze', '-Xanalyzer', '-analyzer-output=text',
                                          str(source), '-o', '/dev/null'], capture_output=True, text=True)
     if analysis.returncode or 'warning:' in analysis.stderr or 'error:' in analysis.stderr:
         raise SystemExit(analysis.stdout + analysis.stderr)
-print('Pinned RPMh + actual ARC ACTIVE adapter: AArch64 compile/assembly and static analysis PASS; not executed')
+print('Pinned RPMh + actual ARC/BCM ACTIVE adapters: AArch64 compile/assembly and static analysis PASS; not executed')

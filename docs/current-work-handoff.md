@@ -1,5 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 20:49：新增实际sweet_rpmh固定GPU路线BCM ACTIVE raise，
+仅SH2/SN15/SN3/SH0/MC0/ACV，真实DB地址/单位/宽/VCD、14bit X/Y只升、
+ACV0->8；稳定VCD/commit/response/wait、新IRQ+每cmd issued/所需complete。
+与ARC复用真实锁/poison发送器，逐访问前后owner/DB失败锁存，八bank BCM
+冲突及mask后二次拒绝；29写严格序列/1977 PROT_NONE owner/ARC153失效点、
+ASan/UBSan/原生完整RPMh/staged-only/静态分析PASS。receipt
+out/bcm-active-local-20261110-final-v2/；最终四步preflight
+out/bcm-active-preflight-20261110-final-v2/状态以receipt为准。
+生产owner/最终继承票/ACK仍无实现，不用空TCS/软件snapshot冒充；详见
+bcm-active-backend.md。新生产代码尚无完整XNU编译/链接，不用aa585f5核
+冒充本批。无手机操作/镜像/启动hook/新测试点，正常SCM配对版保持；
+PAS13=false/supported=false/CP halt不改，GPU scratch/fence/Metal未执行。
+下一真实ledger/全局writer及deep-idle协调，剩余clocks/GDSC/PAS13/PA/
+crypto/SMMU与parent测量准入仍缺。
+
 最新2026-11-10 20:19：完整XNU CI42810544983 @aa585f5于20:05:32成功，
 产物/日志已下载并本机独立验收PASS，kernel17450712B，SHA256
 dd7d7339da56279976d8ca881a26419d943ccb3b6e5a6c2a14ef37c9128b4a83；
