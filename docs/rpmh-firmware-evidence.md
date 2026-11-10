@@ -1,5 +1,88 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 15:35：两层聚合与已验收DXE派发顺序
+
+本机离线原件核验；没有协议执行、SMC/MMIO、手机操作、生产后端或内核改动。
+上一批已提交推送`b23e4ec`，本节是后续新增，不覆盖旧receipt或证据。
+
+**Clock实际两层聚合已连通，不能只继承crypto单客户端请求：**
+
+- `0xd294`遍历节点request list（count+0/table+8），每项IB+0、AB+8、
+  NPA client pointer+16；读取client+0x30的类型。`type==0x1400`和其他
+  客户端分成两桶，各自取最大IB、累加AB。只记录原类型，未凭参考命名为
+  suppressible/required。节点state为total+0、两桶IB+8/+16、AB+24/+32。
+- `0xd138`在非溢出域取`max(两桶IB, ceil(两桶AB之和/max(ports,1)))`。
+  原循环的AB相加是64位模加，没有溢出拒绝；不能直接用于任意外部输入。
+- `0xd450`再遍历BCM关联的master kind7/slave kind8节点；kind0按width/
+  aggregation ports向上换算，每桶IB/AB分别取跨节点最大值，BCM total为
+  `max(两桶IB, 两桶AB之和)`，不是再把所有路径AB求和。mode3跳过重算；
+  `0xd9d4`已查初始化只设置mode1、随后mode2，不能据此穷举其他模式写入。
+- `0xe894`形成active bandwidth：IB取两桶最大、AB取两桶之和，各按unit
+  ceil后交`0xe190`编码；`0xe964`对vector kind2按total是否非零选择
+  `node+0x50 | valid29`或零。`+0x50`动态应用mask的初始化仍未建立。
+- `0xdb80..0xdc63`先排空software queue0x451f0，再排空hardware queue
+  0x451e8，分别进入节点/BCM聚合后尾跳`0xe9dc`。Ghidra同时给该canonical
+  procedure附属`0xe200..0xe273`，两段均保存，但不能用附属清理段代替提交段。
+  `0xe8fc`按动态clock_id+0x18排序RPMh请求，byte+0x14避免重复排队。
+  **软件队列排空不是活态ACK，也不是完整client/最终交接快照。**
+
+`verify-crypto-icb-evidence.py`增加上述76条关键指令与有界函数覆盖要求。
+31项合成测试普通/优化均通过，包括原指令拒绝、每段缺失及不连续函数边界。
+v3两模式原件receipt为PASS_STATIC_BYTES_ONLY且完全相同，SHA256
+`c7e2af21cc19214027f3cd399756151ded5516ef208580e2e815824a7720cb90`。
+新`clock-resource-handoff-v1-evidence.json`含142 records，另保留snapshot。
+
+**首次绑定实际DXE core，而非把相邻源码当作手机行为：**
+
+accepted boot内GUID`D6A2CB7F-6A18-4E2F-B43B-9920A733700A`的PE119808B，
+与本机`uefi/Build/SurfaceDuo1Pkg/RELEASE_CLANGPDB/AARCH64/DxeCore.efi`
+逐字节相同，SHA256
+`311a20a50632dbabdfcdaa9bc2ed7d08e4712c2c70b8f3f18b66834803812be8`。
+DEBUG产物不相同，未用于推断。link map仅帮助定位；结论另经REA/Ghidra及
+Capstone原字节核验，不依赖map符号可信度。
+
+`CoreExitBootServices`实际entry`0x1a80`：Before group只派发一次→禁timer→
+校验map key及runtime map→失败派发Failed group返回，或设置terminated并
+派发EBS group→内存保护/CPU中断处理→清system table BootServices并清表。
+三个GUID原字节已匹配，EBS为`27abf055-b1b8-4c26-8048-748f37baa2df`。
+
+`0x5f24`通过`0x133b0`把signal event插在group链表头；`0x6194`向前遍历，
+`0x6120→0x133c4`将notify插在每TPL队列尾。释放event lock经
+`0x5f18→0x13394→0x3dec`，选择高于调用者TPL的最高pending TPL先处理，
+每TPL取队头、释放锁、直接BLR callback并继续排空。因此同TPL简单情形为
+**注册逆序**，不同TPL为**高TPL先运行**。已排队/重排队、嵌套、事件增删及
+实际caller TPL会影响顺序；没有手机最终event清单，不能断言RPMh回调是
+全局最后写入者。同步callback返回也不代表其资源已ACK或外部writer消失。
+
+当前`unixnu/.../DarwinBoot.c`与配对版staged源码SHA不同；真正构建源码为
+`out/scm-pair-final-6ce4c7c/firmware/source/DarwinBootPkg/Driver/DarwinBoot.c`，
+SHA`b3421f8fad312348ae26040d2f973408d320124c6d1f43456611b8ca100d6150`。
+其661行capture在循环前；664行GetMemoryMap、669行EBS、671行成功后
+SCM handoff、672行DarwinEnter。最多三次，只有EFI_INVALID_PARAMETER重取
+map重试。这里是**staged源码观察**，本轮未反汇编该DarwinBoot入口；没有
+资源quiesce/final snapshot的源码路径，既有SCM handoff不是资源交接凭据。
+
+新增独立`scripts/verify-resource-handoff-evidence.py`，绑定accepted core并
+核验61条指令/三GUID/有界读取，6项合成测试普通/优化通过。v2两模式receipt
+PASS_STATIC_BYTES_ONLY且相同，SHA256
+`8e283f1f3bd2cb2a3b5c25c7a861db9548f6ade79e40b143980cd0d51f4044f3`。
+私有logs目录保留`dxecore-resource-handoff-final-evidence.json`30 records及
+snapshot；v1/v2中间证据和旧receipt均保留。NPA8/ICB24回归通过。
+
+下一需绑定staged DarwinBoot实际入口、收敛其他最后写入者/完整client及
+ARC状态，才能设计preallocated最终交接与XNU唯一owner。新建一个EBS
+callback、提高TPL或直接复制pre-EBS缓存都不保证“最后”，不能补造lease。
+PAS13=false、secure PA/XPU、crypto clock生命周期及SMMU仍缺；本轮没有
+生产后端、新核、构建或GPU真机点。手机保持正常配对版，supported=false/
+CP halt不绕过，GPU scratch/fence、Metal和PAS认证仍未执行。
+
+```sh
+python3 scripts/test-resource-handoff-evidence.py
+python3 -O scripts/test-resource-handoff-evidence.py
+python3 scripts/verify-resource-handoff-evidence.py --root .. \
+  --output /absolute/new/resource-handoff-receipt.json
+```
+
 ## 2026-11-10 15:08：crypto BCM映射、CmdDb来源与换算
 
 本机离线原件续查；没有执行固件/协议/SMC/MMIO，手机和生产后端均未改动。

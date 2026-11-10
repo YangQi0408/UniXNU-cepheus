@@ -36,6 +36,9 @@ BCM_ASSOCIATIONS = (
     (0x31e10, 'slave', 0x32340, (0x32350, 0x32448)))
 BCM_NAMES = ((0x3ca30, 'CE0', 0), (0x3b160, 'SN11', 0), (0x3b260, 'SN0', 0),
              (0x321f8, 'SH0', 0), (0x32350, 'MC0', 0), (0x32448, 'ACV', 2))
+AGGREGATION_RANGES = ((0xd138, 76), (0xd294, 188), (0xd450, 376),
+                      (0xdb80, 228), (0xe200, 116), (0xe8fc, 104),
+                      (0xe894, 104), (0xe964, 44), (0xd9d4, 428), (0xd5c8, 88))
 
 
 def covered(reads, address, size):
@@ -218,6 +221,71 @@ def cmddb_provider(blob, segments, reads):
                             'Static source pointer and header guard do not prove live database bounds/ownership']}
 
 
+def clock_aggregation(blob, segments, reads):
+    checks = (
+        (0xd2a4, 'ldr', 'x10, [x1, #8]'), (0xd2ac, 'ldr', 'w14, [x1]'),
+        (0xd2c8, 'mov', 'w15, #0x1400'), (0xd2d0, 'ldr', 'x16, [x10], #8'),
+        (0xd2d4, 'ldr', 'x17, [x16, #0x10]'), (0xd2d8, 'ldr', 'w0, [x17, #0x30]'),
+        (0xd2dc, 'ldr', 'x17, [x16]'), (0xd2e0, 'cmp', 'w0, w15'),
+        (0xd2e4, 'b.ne', '#0xd2fc'), (0xd2e8, 'ldr', 'x16, [x16, #8]'),
+        (0xd2f0, 'csel', 'x11, x17, x11, hi'), (0xd2f4, 'add', 'x13, x16, x13'),
+        (0xd2fc, 'ldr', 'x1, [x16, #8]'), (0xd304, 'csel', 'x8, x17, x8, hi'),
+        (0xd308, 'add', 'x12, x1, x12'), (0xd310, 'cmp', 'x9, x14'),
+        (0xd314, 'b.ne', '#0xd2d0'), (0xd31c, 'stp', 'x8, x11, [x19, #8]'),
+        (0xd324, 'stp', 'x12, x13, [x19, #0x18]'), (0xd338, 'bl', '#0xd138'),
+        (0xd33c, 'str', 'x0, [x19]'),
+        (0xd138, 'ldp', 'x10, x9, [x0, #0x18]'), (0xd13c, 'ldp', 'x11, x12, [x0, #8]'),
+        (0xd14c, 'csel', 'x13, xzr, x9, eq'), (0xd154, 'csel', 'x14, x11, x12, hi'),
+        (0xd164, 'csinc', 'x16, x8, xzr, ne'), (0xd168, 'udiv', 'x17, x15, x16'),
+        (0xd174, 'cinc', 'x1, x17, ne'), (0xd17c, 'csel', 'x0, x14, x1, hi'),
+        (0xd458, 'cmp', 'w8, #3'), (0xd45c, 'b.eq', '#0xd5c4'),
+        (0xd468, 'ldr', 'w15, [x0, #0xa8]'), (0xd488, 'ldr', 'x1, [x0, #0xb0]'),
+        (0xd494, 'cmp', 'w1, #8'), (0xd49c, 'cmp', 'w1, #7'),
+        (0xd5a8, 'stp', 'x12, x10, [x0, #0x30]'), (0xd5ac, 'add', 'x8, x10, x13'),
+        (0xd5b0, 'str', 'x13, [x0, #0x40]'), (0xd5b4, 'csel', 'x14, x11, x12, hi'),
+        (0xd5bc, 'csel', 'x16, x14, x8, hi'), (0xd5c0, 'stp', 'x16, x11, [x0, #0x20]'),
+        (0xdbb0, 'strb', 'wzr, [x9, #0x18]'), (0xdbd0, 'bl', '#0xd350'),
+        (0xdbdc, 'bl', '#0xd3d0'), (0xdbe8, 'bl', '#0xd208'),
+        (0xdc04, 'strb', 'wzr, [x8, #0x18]'), (0xdc28, 'bl', '#0xd5c8'),
+        (0xdc34, 'bl', '#0xd620'), (0xdc40, 'bl', '#0xd678'), (0xdc60, 'b', '#0xe9dc'),
+        (0xe894, 'str', 'x19, [sp, #-0x20]!'), (0xe8a4, 'ldp', 'x8, x9, [x1, #8]'),
+        (0xe8a8, 'ldp', 'x11, x12, [x1, #0x18]'),
+        (0xe8b4, 'csel', 'x13, x8, x9, hi'), (0xe8bc, 'add', 'x14, x8, x11'),
+        (0xe8c4, 'add', 'x16, x14, x12'), (0xe8d0, 'bl', '#0xe190'),
+        (0xe8ec, 'str', 'w9, [x19, #0x88]'),
+        (0xe964, 'ldr', 'x9, [x1]'), (0xe974, 'orr', 'w9, w9, #0x20000000'),
+        (0xe97c, 'str', 'w9, [x8, #0x88]'),
+        (0xe8fc, 'ldrb', 'w8, [x1, #0x14]'), (0xe900, 'cbz', 'w8, #0xe908'),
+        (0xe91c, 'ldr', 'w10, [x10, #0x18]'), (0xe920, 'ldr', 'w11, [x11, #0x18]'),
+        (0xe924, 'cmp', 'w10, w11'), (0xe928, 'b.lo', '#0xe938'),
+        (0xe95c, 'strb', 'w9, [x1, #0x14]'),
+        (0xd5d8, 'bl', '#0xd450'), (0xd5e0, 'ldr', 'w8, [x8, #0x1e0]'),
+        (0xd5ec, 'b.lo', '#0xd600'), (0xd5fc, 'cbz', 'x8, #0xd614'),
+        (0xd610, 'b', '#0xe894'), (0xda14, 'str', 'w9, [x21]'),
+        (0xdb60, 'mov', 'w17, #2'), (0xdb64, 'str', 'w17, [x20, #0x1e0]'))
+    decoded = instructions(blob, segments, reads, AGGREGATION_RANGES, checks)
+    return {
+        'client_aggregator': '0xd294', 'client_list': {'count': 0, 'table': 8},
+        'client_request': {'ib': 0, 'ab': 8, 'npa_client': 16, 'client_type': 'npa_client+0x30'},
+        'buckets': {'ordinary': 'type != 0x1400', 'special': 'type == 0x1400'},
+        'node_state_offsets': {'total': 0, 'ordinary_ib': 8, 'special_ib': 16,
+                               'ordinary_ab': 24, 'special_ab': 32},
+        'node_rule': 'Per bucket: max IB, sum AB; total=max(IBs, ceil(sum AB / max(ports,1))) in nonoverflow domain',
+        'node_ab_overflow': 'AArch64 ADD is modulo 2^64; no overflow guard in the examined loop',
+        'bcm_rule': 'For each bucket: max normalized node IB/AB; total=max(IBs, sum of bucket ABs)',
+        'active_bandwidth': 'ceil(max(bucket IBs)/unit), ceil(sum bucket ABs/unit), then 0xe190 encoding',
+        'vector_kind_2': '0xe964 selects node+0x50 | valid29 when total is nonzero; otherwise zero',
+        'software_queue': '0x451f0 -> master/slave/latency aggregation',
+        'hardware_queue': '0x451e8 -> bandwidth/vector/latency aggregation; then tail branch to 0xe9dc',
+        'rpmh_queue': '0xe8fc skips already queued records and sorts by dynamic node clock_id+0x18',
+        'initialization_mode': '0xd9d4 writes mode1 then mode2; 0xd450 skips recomputation when mode3',
+        'instructions': decoded,
+        'limitations': ['Complete bounded procedure bytes, not complete runtime client inventory',
+                        'Bucket names beyond raw type0x1400 are not inferred from nearby builds',
+                        'Other modes/writers, vector mask initialization, overflow and live unit validation remain unresolved',
+                        'Queue drain and software aggregation are not a live hardware ACK or final EBS ownership lease']}
+
+
 def hash_request(blob, segments, reads):
     constants = struct.unpack('<2Q', read(blob, segments, reads, 0xb010, 16))
     require(constants == (1600000000, 55250000), 'unexpected Hash bandwidth constants')
@@ -316,12 +384,21 @@ def verify(root):
                               'read_evidence_ids': list(reads.values())}
     reference = json.loads((Path(__file__).resolve().parents[1] /
                             'docs/crypto-icb-reference.json').read_text())
+    module = modules['ClockDxe']
+    blob = bcm_binaries['ClockDxe'][0]
+    raw = (root / 'logs/pas13-instruction-replay-20261110/clock-resource-handoff-v1-evidence.json').read_bytes()
+    segments, reads = ICB.checked_reads(blob, module['sha256'], json.loads(raw))
+    aggregation = clock_aggregation(blob, segments, reads)
     return {'status': 'PASS_STATIC_BYTES_ONLY', 'boot_sha256': accepted['boot_sha256'],
             'evidence': evidence, 'crypto_route': route, 'hash_request': request,
             'clock_abi': parser, 'reference_correlation': reference,
             'bcm_evidence': bcm_evidence, 'crypto_bcms': crypto_bcms(*bcm_binaries['DALSys']),
             'clock_bcm': clock_bcm(*bcm_binaries['ClockDxe']),
             'cmddb_provider': cmddb_provider(*bcm_binaries['CmdDbDxe']),
+            'aggregation_evidence': {'module_sha256': module['sha256'],
+                                     'bundle_sha256': hashlib.sha256(raw).hexdigest(),
+                                     'read_evidence_ids': list(reads.values())},
+            'clock_aggregation': aggregation,
             'unknowns': ['Configured path and generated request are not observed live votes or ACKs',
                          'Reference source is a different build/platform, not firmware provenance',
                          'Live BCM fields/aggregate votes, last EBS writes and XNU ownership remain unverified',

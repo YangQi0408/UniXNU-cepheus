@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 15:35：Clock两层client/BCM聚合与accepted DxeCore EBS
+派发顺序离线原件核验。节点两桶type0x1400/其他各max IB+sum AB，BCM各
+max归一节点而非再sum路径；active/vector及sorted clock_id队列已留证。
+mode/溢出/完整client活态未知。accepted DXE core119808B/SHA311a20a5...
+与本机RELEASE逐字节一致，非DEBUG；先map校验再EBS，高TPL先/同TPL通常
+注册逆序，同步callback非硬件ACK/唯一owner。当前与staged DarwinBoot
+源码不同，后者EBS成功后仅SCM handoff→DarwinEnter；其实际入口仍待绑定。
+crypto31/交接6项测试普通/优化通过，两原件receipt各自两模式一致；NPA8/
+ICB24通过，clock-resource-handoff-v1/dxecore-resource-handoff-final证据
+与snapshot保存私有logs，详见RPMh文档。15:08批b23e4ec已推送。本轮无
+生产后端/内核/构建/手机操作/新GPU测试点；下一最终writer/client/ARC/
+XNU owner，PAS13=false/PA/XPU/crypto clocks/SMMU仍缺，正常配对版保持，
+supported=false/CP halt不绕过，GPU/Metal/PAS认证未执行。
+
 最新2026-11-10 15:08：crypto六BCM与动态参数来源已离线绑定原件：CE0/SN11/
 SN0/SH0/MC0/ACV（vector kind2）；DAL初始command/width/unit/clock_id均0，
 非活票。Clock通过CmdDb slot0x38(aux8B)/0x10(address)填参数；accepted boot

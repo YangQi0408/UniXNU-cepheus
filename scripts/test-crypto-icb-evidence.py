@@ -191,6 +191,54 @@ class AbiTests(unittest.TestCase):
             VERIFY.require(False, 'explicit guard')
 
 
+class AggregationTests(unittest.TestCase):
+    def fixture(self):
+        blob, segments, reads, put = fixture()
+        reads.clear()
+        for address, size in VERIFY.AGGREGATION_RANGES:
+            put(address, bytes(size))
+        return blob, segments, reads, put
+
+    def test_two_levels_and_queue_order_are_static_only(self):
+        blob, segments, reads, _ = self.fixture()
+        with patch.object(VERIFY.ICB, 'instruction', side_effect=AbiTests().capture):
+            result = VERIFY.clock_aggregation(blob, segments, reads)
+        self.assertEqual(result['buckets']['special'], 'type == 0x1400')
+        self.assertIn('max IB, sum AB', result['node_rule'])
+        self.assertIn('max normalized node', result['bcm_rule'])
+        self.assertIn('clock_id+0x18', result['rpmh_queue'])
+        self.assertIn('modulo 2^64', result['node_ab_overflow'])
+        self.assertIn('not a live hardware ACK', result['limitations'][-1])
+        checked = {(item['address'], item['operands']) for item in result['instructions']}
+        self.assertIn(('0xdc60', '#0xe9dc'), checked)
+        self.assertIn(('0xd2f4', 'x13, x16, x13'), checked)
+
+    def test_every_bounded_body_requires_coverage(self):
+        blob, segments, reads, _ = self.fixture()
+        for missing in VERIFY.AGGREGATION_RANGES:
+            changed = reads.copy()
+            del changed[missing]
+            with self.assertRaisesRegex(ValueError, 'coverage'):
+                VERIFY.clock_aggregation(blob, segments, changed)
+
+    def test_discontiguous_body_cannot_substitute_queue_drain(self):
+        blob, segments, reads, _ = self.fixture()
+        del reads[0xdb80, 228]
+        with self.assertRaisesRegex(ValueError, 'coverage'):
+            VERIFY.clock_aggregation(blob, segments, reads)
+
+    def test_changed_aggregation_instruction_rejected(self):
+        blob, segments, reads, _ = self.fixture()
+        with patch.object(VERIFY.ICB, 'instruction', side_effect=ValueError('changed aggregation opcode')):
+            with self.assertRaisesRegex(ValueError, 'changed aggregation opcode'):
+                VERIFY.clock_aggregation(blob, segments, reads)
+
+    def test_actual_synthetic_instruction_bytes_rejected(self):
+        blob, segments, reads, _ = self.fixture()
+        with self.assertRaisesRegex(ValueError, 'unexpected instruction'):
+            VERIFY.clock_aggregation(blob, segments, reads)
+
+
 class BcmTests(unittest.TestCase):
     def fixture(self):
         blob, segments, reads, put = fixture()
