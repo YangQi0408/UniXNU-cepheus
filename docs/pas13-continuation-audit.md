@@ -51,6 +51,14 @@ cache。其间接/未展开 callee 的全部副作用未建立，不能据此宣
 
 ## 下一行动
 
+2026-11-10 更新：下述配对已完成一次。UEFI 和 XNU 各七次查询完整且经
+生产策略重放与 handoff checksum 核验，PAS13 均为 false。EL 均0x4，
+MPIDR 为0x81000000/0x81000200；用户简短触摸/唤醒确认正常。证据
+`../logs/scmpair-6ce4c7c-live-20261110-1226/scm-pair.json`，详见
+[配对结果](scm-pair-preflight.md)。本轮表明 false 在 XNU 接管前已存在，
+没有排除启动历史、运行 TZ/EL2 或 descriptor/cache 解释。下段保留原计划，
+不要把它当作重复查询请求；下一应离线调查接管前环境和独立资源后端。
+
 同一 XNU 阶段重复相同查询不会区分当前剩余假设。若后续确实需要真机
 定位 supported=false，有辨别力的最小对照是在同一启动链中，于 UEFI
 ExitBootServices 前取得固定 PAS13 查询结果、把原始返回和 CurrentEL /

@@ -1,5 +1,48 @@
 # UEFI/XNU PAS13 paired diagnostic
 
+## Hardware Result: 2026-11-10
+
+One temporary boot of the exact candidate below succeeded on `67eea163/cepheus`
+at 12:27:29 +08:00. No partition was flashed. The saved production-policy
+analysis returns `PAIR_COMPLETE`: seven UEFI calls and seven XNU calls,
+including CPU context, complete input/output and pair end; the reconstructed
+2656-byte handoff checksum passes. Both stages report availability `0x1f`.
+Both PAS13 inputs are `0x42000207:0x1:0xd:0:0:0:0:0`, returning eight zeros:
+**false before ExitBootServices and false in XNU**. The policy `e=-1` records
+unsupported status here, not a PAS authentication attempt or transport error.
+
+CurrentEL is `0x4` in both stages. UEFI MPIDR is `0x81000000`; all XNU calls
+record `0x81000200`. Different CPU records do not establish a causal explanation.
+This pair excludes a change occurring only after XNU handoff as a necessary
+explanation of this boot's false. It does not identify the running secure image,
+exclude EL2 mediation, or explain runtime descriptors/cache or boot history.
+Do not repeat this query or bypass supported=false on the basis of this result.
+
+The initial scheduled marker was received; the paired end was received at
+12:29:42.469353 +08:00. UDP receipt times do not verify the kernel's 90-second
+wait, so `logger_delay_verified=false` is retained. The user replied `正常`
+after the requested brief tap/swipe and power sleep/wake check, observed by
+12:30:55 while capture was still active. Five post-query health records show
+events 3 to 189, HID calls to 184 and zero errors; blank/display-on records
+also exist. This user report is not a long-term stability claim.
+
+Capture was explicitly ended at 12:30:56, 245.090645 seconds of a 300-second
+maximum: 396 accepted packets, 143442 bytes, zero rejected packets. Packet
+accounting and log SHA256 pass; host RX errors/drops were zero. Thirty complete
+RAW batches (124 of 128 bounded events) replay with no reporting differences;
+the final partial batch is omitted, not fabricated. Capture and the owned
+watcher have exited; no automatic reboot, restore or retry occurred. The phone
+is left running this accepted paired candidate, superseding the earlier
+zapmem-b5006b5 running-state record below.
+
+Evidence: `../logs/scmpair-6ce4c7c-live-20261110-1226/` contains `result.json`,
+`scm-pair.json`, raw `boot.log`, `packets.jsonl`, `capture.json`, `fastboot.log`,
+`touch-replay.json` and final host USB/link observations. Raw log SHA256:
+`d064993a178115a05e66c34136419c842e3578bb0a633a0e46facc1fa35c64fb`.
+GPU/PAS authentication and Metal were not executed. Next work is offline
+investigation of the pre-XNU secure/boot environment plus the independent
+resource/crypto/secure-memory/power/SMMU backend gaps, not another control round.
+
 ## Verified Candidate
 
 On 2026-11-09 the kernel pair implementation was committed as `e5e7104`.
@@ -21,7 +64,8 @@ packaging container `cepheus-build:latest` with networking disabled:
 SHA256 `2c93dc3333665bdbc8f1c835c0e59226f5b2a0cfda2678d4bb121a3fc86903d2`.
 All four build/repack/package/independent-verification steps passed. Receipts:
 `out/scm-pair-final-6ce4c7c/receipt.json` and `boot-verification.json`.
-The image has not been booted; hardware behavior remains unverified.
+At the end of this 2026-11-09 preparation the image had not been booted.
+The subsequent single hardware result is recorded above.
 
 Local DarwinBoot build:
 `out/scm-pair-final-6ce4c7c/firmware/build/DarwinBoot/RELEASE_CLANGPDB/AARCH64/DarwinBoot.efi`,
@@ -75,7 +119,8 @@ zapmem shim/DTB and unrelated FAT files are unchanged, the actual kernel and
 EFI match their verified inputs, and the only profile delta is replacing
 `cephzapmem=1` with `cephscmpair=1` plus a zero 2656-byte ADT slot.
 
-Stop before device operations. The accepted device remains zapmem-b5006b5.
+The following was the 2026-11-09 test plan, now executed once as recorded above;
+it is not a request to repeat the test. At that time the device ran zapmem-b5006b5.
 When testing is requested, use one temporary fastboot boot and bounded USB
 capture, followed by one brief touch/wake confirmation. Avoid another control,
 memory or full touch round. The result will distinguish whether false already

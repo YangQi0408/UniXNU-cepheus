@@ -1,5 +1,23 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新 2026-11-10 12:33 +08:00：配对诊断真机完成。67eea163/cepheus 已解锁，
+12:27:29 单次临时 boot 成功，无刷写/自动重启/恢复/重试。镜像仍为
+out/scm-pair-final-6ce4c7c/boot-scm-pair.img（SHA2c93dc333366...）。
+生产日志核验 PAIR_COMPLETE：UEFI/XNU 各7次，CPU/in/out/end齐全，handoff
+checksum通过；两段availability0x1f，PAS13输入0x42000207:1:13均返回8个0，
+即接管前已false、XNU仍false，不必以XNU接管后才变化解释本轮结果。
+两段EL0x4，UEFI MPIDR0x81000000/XNU0x81000200；运行TZ身份、EL2介入、
+descriptor/cache与启动历史仍UNKNOWN，不能据此绕过supported=false。
+用户“正常”确认主屏幕/触摸/熄屏唤醒，观察于12:30:55之前且采集仍在；
+查询后5条health events3→189/HID184/errors0，有blank/display-on。scheduled
+已捕获，但UDP接收时戳不证明90s，logger_delay_verified=false保留。
+12:30:56主动signal收尾245.090645s/300s上限、396包/143442B/拒绝0；
+RAW128中30整批124事件重放0差异，末尾4项不足整批省略。host RX错误/丢弃0，
+capture/watch已退出，手机保持本轮可用配对版。日志SHAd064993a1781...，
+完整证据../logs/scmpair-6ce4c7c-live-20261110-1226/result.json及scm-pair.json。
+下一离线查接管前secure/启动环境与独立资源后端，不重复同查询/控制/内存轮。
+PAS13=false根因未解；GPU/Metal及PAS认证未执行，平台所有权后端仍缺。
+
 最新 2026-11-09 22:51 +08:00：已到 UEFI/XNU PAS13 配对诊断的单次真机测试点。
 CI42632917379 @6ce4c7c 完整成功；kernel17449368B/SHA256
 a2a4837d80a17dfcc2dc8fa5847d03308079cc0c691f7045dfba1e86a7b66c2e。
