@@ -1,0 +1,91 @@
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -79,6 +79,11 @@
+ 
+ #include <libkern/section_keywords.h>
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++#include <kern/clock.h>
++#include "cepheus_gpu_idle_native_private.h"
++#endif
++
+ extern boolean_t        idle_enable;
+ extern uint64_t         wake_abstime;
+ 
+@@ -497,6 +501,12 @@
+ 		Idle_load_context();
+ 	}
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (!ceph_idle_enter(&ceph_gpu_idle_gate, cpu_data_ptr->cpu_number)) {
++		Idle_load_context();
++	}
++#endif
++
+ 	bool ipending = false;
+ 	uint32_t cid = cpu_data_ptr->cpu_cluster_id;
+ 
+@@ -520,6 +530,9 @@
+ 			KDBG(CPUPM_IDLE_WFE | DBG_FUNC_END, ipending, cpu_data_ptr->wfe_count, wfe_deadline);
+ 			if (ipending == true) {
+ 				/* Back to machine_idle() */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++				ceph_idle_leave(&ceph_gpu_idle_gate, cpu_data_ptr->cpu_number);
++#endif
+ 				Idle_load_context();
+ 			}
+ 		}
+@@ -535,6 +548,9 @@
+ 			KDBG(CPUPM_IDLE_TIMER_WFE | DBG_FUNC_END, ipending, cpu_data_ptr->wfe_count, ~0ULL);
+ 			assert(ipending == true);
+ 		}
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		ceph_idle_leave(&ceph_gpu_idle_gate, cpu_data_ptr->cpu_number);
++#endif
+ 		Idle_load_context();
+ 	}
+ 
+@@ -674,6 +690,11 @@
+ 	kasan_unpoison_curstack(false);
+ #endif /* KASAN_TBI */
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	if (!from_reset) {
++		ceph_idle_leave(&ceph_gpu_idle_gate, cpu_data_ptr->cpu_number);
++	}
++#endif
+ 	Idle_load_context();
+ }
+ 
+--- a/osfmk/arm64/machine_routines.c
++++ b/osfmk/arm64/machine_routines.c
+@@ -73,6 +73,10 @@
+ 
+ #include <libkern/section_keywords.h>
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++#include "cepheus_gpu_idle.h"
++#endif
++
+ /**
+  * Release builds apply second stage locks, but astris needs to access
+  * DBG_WRAP* and ACC_OVRD in order to properly halt cores.
+@@ -350,7 +354,17 @@
+ 	 * Bypasses context spill/fill for a minor perf. increment.
+ 	 * May unmask and restore IRQ+FIQ mask.
+ 	 */
+-	if (wfe_process_recommendation() == false) {
++	bool wfe_interrupted = false;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	unsigned ceph_idle_cpu = getCpuDatap()->cpu_number;
++	if (cepheus_gpu_idle_cpu_enter(ceph_idle_cpu)) {
++		wfe_interrupted = wfe_process_recommendation();
++		cepheus_gpu_idle_cpu_leave(ceph_idle_cpu);
++	}
++#else
++	wfe_interrupted = wfe_process_recommendation();
++#endif
++	if (wfe_interrupted == false) {
+ 		/* If WFE recommendation absent, or WFE deadline
+ 		 * arrived with no interrupt pending/processed,
+ 		 * fall back to WFI.

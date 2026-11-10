@@ -82,11 +82,18 @@ Preflight receipt SHA256:
 
 Committed as `d22a054` after SMMU `b5c8f2a`; combined full XNU run
 `42860421403 @d22a0541c5f4afd17fcf5cef90625dc76801405f` started at
-2026-11-11 01:00:29 Asia/Shanghai. Initial state is in_progress, not link PASS.
-Track that run and independently accept its artifact before integrated use.
+2026-11-11 01:00:29 Asia/Shanghai and completed successfully at about 01:33.
+The downloaded 17472504-byte kernel has SHA256
+`801079f0e46560de5ee4c2cd0ff5d36bb5b56402012cf42f078fec610c457656`.
+`out/kernel-verification-ci-42860421403.json` independently accepts 94 core/
+30 memory entries, no unresolved symbols, exact archived d22a054 source,
+touch/PA64/native SCM and tail ABI/helper/caller. Receipt SHA256:
+`1fd028a926a09276c9a6012783e3f14b09a4794697576ea27374df2ac1aea9c6`.
+The verifier ran from a `git archive d22a054` tree because newer idle source
+is not part of that build; no current-HEAD relabeling. No GPU execution.
 
-Next is one combined XNU compile/link and independent
-artifact acceptance for the recent native batches. Continue the real owner/
+Full combined native compilation/link and independent artifact acceptance
+are complete. Continue the real owner/
 inherited-resource/idle work and integrated startup. No phone operation or new
 boot image was produced by this module.
 

@@ -1,5 +1,21 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 01:34：组合native完整XNU CI42860421403 @d22a054成功并本机
+独立验收PASS，kernel17472504B/SHA801079f0e46560de5ee4c2cd0ff5d36bb5b564
+02012cf42f078fec610c457656，94 core/30 memory/无unresolved/touch/PA64/SCM/
+tail通过；receipt out/kernel-verification-ci-42860421403.json，SHA1fd028a9...。
+用git archive d22a054版本验收器/生产树，不把后来idle改动追认该核。
+新增真实SWEET cpu_idle和前置machine_idle WFE reader/block生命周期，one-shot
+10ms真实排空/超时拒绝/不确定keep永久保留，无startup/资源或GPU写/全局idle
+参数变化；focused accepted SHA203b2286...，10000 pthread races及实际applied
+函数体host/ASanUBSan/native AArch64/analysis通过，详见gpu-idle-coordination.md。
+后续全量preflight final-v2已PASS，四步/77 host/七分析，SHA35f198c6...；
+先前final-v1撞到修正前reset夹具失败保留。
+本批idle未完整XNU link/真机验收，无新CI/镜像/手机操作；无USB手机，等待已有
+手动fastboot回复。旧未boot tail镜像CI42835691416 @2bf48ab/SHA b7d88d435...
+不含近期native/idle。下一真实resource owner/继承/foreign writers/启动绑定；
+PAS13=false/supported=false/CP halt保持，GPU/Metal未执行，目标active不停工。
+
 2026-11-11 01:00：SMMU b5c8f2a及native upload d22a054均提交推送。
 完整合并XNU CI42860421403 @d22a0541c5f4afd17fcf5cef90625dc76801405f于
 01:00:29启动，已确认in_progress，尚非link PASS。只跟踪此run，不重复派发。

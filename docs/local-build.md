@@ -6,6 +6,22 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 01:33 combined native kernel acceptance supersedes the pending
+link notes below: CI `42860421403 @d22a054` succeeded. Downloaded kernel is
+17472504 bytes, SHA256
+`801079f0e46560de5ee4c2cd0ff5d36bb5b56402012cf42f078fec610c457656`.
+Local `out/kernel-verification-ci-42860421403.json` independently passes
+94 core/30 memory entries, no unresolved symbols, exact archived source,
+touch/PA64/native SCM and tail checks. New scoped idle code is not in that
+build. Firmware and all host/preflight/packaging work still run locally.
+
+Scoped idle work: `out/gpu-idle-local-20261111-accepted/receipt.json` accepts
+10000 eight-reader pthread races, native lifecycle and actual applied CPU/
+machine-idle bodies with host/ASan/UBSan, native AArch64 and static analysis.
+See `gpu-idle-coordination.md`; full XNU link/runtime of this later batch is
+pending, no startup caller or phone operation. The existing diagnostic boot
+image remains bound to CI42835691416, not this newer kernel.
+
 2026-11-11 native upload continuation:
 `out/upload-native-local-20261111-final-v1/receipt.json` accepts fixed native
 maps, 8433 PROT_NONE boundaries, real-pool/snapshot bindings and staged AArch64.

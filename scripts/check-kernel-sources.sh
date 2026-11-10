@@ -17,6 +17,7 @@ python3 scripts/test-gpu-arc.py "$PATCHES"
 python3 scripts/test-arc-active-native.py "$PATCHES"
 python3 scripts/test-bcm-active.py --patches "$PATCHES"
 python3 scripts/test-gpll0.py
+python3 scripts/test-gpu-idle.py
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \

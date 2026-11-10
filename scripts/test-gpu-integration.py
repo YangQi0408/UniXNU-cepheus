@@ -16,14 +16,18 @@ class Integration(unittest.TestCase):
             root=Path(directory);patches=root/'patches';patches.mkdir()
             tree=root/'tree';(tree/'bsd/conf').mkdir(parents=True)
             (tree/'bsd/dev').mkdir();(tree/'bsd/conf/files').write_text('base\n')
+            (tree/'osfmk/arm64').mkdir(parents=True)
             names=('cepheus_rpmh_snapshot.h','cepheus_rpmh_tail.h','cepheus_rpmh_tail_handoff.h')
             for name in ('0085-stage-cepheus-soc.sh','cepheus_soc.c','cepheus_soc.h',
-                         'cepheus_cpu_policy.h','cepheus_gpu_power.h'):
+                         'cepheus_cpu_policy.h','cepheus_gpu_power.h',
+                         'cepheus_gpu_idle.h','cepheus_gpu_idle_native_private.h'):
                 shutil.copyfile(ROOT/'xnu'/name,patches/name)
             for name in names:shutil.copyfile(ROOT/'firmware'/name,patches/name)
             subprocess.run(['bash',str(patches/'0085-stage-cepheus-soc.sh')],cwd=tree,check=True)
             for name in names:
                 self.assertEqual((tree/'bsd/dev'/name).read_bytes(),(ROOT/'firmware'/name).read_bytes())
+            for name in ('cepheus_gpu_idle.h','cepheus_gpu_idle_native_private.h'):
+                self.assertEqual((tree/'osfmk/arm64'/name).read_bytes(),(ROOT/'xnu'/name).read_bytes())
 
     def test_real_config_sources_when_supplied(self):
         # Optional explicit reference; synthetic coverage is not presented as

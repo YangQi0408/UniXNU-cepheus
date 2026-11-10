@@ -72,6 +72,12 @@ hardware behavior before any production owner/startup admission.
 
 ## Required Next Evidence
 
+2026-11-11 follow-on implementation: `gpu-idle-coordination.md` now describes
+actual scoped SWEET XNU `cpu_idle`/preceding-WFE reader/block hooks and a
+one-shot drain/retain API. It has no startup caller or runtime acceptance.
+This replaces only the missing local idle-path coordination component;
+foreign/hardware writers and resource ownership remain separate, unsolved.
+
 The actual owner must identify every participating XNU writer, own the exact
 mapped resources and retained inherited request state, and prevent or coordinate
 resource-affecting idle transitions throughout use, including preemption onto

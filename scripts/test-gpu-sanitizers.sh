@@ -10,3 +10,8 @@ for name in gmu_firmware zap_image gmu_upload hfi hfi_messages hfi_session gpu_v
         "$root/xnu/test_${name}.c" -o "$tmp/$name"
     "$tmp/$name"
 done
+for name in gpu_idle gpu_idle_native; do
+    "${CC:-clang}" -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
+        -fno-omit-frame-pointer "$root/xnu/test_${name}.c" -o "$tmp/$name"
+    "$tmp/$name"
+done
