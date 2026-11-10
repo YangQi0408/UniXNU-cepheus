@@ -1,5 +1,22 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 21:35：BCM/ARC完整XNU CI42819762105 @02f4077成功，内核/
+日志已下载并独立验收PASS：17451096B/SHA a0170217a28daa09a639185135a74bfb
+5315d87560fa9c822289e99ce6d56611，86 core/22 memory、无unresolved及source/
+touch/PA64/native SCM核验通过，receipt out/kernel-verification-ci-42819762105.json。
+旧aa585f5不是本批。手机/配对版不动，无打包/boot/新测试点。
+新增隔离实际DXE Core allocation/free/page-conversion生命周期记录，精确core
+请求字节/type/generation、free读头前失效、ABA拒绝/溢出sticky fail，直接页
+free/attr变更失效，不改分配器结果/保护语义。完整本地AArch64 core204288B/
+SHA5e515f548219...；实际Pool.c/ConvertPagesEx、234 alloc/233 pool free/40页，
+O0/O2 ASan/UBSan/PROT_NONE/guard/OEM/collision边界PASS；完整native Pool分析
+无warning，Page与原基线同两dead-store，不冒称全无warning。receipt
+out/pool-lifetime-core-test-20261110-accepted.json，详见pool-lifetime-core.md。
+仍无final collector/全球writer/最终票/ACK/生产owner，pre-EBS metadata query
+不是读后lease，旧phase1 snapshot限制不变；无固件源码树改动/FV/默认打包。
+下一core-owned final collector的live-map/属性/冻结生命周期及writer边界，再
+真实ledger/owner；PAS13=false/CP halt不变，GPU scratch/fence/Metal未执行。
+
 最新2026-11-10 20:49：新增实际sweet_rpmh固定GPU路线BCM ACTIVE raise，
 仅SH2/SN15/SN3/SH0/MC0/ACV，真实DB地址/单位/宽/VCD、14bit X/Y只升、
 ACV0->8；稳定VCD/commit/response/wait、新IRQ+每cmd issued/所需complete。

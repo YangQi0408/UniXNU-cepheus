@@ -91,11 +91,16 @@ first direct fixture compile rejected test-only `assert` syntax; fixing its
 parentheses did not change production. Explicit pinned patch paths were added
 after detecting the local-default path is absent in the CI checkout layout.
 
-The previously accepted full kernel is still `aa585f5`, **without this BCM
-implementation or revised ARC sender**. A new complete XNU build is required
-before accepting a kernel containing this batch. No new hardware test is
-requested for this isolated building block. PAS13=false, supported=false
-rejection and CP halt remain unchanged; scratch/fence and Metal are unrun.
+Full XNU CI `42819762105` at `02f4077` completed successfully on 2026-11-10
+at 21:23 CST. The downloaded kernel and build log independently pass
+`out/kernel-verification-ci-42819762105.json`: 17451096 bytes, SHA256
+`a0170217a28daa09a639185135a74bfb5315d87560fa9c822289e99ce6d56611`,
+86 core entrypoints, 22 memory APIs, no unresolved symbols and exact source,
+ordered-touch, PA64 and native SCM capture checks. It contains this BCM and
+revised ARC batch; the older `aa585f5` kernel does not. No packaging or boot
+occurred. No new hardware test is requested for this building block.
+PAS13=false, supported=false rejection and CP halt remain unchanged;
+scratch/fence and Metal are unrun.
 
 Next: genuine final inherited ARC/BCM ledger, exclusive writer/deep-idle
 coordination, then actual resource backend binding. Parent measurement

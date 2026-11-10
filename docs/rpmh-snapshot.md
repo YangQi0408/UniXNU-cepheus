@@ -57,6 +57,10 @@ by sleep/wake configuration. Exit callbacks can change the recorded requests.
 initialization.** Final live-map/allocation lifetime and writer exclusion remain
 required for the genuine inherited ledger and production owner.
 
+The later isolated [Core pool lifetime](pool-lifetime-core.md) stage records
+actual allocations/free attempts and page/attribute invalidation. It has no
+final EBS collector and does not lift this pre-EBS-only snapshot boundary.
+
 ## Local Acceptance
 
 `scripts/test-rpmh-snapshot.py` exercises the actual staged ADT parser and
