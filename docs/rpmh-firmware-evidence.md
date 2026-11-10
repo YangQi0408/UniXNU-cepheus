@@ -1,5 +1,67 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 13:49：ICB注册者已定位，完成屏障有不支持分支
+
+本机只做原件静态分析与有界文件核验，无手机操作、协议调用、SMC或MMIO。
+已验收boot内10个模块PE字节与原件一致，新增patched DALSys及Epsilon Limits；
+129 plain DXE inventory新增`/icb/arbiter`字节匹配。不是运行态注册证明。
+
+**首次连通实际配置与注册路径：**
+
+- patched DALSys SHA97231a87...的device表0x1dd30中`/icb/arb`对应属性offset
+  0x368。packed property0x1db00是`icb_info`、type0x12、结构索引20，不是
+  SMMU的索引21。sized entry0x1d388→config0x2dfd0→node0x2df78→resource
+  0x30e80，节点/资源同名`/icb/arbiter`。原件中driver/plugin均初始NULL；
+  这不是可直接运行的后端，也不能把NULL当注册失败。
+- 实际ClockDxe SHA babe80a2...入口0x1a74调用0xc520。该初始化先调用0xe474
+  准备fabric/RPMh handle，再0xd9d4取得配置；为主node写driver0xc650，
+  为resource写plugin0x432a0，0xc5d4→0xa764→NPA slot0x20定义节点。
+  standalone node也经0xc628定义。外部DAL提供数据、Clock携带ICB实现；此前
+  “Clock只是消费者”仅适用于已查ClockRailConfig/MDSS路径，不覆盖本链。
+- plugin0x432a0字段`[0xc704,0x1400,0,0xc930,0xca0c,0,0xcd50]`：0xc704
+  更新，0xca0c create。创建参数每master/slave pair8B；更新len>>3，每请求
+  32B。0xcc24原指令解低16位type1/2/4，bit16附加字段位于+0x18；具体单位、
+  master/slave身份及crypto请求ABI还需独立关联，不能仅凭数字推断带宽。
+- 主node driver0xc650仅`LDR w0,[x0,#0x30]; RET`，直接返回requested_state。
+  真正工作在plugin→0xdb80→0xe9dc。节点状态/EFI同步成功仍不是hardware ACK。
+
+**完成链存在明确静态缺口，不能提前取消门禁：**
+
+0xe9dc批量提交active/sleep/wake；条件分支0xeb78调用0x128fc。该包装读取
+RPMh协议slot0xb8（固定0x10001参考布局名`rpmh_barrier_all`），0x12964 BLR后
+直接恢复栈返回，不检查或传播EFI结果。本机RpmhDxe协议表0xe0f8+0xb8→0x18dc，
+实际`MOV x0,0x8000000000000003; RET`即EFI_UNSUPPORTED；slot0xc0同样不支持。
+这是**已验证的函数字节/分支关联**，不是手机执行记录，不证明该分支本轮触发；
+也未穷举替代churn/IRQ路径。该barrier分支本身不能证明请求已经硬件完成。
+此前已查Cambria CPR0xafa0调用slot0xc0，同样不能把包装调用当成功churn。
+
+关键Evidence：
+`ev_b25bf89e4bee18760b4eb6a724949939a00309c9f682299fecf9e977c04a733b`
+（Clock注册），`ev_a3cc7f01211cd7134a7a55bf902298b2685ba143c0cfe5c3574cb794eedfeedb`
+（plugin原指令），`ev_1c536a902e0a0972d0b7a6ca39d5c25cc4605c64447eb2f7dadec6d8e81fd2b4`
+（DAL node），`ev_ca77c40358cd6202e996a0b66e57ea3bf78034a5ada526d02a6ae1a0dc508a8d`
+（Clock包装），`ev_0953fd40f4c70bb9e76a8c1e2dd53f9392a2d035245d674d0b4e641a9e2fec84`
+（RPMh不支持指令）。bundle/snapshot位于同私有logs目录：dal-icb-config、
+clock-icb-barrier、rpmh-barrier-slot。Limits0x4ae4为PMIC/GFX消费者且包含GPU/GDSC
+写入，未执行；其证据limits-resource-evidence保留，不当ARC registrar。
+
+新`verify-icb-registrar-evidence.py`连同原boot解析器核验上述原字节、DAL配置链、
+plugin表及17条关键指令，`icb-registrar-verification-v3.json` PASS，SHA256
+`024527a2771aa3726ac75c2b8f70db513c61681f096511505322466e9b36bb84`。
+13项合成evidence/packed-DAL/边界拒绝测试通过，`python -O`同样通过；原NPA
+8测试通过，10模块receipt为npa-state-verification-v5.json，旧receipt不覆盖。
+
+下一继续查实际ARC rail registrar、ICB硬件完成记录与最后EBS写入者，再设计
+唯一XNU共享所有者。尚无生产资源acquire/lease/quiesce后端、无新内核/构建/
+真机测试点；PAS13=false、CP halt维持，GPU scratch/fence/Metal/认证未执行。
+
+```sh
+python3 scripts/test-icb-registrar-evidence.py
+python3 -O scripts/test-icb-registrar-evidence.py
+python3 scripts/verify-icb-registrar-evidence.py --root .. \
+  --output ../logs/pas13-instruction-replay-20261110/icb-registrar-new.json
+```
+
 ## 2026-11-10 13:32：crypto资源链与模块身份续查
 
 模块身份核验扩为8项，新增Env/Pmic及Epsilon Hash/Cipher；最终receipt

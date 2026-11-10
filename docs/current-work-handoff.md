@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 13:49：本机离线连通ICB注册链。patched DAL /icb/arb属性
+icb_info索引20→/icb/arbiter node/resource，实际Clock入口0x1a74→0xc520
+设置driver/plugin并经NPA定义；plugin按32B请求解码并提交RPMh。node driver
+仅返回requested_state；条件barrier_all调用的本机RPMh slot0xb8直接返回
+EFI_UNSUPPORTED且Clock忽略结果，不能当hardware ACK/完成屏障。已保存
+dal-icb-config/clock-icb-barrier/rpmh-barrier-slot/limits-resource证据和快照。
+10 boot模块字节一致、ICB原件核验PASS，13合成测试正常/优化模式通过，NPA
+8测试通过。receipt icb-registrar-verification-v3、npa-state-verification-v5。
+详见RPMh文档。尚缺ARC注册者/真正完成/EBS/XNU所有权，无生产后端、新核/
+构建/手机操作/测试点；保持正常配对版，PAS13=false/CP halt不变，GPU未执行。
+
 最新2026-11-10 13:32：离线资源续查，8个boot模块PE身份核验通过（增加
 Env/Pmic/Epsilon Hash/Cipher），receipt npa-state-verification-v4，8合成测试
 通过。实际Hash为Epsilon SM8150版，不是cepheus目录版；/clk/ce1是

@@ -41,6 +41,12 @@ MODULES = (
     ('CipherDxe', '5F0937CD-73F9-445E-B320-BB6FD5D3CBDE',
      'Binaries/Epsilon/BOOT.XF.3.0-00527-SM8150LZB-1/QcomPkg/Drivers/CipherDxe/CipherDxe.efi',
      '94ed2f295e533705aac16aa57133b3831f31abd687b136da6e61190657584c67'),
+    ('DALSys', '8E9BD160-B184-11DF-94E2-0800200C9A66',
+     'Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/PatchedBinaries/DALSYSDxe.efi',
+     '97231a87c321ed3d764f97b2f687b0f29c21787c56f013aadf0f01aa50effcbd'),
+    ('LimitsDxe', 'F09AD92E-4E91-490F-AB99-E69939B840B2',
+     'Binaries/Epsilon/BOOT.XF.3.0-00527-SM8150LZB-1/QcomPkg/Drivers/LimitsDxe/LimitsDxe.efi',
+     '550617c51be7f95e4681944518c724a47ad8cd6242d9d861c7dfd1b5e819ede1'),
 )
 
 
@@ -99,7 +105,7 @@ def npa_inventory(inner):
         binary = binaries[0]
         title = [data.decode('utf-16le').rstrip('\0') for kind, data in items if kind == 0x15]
         matches = []
-        for needle in (guid, b'/arc/client/', b'cx.lvl', b'mx.lvl'):
+        for needle in (guid, b'/arc/client/', b'cx.lvl', b'mx.lvl', b'/icb/arbiter'):
             cursor = 0
             offsets = []
             while (cursor := binary.find(needle, cursor)) != -1:

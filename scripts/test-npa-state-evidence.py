@@ -66,7 +66,7 @@ class MappingTests(unittest.TestCase):
             return raw + bytes(-len(raw) % 4)
         header = bytearray(24)
         header[18] = 7
-        pe = b'/arc/client/test\0/arc/client/other\0'
+        pe = b'/arc/client/test\0/arc/client/other\0/icb/arbiter\0'
         title = ('Synthetic\0').encode('utf-16le')
         inventory = VERIFY.npa_inventory({'plain': bytes(header) + section(0x10, pe) + section(0x15, title),
                                           'compressed': bytes(header) + section(1, bytes(8)),
@@ -75,6 +75,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(inventory['skipped_nonplain_dxe_files'], 1)
         self.assertEqual(inventory['matches'][0]['ui_names'], ['Synthetic'])
         self.assertEqual(len(inventory['matches'][0]['matches'][0]['file_offsets']), 2)
+        self.assertEqual(inventory['matches'][0]['matches'][1]['needle'], '/icb/arbiter')
 
 
 if __name__ == '__main__':
