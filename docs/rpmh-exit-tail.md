@@ -7,6 +7,29 @@ Default core staging, DarwinBoot, XNU and the running phone are unchanged.
 
 ## Integration Update
 
+22:50 correction: the earlier 422400-byte isolated core lacks the accepted
+boot core's LZMA/CRC registration libraries and uses different RELEASE PCDs.
+It remains host/isolated evidence and must not be used as a phone replacement.
+The tail build now selects `firmware/RpmhTailCore.dsc`; default bookkeeping
+builds retain `PoolLifetimeCore.dsc` unchanged. Full local build
+`out/rpmh-tail-core-platform-20261110-v2/` is 370176 bytes, SHA256
+`c41e3e863f6762f48fcdb2ab602b4499f54ebc67e8f6b91a7a590d6df5d3ef90`.
+`out/rpmh-tail-core-platform-accepted-20261110-v2.json` passes the actual
+collector/EBS/loader chain, O0/O2 sanitizers, native analysis and assembly,
+and additionally checks the exact accepted core hash, equal boot-library set,
+equal generated typed PCD values/constructor sequence and linked LZMA/CRC
+handlers. This checks configuration, not phone boot execution.
+
+The replacement FD is now `out/rpmh-tail-fv-platform-20261110-v1/scm-pair.fd`,
+3145728 bytes, SHA256
+`53467f210a7a3bf90a921fc84062d4528b49e768bb1de28087e093d2fef82a77`.
+Its independent synthetic-kernel packaging/rejection fixture passes; the old
+FD below is superseded. Full XNU CI **42835691416 @2bf48ab** is in progress,
+with source/toolchain/native prerequisites passed and full compile running.
+Track that run; no duplicate build is needed for this firmware-only correction.
+Final preflight is `out/rpmh-tail-preflight-20261110-final/receipt.json` PASS.
+The running accepted phone is untouched. No real diagnostic boot exists yet.
+
 2026-11-10: the opt-in DarwinBoot adapter, shared core protocol and isolated
 XNU receiver are now integrated in source. This supersedes the earlier
 no-consumer statement below; the running phone still has not changed.

@@ -15,6 +15,28 @@ SPEC = importlib.util.spec_from_file_location('tail_stage', ROOT/'scripts/stage-
 STAGE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(STAGE)
 
+
+def verify_boot_platform(module):
+    baseline=ROOT.parent/'uefi/Build/SurfaceDuo1Pkg/RELEASE_CLANGPDB/AARCH64/MdeModulePkg/Core/Dxe/DxeMain'
+    digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+    assert digest(baseline/'OUTPUT/DxeCore.efi')=='311a20a50632dbabdfcdaa9bc2ed7d08e4712c2c70b8f3f18b66834803812be8'
+    libraries=lambda p:set(re.findall(r'\$\(BIN_DIR\)/([^\n]+\.lib)',(p/'GNUmakefile').read_text()))
+    assert libraries(module)==libraries(baseline), 'Boot library set differs from accepted core'
+    def generated(p):
+        text=(p/'DEBUG/AutoGen.c').read_text().split('// Definition of PCDs used in this module',1)[1]
+        # EDK spells the same typed integer as 0U or 0x00U depending on the DSC.
+        return re.sub(r'\b(0x[0-9a-fA-F]+|[0-9]+)(ULL|UL|U|LL|L)\b',
+                      lambda m:str(int(m[1],0) if m[1].startswith('0x') else int(m[1]))+m[2],text)
+    assert generated(module)==generated(baseline), 'Generated PCD/constructor contracts differ'
+    symbols=(module/'DEBUG/DxeCore.map').read_text()
+    for name in ('LzmaDecompressLibConstructor','LzmaGuidedSectionGetInfo','LzmaGuidedSectionExtraction',
+                 'LzmaUefiDecompress','DxeCrc32GuidedSectionExtractLibConstructor'):
+        assert name in symbols,name
+    return {'baseline_core_sha256':digest(baseline/'OUTPUT/DxeCore.efi'),
+            'library_set_equal':True,'pcd_and_constructor_contract_equal':True,
+            'lzma_crc_handlers_linked':True,'baseline_autogen_sha256':digest(baseline/'DEBUG/AutoGen.c'),
+            'autogen_sha256':digest(module/'DEBUG/AutoGen.c'),'baseline_makefile_sha256':digest(baseline/'GNUmakefile')}
+
 HOST_REGISTERS = r'''
 static unsigned fake_pars,fake_fail_par,fake_masked,fake_revoke,fake_bad_par,fake_bad_el;
 static unsigned fake_late_par,fake_late_kind;
@@ -122,7 +144,7 @@ static void *gBS;
                 print(result.stderr);result.check_returncode()
             receipt['steps'].append({'optimization': optimize, 'output': result.stdout.strip()})
         artifact = build/'build/PoolLifetimeCore/RELEASE_CLANGPDB/AARCH64/DxeCore.efi'
-        assert (ROOT/'firmware/PoolLifetimeCore.dsc').read_bytes() == (build/'PoolLifetimeCore.dsc').read_bytes()
+        assert (ROOT/'firmware/RpmhTailCore.dsc').read_bytes() == (build/'PoolLifetimeCore.dsc').read_bytes()
         manifest=json.loads((build/'source/pool-lifetime-source.json').read_text())
         assert manifest['rpmh_exit_tail_diagnostic'] and not manifest['bookkeeping_only']
         for name,digest in manifest['files'].items():
@@ -130,6 +152,7 @@ static void *gBS;
         buildlog=(build/'build.log').read_text()
         assert '- Done -' in buildlog and '- Failed -' not in buildlog
         module=artifact.parent/'MdeModulePkg/Core/Dxe/DxeMain'
+        receipt['boot_platform']=verify_boot_platform(module)
         response=module/'OUTPUT/cc_resp.txt'
         mapfile=module/'DEBUG/DxeCore.map'
         symbols=mapfile.read_text()
@@ -176,7 +199,7 @@ static void *gBS;
                      'firmware/test_rpmh_tail_exit.c','firmware/test_rpmh_tail_loader.c','scripts/test-rpmh-tail-core.py',
                      'firmware/CepheusRpmhTailHandoff.h','firmware/cepheus_rpmh_tail_handoff.h','firmware/CepheusRpmhTailProtocol.h',
                      'scripts/stage-pool-lifetime-core.py','scripts/build-pool-lifetime-core.sh',
-                     'scripts/generate-rpmh-snapshot-identity.py','firmware/PoolLifetimeCore.dsc'):
+                     'scripts/generate-rpmh-snapshot-identity.py','firmware/RpmhTailCore.dsc'):
             receipt['files'][name]=hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
         receipt['artifact'] = {'bytes': artifact.stat().st_size, 'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest()}
         receipt['build']={'source_matches_tested_stage':True,'build_log_sha256':hashlib.sha256(buildlog.encode()).hexdigest(),

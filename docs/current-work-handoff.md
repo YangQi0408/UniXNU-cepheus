@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+22:50更新：完整XNU CI42835691416 @2bf48ab已进入Build XNU，前置通过；
+不要重复派发。最终四步preflight out/rpmh-tail-preflight-20261110-final/
+receipt.json PASS。复核发现旧isolated core缺LZMA/CRC启动库且RELEASE PCD
+不同，不能真机替换；新增仅tail的RpmhTailCore.dsc保留default，平台版
+out/rpmh-tail-core-platform-20261110-v2/370176B/SHA c41e3e863f6762f48fcd
+b2ab602b4499f54ebc67e8f6b91a7a590d6df5d3ef90；accepted-v2.json实际core/
+loader/EBS及库集/typed PCD/constructor与accepted core一致PASS。新FD
+out/rpmh-tail-fv-platform-20261110-v1/3145728B/SHA53467f210a7a3bf90a921
+fc84062d4528b49e768bb1de28087e093d2fef82a77，独立合成打包/拒绝PASS。
+旧422400B core/旧FD仅隔离测试证据，不用于手机。无新XNU改动/手机操作；
+下一跟踪同run、下载独立验收及真核本地打包，再一次手动fastboot诊断。
+
 最新2026-11-10：退出尾诊断已接入DarwinBoot/1128B独立ADT/XNU/raw日志和
 双FFS打包。完整本地loader29696B/SHAe0563bc54f783e85...、shared core
 422400B/SHAb7a97cd5239d8cbc...；实际loader/Core Bind/EBS/Copy及O0/O2

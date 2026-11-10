@@ -80,7 +80,7 @@ python3 scripts/build-scm-pair-local.py \
   --kernel-receipt out/kernel-verification-NEW.json \
   --output out/rpmh-tail-NEW --rpmh-tail \
   --firmware-build out/rpmh-tail-loader-20261110-v3 \
-  --core-build out/rpmh-tail-core-protocol-20261110-v1 \
+  --core-build out/rpmh-tail-core-platform-20261110-v2 \
   --container cepheus-build:latest
 ```
 
@@ -88,6 +88,10 @@ The 1128-byte zero slot and `cephrpmhtail=1` are isolated from SCM/snapshot
 profiles. Independent packaging verification checks both embedded EFI binaries
 and unchanged shim/DTB/FAT/touch settings. This remains diagnostic only;
 neither packaging nor offline fixtures prove hardware GPU execution.
+The earlier isolated core build has no boot LZMA handler and is rejected by
+the updated core validator. Use the platform-compatible build above; its
+generated PCD/constructor contract and library set are checked against the
+accepted RELEASE core as part of packaging acceptance.
 
 ## Full Linux XNU
 

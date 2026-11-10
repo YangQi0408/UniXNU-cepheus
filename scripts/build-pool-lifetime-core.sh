@@ -14,7 +14,9 @@ elif [[ -n ${2:-} ]]; then
   exit 2
 fi
 python3 "$ROOT/scripts/stage-pool-lifetime-core.py" "$ROOT/../uefi/MU_BASECORE" "$DEST/source" "${OPTIONS[@]}"
-cp "$ROOT/firmware/PoolLifetimeCore.dsc" "$DEST/PoolLifetimeCore.dsc"
+PLATFORM=PoolLifetimeCore.dsc
+if [[ ${2:-} == --rpmh-tail ]]; then PLATFORM=RpmhTailCore.dsc; fi
+cp "$ROOT/firmware/$PLATFORM" "$DEST/PoolLifetimeCore.dsc"
 export WORKSPACE=$DEST
 export PACKAGES_PATH=$DEST/source:$ROOT/../uefi/MU_BASECORE
 export EDK_TOOLS_PATH=$ROOT/../uefi/MU_BASECORE/BaseTools
