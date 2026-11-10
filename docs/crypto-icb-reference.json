@@ -1,0 +1,35 @@
+{
+  "repository": "Rivko/android-firmware-qti-sdm670",
+  "commit": "20bb8ae36c93fc16bbadda0e0a83f930c0c8a271",
+  "authority": "Historical reference correlation only; not accepted-boot build provenance",
+  "files": [
+    {
+      "path": "adsp_proc/core/api/systemdrivers/icb/icbarb.h",
+      "git_blob": "5e20c6ba4cb6458debc1e5ebc5b2d78ef2b236b3",
+      "size": 19421
+    },
+    {
+      "path": "adsp_proc/core/api/systemdrivers/icb/icbid.h",
+      "git_blob": "37c1286bf01bec0ba6e03da4187c122ae920f808",
+      "size": 16503
+    },
+    {
+      "path": "adsp_proc/core/settings/systemdrivers/icb/interface/icb_soc_data.h",
+      "git_blob": "73504991c665da2c93b7b7af199860350c8f1377",
+      "size": 13459
+    }
+  ],
+  "correlations": {
+    "type3": 4,
+    "latency_flag": 65536,
+    "master_crypto": 23,
+    "slave_ebi1": 0,
+    "ib_ab_units": "Bytes/second",
+    "latency_units": "nanoseconds"
+  },
+  "limitations": [
+    "Only metadata and correlated facts are published; proprietary source is not copied",
+    "Numeric offsets/constants are separately verified against accepted-boot original bytes",
+    "Reference units are not a measurement or live hardware state"
+  ]
+}

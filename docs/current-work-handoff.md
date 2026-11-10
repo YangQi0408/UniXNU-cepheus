@@ -1,5 +1,18 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 14:48：具体crypto ICB路由与Hash ABI已离线原件核验。
+DAL topology DRV2/tree八节点→四pairs：crypto→a2noc_snoc、aggre2→gemnoc_sf、
+snoc_sf→llcc、llcc_mc→ebi；Hash生成master23/slave0、type0x10004的32B请求，
+IB1600000000/AB55250000/latency0，与Clock解析偏移一致。固定SDM670参考
+结构/ID/单位只作关联，非构建来源或活票/ACK。新增独立crypto verifier及16项
+普通/优化合成测试通过；v1两模式原件receipt完全相同，ICB24/NPA8通过。
+三final REA bundle/snapshot及v1 receipt保存在既有私有logs目录，详见RPMh
+文档。另存有界NPA core init/PMIC动态/pm/命名证据，不据负检索断言ARC不存在。
+下一crypto BCM/提交聚合/完成/最终EBS与唯一XNU所有者；PAS13=false、secure
+PA/XPU、crypto生命周期/SMMU仍缺，无生产后端、新核、构建或手机操作，无新
+GPU测试点。正常配对版保持，supported=false/CP halt不绕过，GPU/Metal/认证
+未执行。14:17批2ee84d6已推送；本节为后续追加。
+
 最新2026-11-10 14:17：DAL ClockRailConfig属性index1→0x1f230四16B记录，
 CX/GX/MMCX/MX默认均0x100；Clock0xaf5c读配置，0x6bec存rail+0xdc并注册
 ResourceAvailable callback0x6a4c。这是消费者默认配置，不是当前票或ARC

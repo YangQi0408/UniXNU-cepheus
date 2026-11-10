@@ -1,5 +1,64 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 14:48：具体crypto路由与请求ABI核验
+
+仅本机离线取证，无固件执行、手机操作、SMC/MMIO或内核改动。复用已验收
+boot的patched DALSys、device ClockDxe及**Epsilon HashDxe**原件身份。新增
+`scripts/verify-crypto-icb-evidence.py`独立核验，未扩展生产资源后端。
+
+DAL config0x2dfd0→fabric table0x2dfb8→topology0x30ed8，配置DRV=2，tree
+root=0x30f30。Clock0xdc64组装`(master << 32) | slave`，经0xdd7c跳转到
+0xdda0搜索；完整搜索体其实是0xdd80..0xddaf，不能只从canonical entry向后读。
+原指令SUB后signed GT选择left/right。crypto key `0x1700000000`沿八节点：
+0x30f30→0x314f0→0x31800→0x3aa10→0x3b370→0x3b568→0x3c410→0x3c888，
+命中route0x3cb28（4 pairs，数组0x3cb78）。原件节点字段如下：
+
+| Master (ID/width/aggregation ports) | Slave (ID/width/aggregation ports) |
+| --- | --- |
+| qxm_crypto (23/8/1) | qns_a2noc_snoc (143/16/1) |
+| qnm_aggre2_noc (112/16/1) | qns_gemnoc_sf (104/16/1) |
+| qnm_snoc_sf (76/16/1) | qns_llcc (243/16/4) |
+| llcc_mc (180/4/4) | ebi (0/4/4) |
+
+这是**配置路由**，不是手机活态路由或投票。master aggregation字段+0x28，
+slave+0x1c；width+0x18。名称/ID/偏移与固定参考结构相关，不把Android的
+125/512等其他命名空间ID直接等同。BCM节点/命令地址/单位和最终聚合仍待补。
+
+Hash0x5138生成master23/slave0 pair；wrapper0x9e08以`/icb/arbiter`、client
+名`/clk/ce1`、type0x400、pair字节数8调用NPA slot0x10。0x9d90校验pair
+count后经0x9ee0调用NPA slot0x90，vector长度8个32位word，即单请求32B。
+请求type为`0x10004`；union+8，IB=1600000000（+8）、AB=55250000（+16），
+latency=0（+24）。常数来自0xb010，所有栈构造及consumer读取指令已核验。
+padding未由该构造初始化，不作为语义字段。Clock0xcc24匹配低16位type4，
+复制两个u64值；bit16存在则读取+24 latency，和Hash构造一致。
+
+`docs/crypto-icb-reference.json`记录固定SDM670参考仓库/commit及三个git blob
+身份，通过gh API重新核对size/blob。参考`icbarb.h`定义type3=4、latency flag
+0x10000、IB/AB单位Bytes/second及latency nanoseconds；`icbid.h`中CRYPTO=23、
+EBI1=0；`icb_soc_data.h`给出相关布局。**这是异构建参考关联，不是本机二进制
+的构建来源证明**，单位不是现场测量。只提交元数据/核验代码，不复制专有源码。
+
+私有证据目录`../logs/pas13-instruction-replay-20261110/`新增：
+`dal-crypto-route-final-evidence.json`（50 records）、
+`clock-crypto-route-final-evidence.json`（66 records）、
+`hash-crypto-abi-final-evidence.json`（26 records）及各自snapshot；旧记录保留。
+核验先绑定accepted boot模块并逐字节对照REA原读取，再检查有界树/环/指针/
+证据覆盖/四pairs/原指令。v1普通与优化receipt完全相同、均PASS_STATIC_BYTES_ONLY，
+SHA256 `57e76b3de4f396f101f472ad79fa1129a59211ba4bdb27c18de6709aebdf09d0`。
+16项新增合成测试普通/优化均通过，原ICB24及NPA8项通过。不需要内核构建。
+
+同时保存两个有界排查：NPA13dc→25a0初始化核心pool/log及/dev/null、core mutex、
+/npa/in_stm等，0x9930 hook为RET，未在已查体中找到ARC registrar；仍存在
+间接DAL初始化，不能作全局不存在证明。Pmic0x14398→0x1455c动态node路径的
+0x149fc名称builder使用`/pm/`+type/chipletter/number+`/`+key（mV/on_off/mode/en），
+这是已查PMIC路径，不是ARC。证据`npa-core-init-v2-evidence.json`（13 records）
+及`pmic-resource-naming-evidence.json`（17 records）和snapshot；不反复重搜同体。
+
+下一补crypto BCM映射/提交聚合/完成与最终EBS交接，再实现唯一XNU资源所有者。
+本轮不证明current votes、live ACK或PAS资源lease，PAS13=false、secure PA/XPU、
+crypto生命周期与SMMU未解；supported=false/CP halt保持，GPU scratch/fence、
+Metal、PAS认证均未运行，无新真机测试点，手机保持正常配对版。
+
 ## 2026-11-10 14:17：DAL默认电压配置与Clock消费者绑定
 
 复用已验收patched DALSys/ClockDxe身份，只读原件与REA记录。DAL PropBin
