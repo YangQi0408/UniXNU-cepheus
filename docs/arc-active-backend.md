@@ -58,7 +58,8 @@ final source identity. The final receipt records a dirty source tree; later
 documentation edits and the explicit CI patch-directory fix are not claimed
 as part of that run. The native check was rerun against the staged directory
 after the fix; the macOS macro-guard fix was tested separately.
-**Complete XNU build/link has not run for this change.** No boot
+**Complete XNU build/link and independent artifact acceptance passed** for
+`bba0314` in run `42792610794`; see the final receipt below. No boot
 image was made and no phone operation occurred. The accepted SCM-pair boot
 remains running; GPU scratch/fence, Metal and PAS authentication remain unrun.
 
@@ -79,5 +80,23 @@ Linux checks with both absent and Darwin-style existing macros pass. The old
 job is not build acceptance; a new fixed-commit run must replace it.
 
 Replacement job `42792610794` at macro-fix commit `bba0314` was dispatched
-at 17:40 CST; its build/artifact status is PENDING. Production ARC code is
+at 17:40 CST and completed **SUCCESS at 17:51:44 CST**. Production ARC code is
 unchanged from `7c80907`. Tracking: `out/arc-active-ci-42792610794.json`.
+
+Independent local acceptance at 17:52 CST:
+
+- Kernel `inputs/ci-42792610794/kernel.macho`, 17433272 bytes, SHA256
+  `00abd9206e8b086fd924ca4a5bfde26ceb2b24fe61ba80550978ae88816a9690`.
+- Exact CI/device commit, pinned ios-sweet identity, production XNU sources,
+  82 core symbols including `cepheus_gpu_arc_raise`, 22 memory APIs, no
+  unresolved symbols, ordered touch driver and 64-bit cache callback passed.
+- Receipt `out/kernel-verification-ci-42792610794.json`; immutable build log
+  `../logs/arc-active-ci-42792610794/build.log`, SHA256
+  `0748cf7627a34c430bbbcf7ba40ffdf8e3fb2ed5e29af2661daa25138e573f8c`.
+- Linked ARM64 listing `out/arc-active-linked-ci-42792610794.txt` retains the
+  owner calls, shared lock/poison accesses and actual MMIO barriers. A full
+  disassembly search found no named direct branch to the transport entry;
+  this does not rule out indirect references or prove runtime behavior.
+
+The fixed kernel is a verified building block, not an executable GPU profile.
+No image packaging, boot, PAS authentication, or GPU execution followed.

@@ -1,5 +1,53 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 18:03：完成入口不是排空，getter指针不能直接继承
+
+复用同SHA `03ccd266...` 的已打开Ghidra目标；本轮只做静态查询，没有调用
+固件协议、读取手机RAM/MMIO或执行SMC。完整会话（含之前记录）109条Evidence
+已保存到 `../logs/pas13-instruction-replay-20261110/` 的
+`rpmh-owner-completion-20261110-evidence.json` 和同名前缀snapshot，目标已关闭。
+bundle SHA256 `51c922a67fab2fa1d111b76b2f30b6f0e45dc4f2c67db517cc96cdf0c1a5721e`。
+
+新增观察：
+
+- `0x17c4` wrapper调用`0x2b20`后固定返回0；后者在没有完成AMC时也可直接
+  返回。找到完成请求后，经`0x598c→0x5868→0x4784`更新记录，再通知client，
+  并循环`0x45f4`。`0x45f4`检查等待队列首请求的资源状态，允许时调用
+  `0x5a08`继续提交。因此 **finish_amc不是只读操作，也不是全局排空屏障**，
+  不可为了取得handoff而盲调。原指令Evidence：
+  `ev_46ceaaf060b77b4757081b8adf1c93106e4f0f610455a85f22f6102f12be42ef`、
+  `ev_99dc630d334b324c2076b5d319651dd9c8666904202515dc997992d28ad7c66a`、
+  `ev_289c3096d20a58502598c0c9ed3e50caae1e0e5d11a5549628c38e102d532629`。
+- `0x57a0`由HAL IRQ定位软件TCS，校验其busy state；`0x5868`先清IRQ，再
+  处理请求并清该TCS state/request pointer。单次完成处理之后可能又有新提交，
+  不能把它的返回与最终所有资源ACK混为一谈。Evidence：
+  `ev_7738919c1a9f0d1fde26d99ee6cec9464e2b3b500e7ab868e7237c7e36685ccf`、
+  `ev_e65d1438a1e5d754caa19a234c4aacb497040f084bb5da4e346a24b18e1dd9f5`。
+- `0x4a3c`的active dirty=0也可能来自active无效；有效active与shadow相等时
+  同样为0。`0x4c34`触发前写shadow，`0x4d60`只清state再重算dirty；联合
+  state=0/dirty=0/valid也不是独立ACK。原指令Evidence：
+  `ev_4396f46f3130b9d8dd7fd052acd3708d3518130699322d1875a3d3368c5b60e3`、
+  `ev_3e02c97fe7e08a601d93aadbad51fd66861ea2d6f98b3df9d48be424c24a0a06`、
+  `ev_f977ba5088590d4a74d325e67291ef80c6b6b37bf88692a65436c3b43698d62d`。
+
+重新核对已有`0x2f80`反编译Evidence
+`ev_3d4d654200b59c2b29b2d6ce9c8e6988a9be1d763c2620e9eece939969ff6708`：
+新增资源时调用resize、替换全局数组指针，并移动排序条目。**推论：pre-EBS
+getter返回的24B条目地址不能直接作为post-EBS稳定引用**；即使内存范围仍
+可读，条目也可能已移动或变成其他资源。这是已保存静态反编译支持的风险，
+本轮未执行分配器或新增该函数的逐字节核验。
+
+下一实际采集实现应在EBS成功后的最终数组重新定位资源，而不是保留旧条目
+指针。实现前仍需绑定loaded-image身份/重定位、最终数组count/pointer及有界
+排序结构、每次读取的有效RAM映射/生命周期、DRV链表完整性和数组重读一致性。
+不能在EBS后调用BootServices/getter/finish；只能读取已核验仍有效的RAM，
+复制纯数据到预分配ADT槽。最终map包含某段地址也不能证明pool对象尚存活。
+
+即使该只读采集成功，local active仍是软件request，不自动变成ACK/唯一owner。
+当前没有实现该采集器或生产owner，不把它接入power.prepare，不填零current，
+不增加手机测试；PAS13=false、supported=false和CP halt保持。ARC transport的
+完整XNU构建已单独通过，详见`arc-active-backend.md`，与以上静态证据分开计。
+
 ## 2026-11-10 16:29：NPA请求完成与PDC配置续查
 
 手机保持已验收配对版，无重启/协议/SMC/MMIO执行；未构建新核或改动生产

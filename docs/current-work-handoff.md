@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 18:03：ARC完整XNU CI42792610794 @bba0314于17:51:44成功，
+本机独立验收PASS：kernel17433272B/SHA00abd9206e8b...，82核心入口/22内存API/
+无unresolved、全部生产source及touch/PA64/capture核验。receipt在
+out/kernel-verification-ci-42792610794.json，日志../logs/arc-active-ci-42792610794/。
+无打包/boot/手机操作，不能作为GPU执行版。固件finish_amc会继续提交队列，
+不是全局排空；资源数组resize/排序移动使pre-EBS getter指针不能直接继承。
+109条会话bundle/snapshot已保存并关闭REA，详见rpmh-firmware-evidence.md。
+下一绑定最终数组/有效RAM生命周期，再做真实只读handoff；不是补一个成功
+lease。生产owner/继承ACK/PAS13/PA/crypto/SMMU仍缺；配对版保持，GPU scratch/
+fence、Metal、PAS认证未执行。以下17:40的PENDING为历史，已由本节成功取代。
+
 最新17:40：ARC完整CI42792076835失败于macOS RAM fixture的__unused重定义，
 未进XNU编译。bba0314加宏保护并针对Linux/模拟Darwin/ASan+UBSan通过；
 新CI42792610794 @bba0314已启动PENDING。旧失败不追认PASS，完整核/链接待
