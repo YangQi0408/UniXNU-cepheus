@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind accepted DXE dispatch and Darwin/USB exit paths to original bytes.
+"""Bind accepted DXE dispatch and Darwin/USB/display exits to original bytes.
 
 No device, firmware execution, protocol invocation, SMC or MMIO access.
 """
@@ -38,6 +38,12 @@ USB_SOURCE = ('uefi/Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/'
 USB_RANGES = ((0x1790, 476), (0x16e4, 96), (0x4670, 904),
               (0x7c2c, 1172), (0x935c, 200), (0x9e98, 200),
               (0xf2cc, 2), (0x14028, 16))
+DISPLAY_GUID = '4138022F-06C7-4F79-9C94-7E33B511A4E7'
+DISPLAY_SHA = '7a1799156845c0934164feb87831157f56dd8d5fa5a16356314bede5a64d3552'
+DISPLAY_SOURCE = ('uefi/Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/'
+                  'PatchedBinaries/DisplayDxe.efi')
+DISPLAY_RANGES = ((0x1708, 92), (0x14dc, 208), (0x13c28, 532),
+                  (0x13b58, 208), (0x1261c, 584), (0x124fc, 156), (0x1eb08, 84))
 
 
 def bind_pe(inner, original, guid, digest, source, name):
@@ -149,6 +155,57 @@ def usb_exit(blob, segments, reads):
                             'No complete exit writer inventory, ARC snapshot or XNU lease is established']}
 
 
+def display_exit(blob, segments, reads):
+    checks = (
+        (0x170c, 'adrp', 'x2, #0x1000'), (0x1718, 'add', 'x2, x2, #0x4dc'),
+        (0x1720, 'mov', 'w0, #0x201'), (0x1724, 'mov', 'w1, #8'),
+        (0x1728, 'ldr', 'x8, [x12, #0x50]'), (0x1730, 'blr', 'x8'),
+        (0x14fc, 'ldr', 'x8, [x8, #0x70]'), (0x1500, 'blr', 'x8'),
+        (0x1520, 'ldr', 'x9, [x9, #0x70]'), (0x1524, 'blr', 'x9'),
+        (0x1594, 'mov', 'w0, wzr'), (0x1598, 'bl', '#0x2d64'),
+        (0x15a8, 'b', '#0x13c28'),
+        (0x13c60, 'mov', 'w25, #1'), (0x13c78, 'cbz', 'x8, #0x13d48'),
+        (0x13c7c, 'ldrb', 'w12, [x24, #0x5a3]'), (0x13c80, 'tst', 'w12, #1'),
+        (0x13c84, 'csel', 'x25, x25, xzr, eq'),
+        (0x13c88, 'cbnz', 'x25, #0x13d18'), (0x13c8c, 'ldr', 'x8, [x24, #0x18]'),
+        (0x13c90, 'cmp', 'x8, #1'), (0x13c94, 'b.ne', '#0x13d18'),
+        (0x13cac, 'bl', '#0x13a68'), (0x13cd0, 'mov', 'w2, wzr'),
+        (0x13cd4, 'bl', '#0x12e14'), (0x13cf4, 'mov', 'w2, #1'),
+        (0x13cfc, 'bl', '#0x12e14'),
+        (0x13d4c, 'add', 'x24, x24, #0x628'), (0x13d50, 'cmp', 'x19, #3'),
+        (0x13d54, 'b.ne', '#0x13c74'), (0x13d58, 'cbnz', 'x25, #0x13d7c'),
+        (0x13d5c, 'bl', '#0x13b58'), (0x13e1c, 'bl', '#0x1a3dc'),
+        (0x13e30, 'mov', 'w0, wzr'), (0x13e38, 'ret', ''),
+        (0x13b64, 'mov', 'w0, wzr'), (0x13b68, 'bl', '#0x1261c'),
+        (0x13b88, 'mov', 'w0, #1'), (0x13b8c, 'bl', '#0x1261c'),
+        (0x13bac, 'mov', 'w0, #2'), (0x13bb0, 'bl', '#0x1261c'),
+        (0x13bd0, 'mov', 'w0, #3'), (0x13bd4, 'bl', '#0x1261c'),
+        (0x13bf4, 'mov', 'w0, #4'), (0x13bf8, 'bl', '#0x1261c'),
+        (0x12650, 'ldr', 'x8, [x11, #0x140]'), (0x12654, 'blr', 'x8'),
+        (0x12720, 'tbnz', 'w9, #0, #0x1276c'),
+        (0x12730, 'ldr', 'x14, [x0, #8]'), (0x12734, 'blr', 'x14'),
+        (0x12764, 'ldr', 'x16, [x0, #0x18]'), (0x12768, 'blr', 'x16'),
+        (0x12840, 'mov', 'w0, wzr'), (0x12844, 'bl', '#0x124fc'),
+        (0x12530, 'mov', 'w2, #0x400'), (0x12534, 'mov', 'w3, #0x10'),
+        (0x12538, 'bl', '#0x1e95c'), (0x1254c, 'cmp', 'w9, #1'),
+        (0x12550, 'b.ne', '#0x12570'), (0x1256c, 'b', '#0x1ea84'),
+        (0x1257c, 'b', '#0x1eb08'), (0x1eb30, 'ldr', 'x9, [x9, #0x140]'),
+        (0x1eb34, 'blr', 'x9'), (0x1eb60, 'ldr', 'x10, [x10, #0x18]'),
+        (0x1eb64, 'blr', 'x10'))
+    decoded = CRYPTO.instructions(blob, segments, reads, DISPLAY_RANGES, checks)
+    return {'registration': {'type': '0x201', 'tpl': 8, 'callback': '0x14dc'},
+            'cleanup': 'Close UI/refresh events, unregister low-power callback, tail-call 0x13c28',
+            'condition': 'Three-display cumulative keep latch starts 1 and becomes 0 when a supported entry has bit0 at state+0x5a3; shutdown also requires state+0x18 == 1',
+            'shutdown': 'Conditional panel deinit/common+specific power calls; when cumulative latch is 0, call clock groups 0..4; free objects and final display-state copy',
+            'clock_path': '0x1261c selects dynamic clock tables; skips flagged entries, invokes clock protocol slots+8/+0x18 and conditional core bandwidth helper',
+            'bandwidth_path': '0x124fc creates a display ICB client if absent, then request helper for arg1 or NPA slot+0x18 helper otherwise',
+            'instructions': decoded,
+            'limitations': ['No runtime supported-display inventory, cumulative latch, clock tables or successful registrations are captured',
+                            'Old-style exit event exists despite no literal EBS group GUID in this PE; GUID absence alone is not callback absence',
+                            'Clock/ICB calls and ignored failures are not live ACKs or global quiescence; the NPA slot+0x18 backend still needs binding',
+                            'Final display-state copy is not a complete ARC/client snapshot or unique XNU resource lease']}
+
+
 def core_order(blob, segments, reads):
     before = CRYPTO.read(blob, segments, reads, 0x18708, 32)
     require(before[:16] == uuid.UUID('8be0e274-3970-4b44-80c5-1ab9502f3bfc').bytes_le,
@@ -227,7 +284,9 @@ def verify(root):
     for name, guid, digest, source, evidence_name, analyze in (
             ('darwin', DARWIN_GUID, DARWIN_SHA, DARWIN_SOURCE,
              'darwin-resource-handoff-final', darwin_exit),
-            ('usb', USB_GUID, USB_SHA, USB_SOURCE, 'usb-resource-handoff-v2', usb_exit)):
+            ('usb', USB_GUID, USB_SHA, USB_SOURCE, 'usb-resource-handoff-v2', usb_exit),
+            ('display', DISPLAY_GUID, DISPLAY_SHA, DISPLAY_SOURCE,
+             'display-resource-handoff-final', display_exit)):
         original = (root / source).read_bytes()
         identity_extra = bind_pe(inner, original, guid, digest, source, name)
         evidence = (root / ('logs/pas13-instruction-replay-20261110/' +

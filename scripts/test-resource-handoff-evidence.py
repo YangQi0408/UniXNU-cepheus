@@ -83,7 +83,8 @@ class ExitPathTests(unittest.TestCase):
     def fixture(self, name):
         blob, segments, reads, put = FIXTURE.fixture()
         reads.clear()
-        ranges = VERIFY.DARWIN_RANGES if name == 'darwin' else VERIFY.USB_RANGES
+        ranges = {'darwin': VERIFY.DARWIN_RANGES, 'usb': VERIFY.USB_RANGES,
+                  'display': VERIFY.DISPLAY_RANGES}[name]
         for address, size in ranges:
             put(address, bytes(size))
         if name == 'usb':
@@ -98,7 +99,8 @@ class ExitPathTests(unittest.TestCase):
             captured.append((address, mnemonic, operands))
             return FIXTURE.AbiTests().capture(blob, segments, address, mnemonic, operands)
 
-        analyze = VERIFY.darwin_exit if name == 'darwin' else VERIFY.usb_exit
+        analyze = {'darwin': VERIFY.darwin_exit, 'usb': VERIFY.usb_exit,
+                   'display': VERIFY.display_exit}[name]
         blob, segments, reads, _ = self.fixture(name)
         with patch.object(VERIFY.ICB, 'instruction', side_effect=instruction):
             result = analyze(blob, segments, reads)
@@ -129,7 +131,8 @@ class ExitPathTests(unittest.TestCase):
 
     def test_every_exit_path_bounded_read_is_required(self):
         for name, ranges, analyze in (('darwin', VERIFY.DARWIN_RANGES, VERIFY.darwin_exit),
-                                      ('usb', VERIFY.USB_RANGES, VERIFY.usb_exit)):
+                                      ('usb', VERIFY.USB_RANGES, VERIFY.usb_exit),
+                                      ('display', VERIFY.DISPLAY_RANGES, VERIFY.display_exit)):
             blob, segments, reads, _ = self.fixture(name)
             for missing in ranges:
                 with self.subTest(name=name, missing=missing):
@@ -139,7 +142,8 @@ class ExitPathTests(unittest.TestCase):
                         analyze(blob, segments, changed)
 
     def test_exit_path_instruction_mutations_rejected(self):
-        for name, analyze in (('darwin', VERIFY.darwin_exit), ('usb', VERIFY.usb_exit)):
+        for name, analyze in (('darwin', VERIFY.darwin_exit), ('usb', VERIFY.usb_exit),
+                              ('display', VERIFY.display_exit)):
             _, checks = self.capture(name)
             blob, segments, reads, _ = self.fixture(name)
             for address, _, _ in checks:
@@ -153,7 +157,8 @@ class ExitPathTests(unittest.TestCase):
                             analyze(blob, segments, reads)
 
     def test_synthetic_zero_instructions_fail_without_mock(self):
-        for name, analyze in (('darwin', VERIFY.darwin_exit), ('usb', VERIFY.usb_exit)):
+        for name, analyze in (('darwin', VERIFY.darwin_exit), ('usb', VERIFY.usb_exit),
+                              ('display', VERIFY.display_exit)):
             blob, segments, reads, _ = self.fixture(name)
             with self.assertRaisesRegex(ValueError, 'unexpected instruction'):
                 analyze(blob, segments, reads)
@@ -182,13 +187,14 @@ class ExitPathTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, message):
                 VERIFY.usb_exit(blob, segments, reads)
 
-    def test_both_accepted_pe_identity_and_embedding_guards(self):
+    def test_accepted_consumer_pe_identity_and_embedding_guards(self):
         original = b'synthetic PE'
         section = (len(original) + 4).to_bytes(3, 'little') + b'\x10' + original
         section += bytes(-len(section) % 4)
         digest = hashlib.sha256(original).hexdigest()
         for guid, source, name in ((VERIFY.DARWIN_GUID, VERIFY.DARWIN_SOURCE, 'DarwinBoot'),
-                                   (VERIFY.USB_GUID, VERIFY.USB_SOURCE, 'UsbConfigDxe')):
+                                   (VERIFY.USB_GUID, VERIFY.USB_SOURCE, 'UsbConfigDxe'),
+                                   (VERIFY.DISPLAY_GUID, VERIFY.DISPLAY_SOURCE, 'DisplayDxe')):
             inner = {guid: bytes(24) + section}
             self.assertTrue(VERIFY.bind_pe(inner, original, guid, digest, source, name)
                             ['embedded_bytes_equal'])
@@ -197,6 +203,23 @@ class ExitPathTests(unittest.TestCase):
                                             (inner, original + b'changed', 'identity')):
                 with self.assertRaisesRegex(ValueError, message):
                     VERIFY.bind_pe(mutated, blob, guid, digest, source, name)
+
+    def test_display_cumulative_latch_is_not_per_panel_or_live_ownership(self):
+        result, checks = self.capture('display')
+        self.assertEqual(result['registration']['type'], '0x201')
+        self.assertIn('cumulative keep latch', result['condition'])
+        self.assertIn((0x13c84, 'csel', 'x25, x25, xzr, eq'), checks)
+        self.assertIn((0x13d58, 'cbnz', 'x25, #0x13d7c'), checks)
+        self.assertIn('GUID absence alone', result['limitations'][1])
+        self.assertIn('not live ACKs', result['limitations'][2])
+
+    def test_real_display_cumulative_latch_guard(self):
+        blob, segments, _, put = self.fixture('display')
+        put(0x13c84, bytes.fromhex('39039f9a'))
+        VERIFY.ICB.instruction(blob, segments, 0x13c84, 'csel', 'x25, x25, xzr, eq')
+        put(0x13c84, bytes.fromhex('39139f9a'))
+        with self.assertRaisesRegex(ValueError, 'unexpected instruction'):
+            VERIFY.ICB.instruction(blob, segments, 0x13c84, 'csel', 'x25, x25, xzr, eq')
 
 
 if __name__ == '__main__':

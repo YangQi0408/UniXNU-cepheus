@@ -1,5 +1,49 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 16:08：显示退出的条件分支与ICB后续写入
+
+离线继续，无手机/协议/SMC/MMIO执行，无内核或生产后端改动；Darwin/USB批
+`714ca63`已推送，以下是后续增量，不覆盖v3结论或receipt。
+
+accepted patched DisplayDxe GUID`4138022F-06C7-4F79-9C94-7E33B511A4E7`，
+274432B/SHA`7a1799156845c0934164feb87831157f56dd8d5fa5a16356314bede5a64d3552`，
+与device patched PE逐字节相同。全PE未找到EBS group GUID literal，**不代表
+没有EBS callback**：init`0x1650`在`0x1708..0x1733`实际用BS+0x50注册
+type0x201/TPL8/callback`0x14dc`。callback关闭UI/refresh事件，`0x2d64(0)`
+经动态protocol slot+8取消callback，然后`0x15a8`尾跳`0x13c28`。
+
+`0x13c28`循环三个display item，supported表0x35338/状态基址0x3ca50/
+跨度0x628。**keep latch是跨item累积的x25，不是每panel局部布尔值**：初值1，
+某supported item的state+0x5a3 bit0非零后CSEL置0；后续item不会重新置1。
+latch为0且state+0x18等于1时才调用panel deinit及两次common/specific power
+helper。三个item遍历结束后，latch为0才调用`0x13b58`的clock groups0..4。
+free对象及`0x1a3dc`的最终display-state copy另行执行；后者不是ARC/client
+全局快照。动态supported/flags/活动state未采集，不能声称本轮停掉了显示。
+
+Clock关闭链`0x1261c`定位动态protocol，按动态平台表选clock group，跳过
+entry+0x30 bit0置位项；slot+8查clock handle，slot+0x18调用关闭。core group
+还调用`0x12598(0)`的条件domain关闭和`0x124fc(0)` bandwidth helper。
+`0x124fc`若handle为空可新建`/icb/arbiter`的display client，type0x400/
+create数据16B；arg1经`0x1ea84`发请求，否则`0x1eb08`定位NPA后调用slot+0x18。
+此slot在accepted NPA的真正后端/效果尚未绑定，不能写成“全局清票”。部分
+clock调用结果被忽略；`0x13c28`最终返回0也不是成功硬件ACK/停机凭据。
+
+私有logs保存`display-resource-handoff-final-evidence.json`32 records及
+snapshot，v1/v2中间bundle也保留。条件分支assembly Evidence
+`ev_4ecb7aabc8f25d03357a7647a2bc161bd68bcfdd169110a98272349aeead2cc9`；
+完整函数read `ev_aa381858fcbe54c6a28b4aee12b138d16e06a0a725e6296645d6b0c0abcd12c5`；
+NPA包装read `ev_620018f6dc1a66eb90adba366dbfdf85dafed43ecc839c663bfbee15067b1955`。
+
+交接核验新增Display PE身份、七段coverage/65关键指令（累计DXE core61+
+Darwin68+USB42+Display65）。17项测试普通/-O通过，含每段缺失/每条拒绝/
+真实CSEL条件翻转；v4两模式receipt PASS_STATIC_BYTES_ONLY且完全相同，SHA
+`c3156f2106ab179dd65d214b9ea3b4befa8b3beed46782694d06fed19282ab0c`。
+已排除“没GUID就没退出callback”和“每panel独立keep flag”两种错误推断，
+未证明硬件最终状态或所有writer。下一绑定NPA slot+0x18、PDC/其余相关退出
+写入和最终完整client/ARC/XNU owner；PAS13=false、secure PA/XPU/crypto clocks/
+SMMU仍缺。无新构建/手机操作/真机点，不绕过supported=false/CP halt；
+GPU scratch/fence、Metal与PAS认证未执行。
+
 ## 2026-11-10 15:56：实际DarwinBoot与USB退出路径
 
 本机离线补证，无固件执行、协议调用、手机/SMC/MMIO操作或生产后端改动。
