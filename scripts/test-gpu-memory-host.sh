@@ -32,6 +32,18 @@ if [[ $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
 "$tmp/workspace"
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_smmu_memory_pin.cpp" "$tmp/workspace.o" "$tmp/retire.o" \
+    -o "$tmp/smmu-pin" "${libs[@]}"
+for mode in 0 1 2 3 4 5 6 7; do "$tmp/smmu-pin" "$mode"; done
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
+    -DCEPHEUS_SMMU_NATIVE_POOL_TEST=1 -c "$root/xnu/test_smmu_native.c" -o "$tmp/smmu-native-pool.o"
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_smmu_native_pool.cpp" \
+    "$tmp/smmu-native-pool.o" "$tmp/workspace.o" "$tmp/retire.o" -o "$tmp/smmu-native-pool" "${libs[@]}"
+for mode in 0 1 2 3 4 5; do "$tmp/smmu-native-pool" "$mode"; done
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gpu_terminal_race.cpp" "$tmp/workspace.o" "$tmp/retire.o" \
     -o "$tmp/terminal" "${libs[@]}"
 "$tmp/terminal"

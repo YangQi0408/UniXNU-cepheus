@@ -6,6 +6,15 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 native SMMU continuation:
+`out/smmu-native-preflight-20261111-final-v2/receipt.json` passes all four
+local prerequisites, 74 host programs and seven production-unit analyses.
+`out/smmu-native-local-20261111-final-v2/receipt.json` accepts native SMMU,
+shared MMIO guards and staged AArch64 compilation. Explicit real GMU/SQE
+ASan/UBSan runs cover actual C++ pool pin/native integration with emulated
+hardware. See `smmu-native-backend.md` for identities and limitations.
+Complete XNU link remains pending for the combined unhooked native batches.
+
 2026-11-11 native PDC/RSC continuation:
 `out/pdc-native-preflight-20261111-final-v1/receipt.json` passes all four
 local prerequisites, 73 host programs and seven production-unit analyses.

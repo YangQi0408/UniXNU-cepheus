@@ -16,6 +16,17 @@ int ceph_memory_retire_begin(const struct ceph_gpu_publication *);
 /* success means the orchestrator finished all protocol operations, not a
  * caller assertion. False permanently quarantines the entire group. */
 int ceph_memory_retire_finish(const struct ceph_gpu_publication *,int success);
+struct ceph_gmu_start_config;
+/* Native installer only. Pin the actual shared six-buffer group against
+ * retirement/abandonment, derive its config, and order its Normal-NC tables.
+ * The platform must separately exclude CPU/device/foreign writers. */
+int ceph_memory_smmu_acquire(const struct ceph_gpu_publication *,struct ceph_gmu_start_config *);
+int ceph_memory_smmu_validate(const struct ceph_gpu_publication *);
+int ceph_memory_smmu_publish(const struct ceph_gpu_publication *);
+enum ceph_memory_smmu_result {CE_MEMORY_SMMU_REFUSED,CE_MEMORY_SMMU_INSTALLED,CE_MEMORY_SMMU_UNCERTAIN};
+/* Actual installer result: uncertainty permanently retains/quarantines the
+ * real group. Installed ends this temporary pin, not the hardware lease. */
+int ceph_memory_smmu_finish(const struct ceph_gpu_publication *,enum ceph_memory_smmu_result);
 #ifdef __cplusplus
 }
 #endif

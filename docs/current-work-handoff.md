@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11续推进：原生SMMU/真实六buffer pool pin本地验收收尾通过。
+final-v2 focused receipt SHA c4a53b18...；8122 PROT_NONE、四map及实际
+GMU reset/MEMNOC/DVM gates、live geometry/全stream扫描、SID5 scoped
+15effects与真实delay，cleanup失败QUARANTINED保留pin。preflight final-v2
+四步/74 host/七分析全PASS，SHA3047e55c...；real GMU/SQE ASanUBSan actual
+pool0..7/native+pool0..5/整链0..22退出0，SHA5b433646...，均模拟硬件。
+详见smmu-native-backend.md；无owner/startup/完整XNU link/新CI/手机操作。
+原未boot tail诊断身份不变，不含本批；PAS13=false/supported=false/CP halt
+不绕，GPU/Metal未执行，目标active。下一native upload逐访问guard与绑定、
+真实owner/继承票/idle协调；手机未识别，继续等此前手动fastboot确认。
+
 2026-11-11后续：ce190d9原生CM3已提交推送，继续原生PDC/RSC实际固定五map，
 copied owner/input/config、GPLL0同锁/逐map及访问guard；要求既有retention/
 CM3 reset/GX off，拒绝继承PDC enable，不改apps DRV或释放reset。共享PDC

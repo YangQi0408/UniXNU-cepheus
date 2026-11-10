@@ -47,6 +47,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_gpu_tsens.h cepheus_gpu_tsens_native.h cepheus_gpu_tsens_native_private.h \
     cepheus_gmu_start_native.h cepheus_gmu_start_native_private.h \
     cepheus_gpu_pdc_native.h cepheus_gpu_pdc_native_private.h \
+    cepheus_smmu_native.h cepheus_smmu_native_private.h \
     cepheus_cp_ring_config.h \
     cepheus_cp_protection.h \
     cepheus_cp_snapshot_mmio.h \

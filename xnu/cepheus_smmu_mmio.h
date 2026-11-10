@@ -30,6 +30,7 @@ static inline void ceph_smmu_mmio_order(void)
 static inline int ceph_smmu_mmio_offset(const struct ceph_smmu_mmio *m,enum ceph_smmu_reg reg,uint32_t *offset,unsigned *width)
 {
     if(!m || !m->base || ((uintptr_t)m->base&7u) || !offset || !width ||
+        (uintptr_t)m->base>UINTPTR_MAX-m->mapped_bytes ||
         !ceph_smmu_plan_canonical(&m->plan) || m->actlr!=0x303 ||
         m->geometry.bytes!=m->mapped_bytes || m->geometry.bytes!=0x10000 ||
         m->geometry.page_shift!=12 || m->geometry.cb_base!=0x8000 || m->geometry.gr1!=0x1000 ||
@@ -70,8 +71,10 @@ static inline int ceph_smmu_mmio_read(void *ctx,enum ceph_smmu_reg reg,uint64_t 
     if(!value || ceph_smmu_mmio_offset(m,reg,&offset,&width) ||
         reg==CE_SM_TLBIASID || reg==CE_SM_TLBSYNC || m->lease(m->owner))return -1;
     ceph_smmu_mmio_order();
-    *value=width==8?*(volatile uint64_t *)(m->base+offset):*(volatile uint32_t *)(m->base+offset);
-    ceph_smmu_mmio_order();return 0;
+    uint64_t actual=width==8?*(volatile uint64_t *)(m->base+offset):*(volatile uint32_t *)(m->base+offset);
+    ceph_smmu_mmio_order();
+    if(m->lease(m->owner) || actual==(width==8?UINT64_MAX:UINT32_MAX))return -1;
+    *value=actual;return 0;
 }
 static inline int ceph_smmu_mmio_write(void *ctx,enum ceph_smmu_reg reg,uint64_t value)
 {
@@ -99,6 +102,6 @@ static inline int ceph_smmu_mmio_write(void *ctx,enum ceph_smmu_reg reg,uint64_t
     ceph_smmu_mmio_order();
     if(width==8)*(volatile uint64_t *)(m->base+offset)=value;
     else *(volatile uint32_t *)(m->base+offset)=(uint32_t)value;
-    ceph_smmu_mmio_order();return 0;
+    ceph_smmu_mmio_order();return m->lease(m->owner)?-1:0;
 }
 #endif
