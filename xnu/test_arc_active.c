@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#ifndef __unused
 #define __unused __attribute__((unused))
+#endif
 #define RH_TCS_STRIDE 0x2a0u
 #define RH_CMD_STRIDE 0x14u
 #define RH_IRQ_EN 0u

@@ -57,7 +57,8 @@ the copy-manifest fix and the additional control checks. Do not use it as the
 final source identity. The final receipt records a dirty source tree; later
 documentation edits and the explicit CI patch-directory fix are not claimed
 as part of that run. The native check was rerun against the staged directory
-after the fix. **Complete XNU build/link has not run for this change.** No boot
+after the fix; the macOS macro-guard fix was tested separately.
+**Complete XNU build/link has not run for this change.** No boot
 image was made and no phone operation occurred. The accepted SCM-pair boot
 remains running; GPU scratch/fence, Metal and PAS authentication remain unrun.
 
@@ -67,6 +68,12 @@ admission path. Do not schedule another touch/SCM/memory test for this module.
 
 At 17:37 CST, implementation commit `7c80907` was pushed and full XNU job
 `42792076835` started at that exact commit. Source staging passed; compilation,
-linking and compiled-artifact acceptance remain **PENDING**, not PASS. Local
+linking and compiled-artifact acceptance were pending at that observation. Local
 tracking: `out/arc-active-ci-42792076835.json`. No boot is planned for this
 unhooked transport by itself.
+
+At 17:40 CST, that job was confirmed **FAILED before XNU compilation**:
+macOS headers already define `__unused`, and the RAM test redefined it under
+`-Werror`. An `#ifndef` guard fixes the test without changing production code.
+Linux checks with both absent and Darwin-style existing macros pass. The old
+job is not build acceptance; a new fixed-commit run must replace it.
