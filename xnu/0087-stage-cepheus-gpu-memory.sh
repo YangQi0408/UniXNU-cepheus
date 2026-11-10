@@ -44,6 +44,7 @@ install -m 0644 "$here/cepheus_cp_snapshot_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_workspace.c" "$here/cepheus_cp_workspace.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_vm39.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_core.h" bsd/dev/
+install -m 0644 "$here/cepheus_gx_core_native.h" "$here/cepheus_gx_core_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_perfcounter.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_gbif.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_llc.h" bsd/dev/

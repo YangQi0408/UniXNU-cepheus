@@ -46,6 +46,7 @@ HEADERS += ('cepheus_cp_snapshot_mmio.h',)
 HEADERS += ('cepheus_cp_workspace.c','cepheus_cp_workspace.h')
 HEADERS += ('cepheus_gpu_vm39.h',)
 HEADERS += ('cepheus_gx_core.h',)
+HEADERS += ('cepheus_gx_core_native.h','cepheus_gx_core_native_private.h')
 HEADERS += ('cepheus_gx_perfcounter.h',)
 HEADERS += ('cepheus_gx_llc.h',)
 HEADERS += ('cepheus_scm_discovery.h',)
@@ -150,6 +151,7 @@ def main():
     required |= {'_cepheus_cp_workspace_prepare','_cepheus_cp_workspace_release'}
     required |= {'_cepheus_gpu_vm39_build'}
     required |= {'_cepheus_gpu_gx_core_configure'}
+    required |= {'_cepheus_gpu_gx_core_native'}
     required |= {'_cepheus_gpu_gx_perfcounter_configure'}
     required |= {'_cepheus_gpu_gx_gbif_configure','_cepheus_gpu_gx_va_partition'}
     required |= {'_cepheus_gpu_gx_llc_configure'}

@@ -69,6 +69,7 @@ jobs:
             cepheus_cp_workspace.c cepheus_cp_workspace.h \
             cepheus_gpu_vm39.h \
             cepheus_gx_core.h \
+            cepheus_gx_core_native.h cepheus_gx_core_native_private.h \
             cepheus_gx_perfcounter.h cepheus_cp_preinit.h cepheus_gx_gbif.h cepheus_gx_llc.h cepheus_scm_discovery.h cepheus_gx_va_layout.h cepheus_gx_hwcg.h cepheus_cp_unsecure_gate.h \
             cepheus_gx_smmu_plan.h \
             cepheus_gmu_workspace.c cepheus_gmu_workspace.h \
@@ -172,6 +173,8 @@ jobs:
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_vm39.c -o /tmp/ceph-gpu-vm39
           /tmp/ceph-gpu-vm39
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gx_core.c -o /tmp/ceph-gx-core
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gx_core_native.c -o /tmp/ceph-gx-core-native
+          /tmp/ceph-gx-core-native
           /tmp/ceph-gx-core
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_keepalive.c -o /tmp/ceph-keepalive
           /tmp/ceph-keepalive

@@ -7,24 +7,35 @@
 #include "cepheus_gmu_hfi_link.h"
 #include "../tests/gpll0-scope-fixture.h"
 #include "../tests/gpu_config_fixture.h"
-static volatile uint8_t *windows[6];
-static const size_t sizes[]={0x90000,0x9000,0x30000,0x10000,4096,4096};
+static volatile uint8_t *windows[7];
+static const size_t sizes[]={0x90000,0x9000,0x30000,0x10000,4096,4096,0x40000};
 static unsigned ceph_gpll0_lock,maps,mode,checks,begins,ends,excluded,delays,query_delays,revoked;
 static unsigned bin,booting,fw_received,boot_fail,late_boot,config_ends;
 static unsigned starting,late_start;
 static unsigned qmp_checks,qmp_expire,qmp_final_loss;
+static unsigned gx_checks,gx_begins,gx_ends,gx_stores,gx_keep,gx_expire,gx_maps;
 static uint64_t ticks;
 static uint32_t *table;
 static struct ceph_gpu_publication publication;
 static int ceph_scm_info_context(void *unused){(void)unused;return 0;}
 static volatile uint32_t *word(unsigned n,uint32_t off)
-{assert(n<4 && off<sizes[n]);return (volatile uint32_t *)(windows[n]+off);}
+{assert(n<7 && off<sizes[n]);return (volatile uint32_t *)(windows[n]+off);}
 static volatile uint32_t *reg(enum ceph_gmu_reg r)
 {uint32_t off;assert(!ceph_gmu_register_offset(r,&off));return word(2,off);}
 static uintptr_t ml_io_map(uint64_t pa,size_t bytes)
 {
-    static const uint64_t physical[]={0x100000,0x2c90000,0x2c6a000,0x2ca0000,0xc300000,0x17c0000c};
-    for(unsigned n=0;n<6;++n)if(pa==physical[n]){assert(bytes==(n==5?4:sizes[n]));++maps;return (uintptr_t)windows[n];}
+    static const uint64_t physical[]={0x100000,0x2c90000,0x2c6a000,0x2ca0000,0xc300000,0x17c0000c,0x2c00000};
+    for(unsigned n=0;n<7;++n)if(pa==physical[n]) {
+        assert(bytes==(n==5?4:sizes[n]));++maps;
+        if(n==6) {
+            ++gx_maps;
+            if(mode==32)return 0;
+            if(mode==38)gx_expire=gx_checks+1;
+            if(mode==46)return UINTPTR_MAX-3;
+            if(mode==47)return (uintptr_t)windows[n]+1;
+        }
+        return (uintptr_t)windows[n];
+    }
     assert(0);return 0;
 }
 static uint64_t mach_absolute_time(void){ticks+=1000;return ticks;}
@@ -69,6 +80,29 @@ static uint32_t rh_read(uintptr_t base,uint32_t off)
 int cepheus_gpu_fuse_sample(uint32_t *out){*out=bin<<29;return 0;}
 #include "cepheus_gpu_config_native_private.h"
 #include "cepheus_gmu_hfi_native_private.h"
+#include "cepheus_gx_core_native_private.h"
+static int gx_begin(void *ctx,const struct ceph_gpu_publication *pub,const struct ceph_gx_core_input *input)
+{
+    assert(ctx==windows && ceph_gpll0_lock && pub->group==publication.group &&
+        input->chipid==0x06040001 && input->gmem_bytes==0x100000 && input->gmem_base==0x100000);
+    ++gx_begins;return mode==48?-1:0;
+}
+static int gx_validate(void *ctx)
+{
+    assert(ctx==windows && ceph_gpll0_lock);++gx_checks;
+    if((gx_expire && gx_checks>=gx_expire) || (mode==39 && ceph_gx_native.result.writes==1)) {
+        assert(!mprotect((void *)windows[6],sizes[6],PROT_NONE));return -1;
+    }
+    if(mode==40 && ceph_gx_native.result.writes==1)*word(6,0x808*4)=0;
+    if(mode==41 && ceph_gx_native.result.writes==1)*word(6,0x823*4)=1;
+    if(mode==42 && ceph_gx_native.result.writes==1)*word(6,0xe05*4)=0;
+    return 0;
+}
+static void gx_finish(void *ctx,unsigned stores,int keep)
+{
+    assert(ctx==windows && ceph_gpll0_lock);++gx_ends;gx_stores=stores;gx_keep=keep;
+    if(mode==43)gx_expire=gx_checks+1;
+}
 static int query_begin(void *ctx,const struct ceph_gpu_publication *pub)
 {assert(ctx==windows && ceph_gpll0_lock && pub->group==publication.group);++begins;return 0;}
 static int query_validate(void *ctx)
@@ -164,10 +198,10 @@ static void oob_finish(void *ctx,unsigned stores,int keep)
 int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
     const struct ceph_smmu_plan *plan,unsigned selected)
 {
-    assert(snapshot && workspace && plan && selected<=30);mode=selected;publication=workspace->publication;
+    assert(snapshot && workspace && plan && selected<=48);mode=selected;publication=workspace->publication;
     bin=mode==10 || mode>=24;boot_fail=mode>=11 && mode<=14?mode-10:0;late_boot=mode==15;late_start=mode==23;
     table=workspace->views[2].cpu;ticks=1000000;gpll0_scope_reset();
-    for(unsigned n=0;n<6;++n) {
+    for(unsigned n=0;n<7;++n) {
         windows[n]=mmap(NULL,sizes[n],PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
         assert(windows[n]!=MAP_FAILED);
     }
@@ -198,7 +232,7 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         assert(cepheus_gmu_start_cold_native(&cm3,&workspace->layout.start,&config,&started)<0 &&
             !ceph_cm3_native.attempted && maps==before && started.error==456 && started.effects==123);
         if(mode!=25) {
-            for(unsigned n=0;n<6;++n)assert(!munmap((void *)windows[n],sizes[n]));
+            for(unsigned n=0;n<7;++n)assert(!munmap((void *)windows[n],sizes[n]));
             printf("Native config/QMP cold admission mode=%u PASS (no CM3 effect, emulated hardware)\n",mode);
             return -1;
         }
@@ -207,7 +241,7 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
     if(mode==29) {
         assert(cepheus_gmu_start_cold_native(&cm3,&workspace->layout.start,&config,&started)<0 &&
             started.state==CE_GS_QUARANTINED && ceph_cm3_native.failed && maps==12);
-        for(unsigned n=0;n<6;++n)assert(!munmap((void *)windows[n],sizes[n]));
+        for(unsigned n=0;n<7;++n)assert(!munmap((void *)windows[n],sizes[n]));
         printf("Native config/QMP cold final callback mode=29 PASS (no HFI query, emulated hardware)\n");
         return -1;
     }
@@ -235,7 +269,7 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         if(mode==16)config.bw.ddr_data[3][1]^=1;
         if(mode==17)ceph_cm3_native.failed=1;
         int be=cepheus_gmu_hfi_boot_native(&config,&boot);
-        assert((be==0)==(mode==9 || mode==10 || (mode>=18 && mode<=26)));
+        assert((be==0)==(mode==9 || mode==10 || (mode>=18 && mode<=26) || mode>=31));
         assert(maps==before);
         if(mode==16)assert(boot.error==123 && !ceph_hfi_native.boot_attempted && ends==1);
         else {
@@ -264,15 +298,50 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
                     if(mode==20)boot_fail=fw_received+1;
                     if(mode==22)ceph_oob_native.failed=1;
                     sr.error=123;int se=cepheus_gmu_hfi_start_native(&sr);
-                    assert((se==0)==(mode==18 || mode==24 || mode==25));
+                    assert((se==0)==(mode==18 || mode==24 || mode==25 || mode>=31));
                     if(mode==22)assert(sr.error==123 && !ceph_hfi_native.start_attempted);
-                    else assert(sr.retained && sr.start_acked==(mode==18 || mode==24 || mode==25));
+                    else assert(sr.retained && sr.start_acked==(mode==18 || mode==24 || mode==25 || mode>=31));
                     sr.error=123;assert(cepheus_gmu_hfi_start_native(&sr)<0 && sr.error==123);
                 }
             }
         }
     }
-    for(unsigned n=0;n<6;++n)assert(!munmap((void *)windows[n],sizes[n]));
+    if(mode>=31) {
+        struct ceph_gx_native_owner gx={windows,gx_begin,gx_validate,gx_finish,1};
+        struct ceph_gx_native_result gr={.error=123};
+        *word(6,0x808*4)=2;
+        if(mode==33)*word(6,0x808*4)=0;
+        if(mode==34)*word(6,0x823*4)=1;
+        if(mode==35)*word(2,0x1f8d0*4-0x6a000)=4;
+        if(mode==36)*word(2,0x23b10*4-0x6a000)=1;
+        if(mode==37)gx_expire=1;
+        if(mode==44)ceph_oob_native.release_attempted=1;
+        if(mode==45)gx.rpmh_token=0;
+        unsigned before=maps;int ge=cepheus_gpu_gx_core_native(&gx,&gr);
+        assert((ge==0)==(mode==31));
+        if(mode==44 || mode==45) {
+            assert(gr.error==123 && !ceph_gx_native.attempted && !gx_begins && !gx_ends && maps==before);
+        }else {
+            assert(ceph_gx_native.attempted && gr.error==ge && gx_begins==1);
+            if(mode==48)assert(!gr.retained && !gx_ends && maps==before);
+            else {
+                assert(gr.retained && gx_ends==1 && gx_keep && gr.writes==gx_stores);
+                assert(gr.configured==(mode==31));
+                if(mode==31 || mode==43)assert(gr.writes==23);
+                if(mode>=39 && mode<=42)assert(gr.writes==1);
+                if(mode>=35 && mode<=37)assert(!gx_maps && !gr.writes);
+                if(mode==31) {
+                    for(unsigned n=0;n<23;++n)assert(*word(6,ceph_gx_native.plan.writes[n].word*4)==ceph_gx_native.plan.writes[n].value);
+                    assert(*word(6,0x808*4)==2 && !*word(6,0x807*4));
+                }
+            }
+            gr.error=123;
+            unsigned callbacks=gx_checks;
+            assert(cepheus_gpu_gx_core_native(&gx,&gr)<0 && gr.error==123 && gx_checks==callbacks);
+        }
+        printf("Actual HFI/OOB/GX mode=%u maps=%u guards=%u stores=%u PASS (emulated hardware)\n",mode,gx_maps,gx_checks,gx_stores);
+    }
+    for(unsigned n=0;n<7;++n)assert(!munmap((void *)windows[n],sizes[n]));
     printf("Actual SMMU/upload/CM3/HFI + actual pool mode=%u checks=%u PASS (emulated MMIO/ACK/IOKit, no GPU)\n",mode,checks);
     return e;
 }

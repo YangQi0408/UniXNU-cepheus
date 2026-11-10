@@ -1,5 +1,11 @@
 # Native HFI Session
 
+CI42907357305 @31215d3 is now successful and independently accepted against
+archived source, including linked RPMh/idle. Exact kernel/receipt hashes and
+scope exclusions are in `gx-native-backend.md`. It does NOT cover later
+`ceaa736` pre-cold/config changes or native GX. Earlier "building" note below
+records the state at that follow-on's acceptance.
+
 ## 2026-11-11 Config And Pre-Cold ACD Follow-On
 
 The continuation above was committed/pushed as `31215d3`. Its single full

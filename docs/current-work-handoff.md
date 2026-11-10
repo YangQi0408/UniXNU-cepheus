@@ -1241,6 +1241,17 @@ TZ verifier需显式原件／证据／新output；不在公共CI下载私有材�
 `README.md`、`../dist/README.md`及上述历史章节可能有“尚未／当前推荐／已可用”
 等当时措辞；**以本文、最新gpu-acceptance和对应真机result为当前解释**。
 不要照搬历史flash/recovery/失败镜像命令。本文是交接摘要，不声称全部缺口已解决。
+# 2026-11-11 Native GX Subset
+
+ceaa736 config-cold batch pushed. Fixed native GX23 writes and actual HFI/
+OOB-held/pool guard chain implemented, CP halted/no startup. Fresh focused140
+checks and full83-host preflight PASS, source hashes still match, real firmware
+49-mode actual-pool and whole chain sanitizer-clean (hardware/owner emulated).
+Exact receipts in `gx-native-backend.md`. CI42907357305 @31215d3 successful
+and archived-source accepted, 106core/35memory; excludes ceaa736 and GX.
+No phone operations or GPU execution. Next actual HWCG-before-GBIF binding,
+GX CP workspace publication, genuine ownership/inherited state and PAS13.
+
 # 2026-11-11 Config-Cold Follow-On
 
 `31215d3` pushed; single CI42907357305 building, no redispatch. Later

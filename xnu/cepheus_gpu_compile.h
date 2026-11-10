@@ -60,6 +60,7 @@
 #include "cepheus_cp_snapshot_mmio.h"
 #include "cepheus_gpu_vm39.h"
 #include "cepheus_gx_core.h"
+#include "cepheus_gx_core_native.h"
 #include "cepheus_gx_smmu_plan.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
 int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);

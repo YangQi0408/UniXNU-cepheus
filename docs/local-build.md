@@ -1,5 +1,11 @@
 # Local build workflow
 
+2026-11-11: CI42907357305 @31215d3 accepted using archived-source scripts:
+106 core/35 memory/no unresolved, touch/PA64/SCM/tail/RPMh/idle pass. The
+native config/HFI kernel excludes later ceaa736 CM3/QMP and new GX edits.
+Fresh GX140-check focused/four-step83-host local acceptance passes. Exact identities and
+hardware/owner limits: `gx-native-backend.md`. No image packaging or phone IO.
+
 The current SWEET XNU 8796 build uses the pinned macOS builder. Firmware
 compilation, patch preparation, host regressions, FV reconstruction, FAT/boot
 packaging and independent artifact verification run locally.
