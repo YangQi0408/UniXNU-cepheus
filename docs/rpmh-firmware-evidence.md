@@ -1,5 +1,58 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 15:56：实际DarwinBoot与USB退出路径
+
+本机离线补证，无固件执行、协议调用、手机/SMC/MMIO操作或生产后端改动。
+上一批`91f34eb`保持；旧bundle/snapshot/receipt不覆盖。
+
+accepted boot内DarwinBoot GUID`1B64AF87-8415-4B57-9B16-680D70913B9F`，
+27136B/SHA`8ce496a6621101c3354dc96cf031fb7ac1dc2ca89775cccddf19a07c41f4051b`，
+与配对版staged RELEASE PE逐字节相同。map仅定位；实际字节经REA和
+Capstone核验。entry`0x1050`用BS+0x50注册type0x201/TPL16/callback0x130c；
+callback只写module+0x78b0为1再返回，不执行资源quiesce。
+
+Boot entry`0x133c`的`0x27b8..0x290b`最多三次GetMemoryMap→EBS，BS槽为
+0x38/0xe8。x27在`0x1360..0x136b`构造EFI_INVALID_PARAMETER
+`0x8000000000000002`；只有该EBS错误重取map重试，其他错误进断言路径。
+成功后按诊断flag封存/复制0xa60B SCM记录，再BL`0xb000` DarwinEnter。
+后者屏蔽DAIF、画framebuffer条、DC CIVAC/IC IALLU、禁EL1 MMU/cache、
+TLBI VMALLE1、BRx1。**CPU维护不是GPU DMA/SMMU停机；SCM记录不是资源lease。**
+这将上一节staged源码观察提升为accepted PE的有界指令观察，仍非运行实测。
+
+accepted patched UsbConfigDxe GUID`CD823A4D-7DEC-4531-AE5D-4134FA4127B8`，
+90112B/SHA`3dd36eef1cbe67eb65acb5f1825d8ce461d62ab7122d87e7a0a5475ea7636371`，
+与device PatchedBinaries原件逐字节相同。init`0x1790`用CreateEventEx注册
+type0x200/TPL8/EBS GUID14028/callback16e4；实际BL清理位于`0x16f0→0x4670`。
+清理关闭poll事件，循环两个core，调用vtable+0x60(arg1)，释放core/port，
+条件调用domain协议+8并清domain指针。init`0x7c2c`把该core槽分别设为
+`0x935c`/`0x9e98`；两setter对非零arg1均跳过PHY调用。文件flagf2cc/f2cd
+为0/1，但不是手机活态flag。domain调用ABI/完成未定，不能推广成GPU或
+全局SMMU teardown，也不能从返回值存入stack后忽略推导停机成功。
+
+USB有界ICB消费链：`0x9fd4`创建`/icb/arbiter`上usb_ss1_bus/usb_ss2_bus，
+type0x400/create数据16B；`0x80c0`/`0x9498`初始化和`0x8cd8`/`0x9b50`低功耗
+通过`0xe498→NPA slot0x90`发送16 words向量请求。退出清理已定位的core
+setter不是这两个LPM函数，free helpers仅释放对象。**不能声称EBS清空
+这些ICB票或掌握完整client/最后writer。**路由/单位/运行成功仍待验证。
+
+证据在既有私有logs目录：`darwin-resource-handoff-final-evidence.json`
+9 records及snapshot（含错误常量read）；`usb-resource-handoff-v2-evidence.json`
+42 records及snapshot，USB v1/final和Darwin v1保留；PDC entry初查5 records
+另存`pdc-resource-entry-v1`，未发现GUID只为有界检索，不是全模块缺席证明。
+Darwin错误常量read Evidence
+`ev_62e250833aa6330a52356a28502ce25bd85b3db666a4db0cc081f2dcf500939c`；
+USB callback read
+`ev_dc4284110ebc2b59bd0c2218aa138e23bc5db446b81e8bd7dd307ae16c6e688b`。
+
+`verify-resource-handoff-evidence.py`扩展两PE身份/embedded字节、五段Darwin/
+八段USB coverage，68+42条指令（另保留DXE core61条）。15项测试普通/-O
+通过，含每段缺失、每条关键指令拒绝、真实合成CMP/BL篡改、GUID/flag和
+两PE身份/嵌入拒绝。v3两模式receipt PASS_STATIC_BYTES_ONLY完全相同，SHA
+`ba1d401253da3ef887f5b0769770702b7b69f2f94ecc7db6da18cb810c0909cb`。
+crypto31/ICB24/NPA8回归通过，无新核/构建/真机测试点。下一收敛Display/PDC
+退出写入与完整资源状态/唯一XNU owner；PAS13=false、secure PA/XPU、crypto
+clocks/SMMU仍缺，supported=false/CP halt保持，GPU/Metal/PAS认证未执行。
+
 ## 2026-11-10 15:35：两层聚合与已验收DXE派发顺序
 
 本机离线原件核验；没有协议执行、SMC/MMIO、手机操作、生产后端或内核改动。
