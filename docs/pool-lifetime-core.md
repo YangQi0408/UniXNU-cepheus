@@ -2,7 +2,9 @@
 
 2026-11-10: an isolated, locally built DXE core now records allocation lifetime
 in its **actual `CoreAllocatePoolI` / `CoreFreePoolI` paths**. This is a building
-block for the final RPMh collector, not that collector or a GPU boot candidate.
+block for the final RPMh collector, not a GPU boot candidate. The later opt-in
+[exit-tail diagnostic](rpmh-exit-tail.md) uses it without changing this default
+bookkeeping-only stage.
 Sibling firmware trees and the running phone were not modified.
 
 ## Implemented
@@ -70,16 +72,17 @@ python3 scripts/test-pool-lifetime-core.py --firmware-build out/NEW --output out
 
 ## Still Missing
 
-No final EBS tail collector, global AP/firmware/secure writer exclusion,
-post-callback live-map/CPU-attribute proof, frozen allocator lifetime,
-inherited ARC/BCM ledger, hardware ACK or production XNU owner exists here.
+The default stage has no EBS tail collector. The separate opt-in exit-tail
+diagnostic now adds local map provenance, translation checks and allocator
+freezing, not global AP/firmware/secure writer exclusion, an inherited ARC/BCM
+ledger, hardware ACK or production XNU owner.
 Core locks are TPL/local-CPU locks, not multiprocessor exclusion. Unknown
 allocation paths, direct permission changes, firmware runtime writers and
 DMA remain outside this bookkeeping. Do not feed this query or the old
 phase1 pre-EBS snapshot into `owner.validate` / current-vote admission.
 
-Next is a core-owned final collector with explicit lifetime and writer
-boundaries, preserving failures instead of blindly following post-EBS pointers.
+Next is hardware-diagnostic integration and genuine global writer coordination;
+the local exit-tail record must not be promoted into hardware ownership.
 PAS13=false, supported=false rejection and CP halt remain unchanged.
 No firmware volume, boot package, phone operation, GPU scratch/fence or Metal
 execution was performed.

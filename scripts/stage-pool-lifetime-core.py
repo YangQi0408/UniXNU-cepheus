@@ -92,7 +92,54 @@ def integrate_page(source):
 '''+old)
 
 
-def stage(repository, output):
+def tail_replace(source, old, new):
+    if source.count(old) != 1:
+        raise ValueError('unexpected exit-tail anchor: ' + old)
+    return source.replace(old, new)
+
+
+def integrate_tail_pool(source):
+    source = tail_replace(source, '#define POOL_FREE_SIGNATURE', '#include "CepheusRpmhTailCore.h"\n\n#define POOL_FREE_SIGNATURE')
+    source = tail_replace(source, '  CoreInstallProtocolInterface (&Handle, &mCepheusPoolQueryGuid, EFI_NATIVE_INTERFACE, &mCepheusPoolQuery);',
+                            '  CoreInstallProtocolInterface (&Handle, &mCepheusPoolQueryGuid, EFI_NATIVE_INTERFACE, &mCepheusPoolQuery);\n  extern VOID CoreCepheusTailInstall (VOID);\n  CoreCepheusTailInstall ();')
+    source = tail_replace(source, '  ASSERT_LOCKED (&mPoolMemoryLock);\n\n  if ((PoolType',
+                            '  ASSERT_LOCKED (&mPoolMemoryLock);\n  if (CoreCepheusTailFrozen ()) { mCeTail.Failed = TRUE; return NULL; }\n\n  if ((PoolType')
+    source = tail_replace(source, '  ASSERT (Buffer != NULL);\n  CePoolFreed',
+                            '  ASSERT (Buffer != NULL);\n  if (CoreCepheusTailFrozen ()) { mCeTail.Failed = TRUE; return EFI_ACCESS_DENIED; }\n  CePoolFreed')
+    return source
+
+
+def integrate_tail_page(source):
+    source = tail_replace(source, 'MEMORY_MAP  mMapStack[MAX_MAP_DEPTH];', 'MEMORY_MAP  mMapStack[MAX_MAP_DEPTH];\n#include "CepheusRpmhTailMap.h"')
+    old = '  extern VOID CoreCepheusPoolRangeChanged (UINT64 Start, UINT64 Pages);'
+    source = tail_replace(source, old, '  if (CoreCepheusTailRejectMutation ()) { return EFI_ACCESS_DENIED; }\n'+old)
+    old = '    CoreCepheusPoolRangeChanged (Start, NumberOfPages);'
+    source = tail_replace(source, old, old+'\n    CeTailMapRangeChanged (Start, NumberOfPages);')
+    source = tail_replace(source, '  if ((Start & EFI_PAGE_MASK) != 0) {',
+                            '  if (CoreCepheusTailRejectMutation ()) { return; }\n  if ((Start & EFI_PAGE_MASK) != 0) {')
+    source = tail_replace(source, '  RemoveEntryList (&Entry->Link);\n  Entry->Link.ForwardLink = NULL;',
+                            '  if (CoreCepheusTailRejectMutation ()) { return; }\n  RemoveEntryList (&Entry->Link);\n  Entry->Link.ForwardLink = NULL;')
+    source = tail_replace(source, '  if (IsListEmpty (&mFreeMemoryMapEntryList)) {',
+                            '  if (CoreCepheusTailRejectMutation ()) { return NULL; }\n  if (IsListEmpty (&mFreeMemoryMapEntryList)) {')
+    source = tail_replace(source, '    if (FreeDescriptorEntries != NULL) {',
+                            '    if (FreeDescriptorEntries != NULL) {\n      CeTailMapAllocated ((UINTN)FreeDescriptorEntries, DEFAULT_PAGE_ALLOCATION_GRANULARITY);')
+    source = tail_replace(source, '  if (mFreeMapStack != 0) {',
+                            '  if (CoreCepheusTailRejectMutation ()) { return; }\n  if (mFreeMapStack != 0) {')
+    return source
+
+
+def integrate_tail_main(source):
+    start = source.index('CoreExitBootServices (')
+    end = source.index('\n}', start) + 2
+    before, body, after = source[:start], source[start:end], source[end:]
+    old = '  EFI_STATUS  Status;'
+    body = tail_replace(body, old, old+'\n  extern VOID CoreCepheusTailAttempt (VOID);\n  CoreCepheusTailAttempt ();')
+    old = '  gRuntime->AtRuntime = TRUE;'
+    body = tail_replace(body, old, old+'\n\n  extern VOID CoreCepheusRpmhTail (VOID);\n  CoreCepheusRpmhTail ();')
+    return before+body+after
+
+
+def stage(repository, output, rpmh_tail=False):
     if output.exists():
         raise ValueError('output already exists')
     archive = subprocess.check_output(['git', '-C', str(repository), 'archive', BASE])
@@ -141,7 +188,22 @@ def stage(repository, output):
     if text.count(anchor) != 1:
         raise ValueError('unexpected dispatcher anchor')
     main.write_text(text.replace(anchor, '  extern VOID CoreCepheusPoolQueryInstall (VOID);\n  CoreCepheusPoolQueryInstall ();\n'+anchor))
-    manifest = {'base_commit': BASE, 'bookkeeping_only': True, 'dependencies': dependencies, 'files': {}}
+    manifest = {'base_commit': BASE, 'bookkeeping_only': not rpmh_tail, 'dependencies': dependencies, 'files': {}}
+    if rpmh_tail:
+        manifest['rpmh_exit_tail_diagnostic'] = True
+        pool.write_text(integrate_tail_pool(pool.read_text()))
+        page.write_text(integrate_tail_page(page.read_text()))
+        main.write_text(integrate_tail_main(main.read_text()))
+        tailfiles = ('CepheusRpmhTailCore.h', 'CepheusRpmhTailMap.h', 'cepheus_rpmh_tail.h',
+                     'cepheus_rpmh_snapshot.h', 'cepheus_rpmh_snapshot_reader.h', 'cepheus_rpmh_pool.h')
+        for name in tailfiles:
+            shutil.copyfile(ROOT/'firmware'/name, output/CORE/'Mem'/name)
+        subprocess.run(['python3', str(ROOT/'scripts/generate-rpmh-snapshot-identity.py'), str(ROOT.parent),
+                        str(output/CORE/'Mem/CepheusRpmhSnapshotIdentity.h'), '--omit-core'], check=True)
+        text = inf.read_text()
+        text = text.replace('  Mem/Pool.c', '  Mem/Pool.c\n'+''.join('  Mem/'+name+'\n' for name in
+                            (*tailfiles, 'CepheusRpmhSnapshotIdentity.h')).rstrip(), 1)
+        inf.write_text(text)
     if supplemental.is_file():
         manifest['supplemental_asm_header_sha256'] = hashlib.sha256(supplemental.read_bytes()).hexdigest()
     for path in sorted((output/CORE).rglob('*')):
@@ -155,7 +217,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('repository', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--rpmh-tail', action='store_true')
     args = parser.parse_args()
-    manifest = stage(args.repository.resolve(), args.output.resolve())
+    manifest = stage(args.repository.resolve(), args.output.resolve(), args.rpmh_tail)
     print(json.dumps({'base_commit': manifest['base_commit'], 'files': len(manifest['files']),
-                      'bookkeeping_only': True}, indent=2))
+                      'bookkeeping_only': manifest['bookkeeping_only']}, indent=2))

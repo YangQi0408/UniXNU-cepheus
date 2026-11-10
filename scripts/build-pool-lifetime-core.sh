@@ -6,7 +6,14 @@ DEST=${1:?usage: build-pool-lifetime-core.sh NEW_OUTPUT_DIR}
 test ! -e "$DEST"
 mkdir -p "$DEST"
 DEST=$(cd "$DEST" && pwd)
-python3 "$ROOT/scripts/stage-pool-lifetime-core.py" "$ROOT/../uefi/MU_BASECORE" "$DEST/source"
+OPTIONS=()
+if [[ ${2:-} == --rpmh-tail ]]; then
+  OPTIONS+=(--rpmh-tail)
+elif [[ -n ${2:-} ]]; then
+  printf 'unknown build option: %s\n' "$2" >&2
+  exit 2
+fi
+python3 "$ROOT/scripts/stage-pool-lifetime-core.py" "$ROOT/../uefi/MU_BASECORE" "$DEST/source" "${OPTIONS[@]}"
 cp "$ROOT/firmware/PoolLifetimeCore.dsc" "$DEST/PoolLifetimeCore.dsc"
 export WORKSPACE=$DEST
 export PACKAGES_PATH=$DEST/source:$ROOT/../uefi/MU_BASECORE

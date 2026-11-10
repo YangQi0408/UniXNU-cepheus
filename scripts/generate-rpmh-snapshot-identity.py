@@ -64,12 +64,14 @@ def identity(blob, digest):
                 text_rva=text[2], text=raw, fixups=sorted(fixups))
 
 
-def generate(root, output):
+def generate(root, output, omit_core=False):
     if output.exists():
         raise ValueError('output already exists')
     lines = ['/* Generated from pinned private artifacts; do not commit. */',
              '#ifndef CEPHEUS_RPMH_SNAPSHOT_IDENTITY_H', '#define CEPHEUS_RPMH_SNAPSHOT_IDENTITY_H']
     for name, path, digest in SOURCES:
+        if omit_core and name == 'Core':
+            continue
         item = identity((root/path).read_bytes(), digest)
         lines += [f'/* {name}: SHA256 {digest} */', f'#define CE_{name.upper()}_IMAGE_BYTES {item["image_size"]}u',
                   f'#define CE_{name.upper()}_TEXT_RVA {item["text_rva"]}u',
@@ -85,12 +87,13 @@ def generate(root, output):
                   ','.join([*(str(x) for x in item['fixups']), 'UINT32_MAX'])+'};']
     lines += ['#endif', '']
     output.write_text('\n'.join(lines))
-    return {name: digest for name, _, digest in SOURCES}
+    return {name: digest for name, _, digest in SOURCES if not (omit_core and name == 'Core')}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--omit-core', action='store_true')
     args = parser.parse_args()
-    print(generate(args.root.resolve(), args.output.resolve()))
+    print(generate(args.root.resolve(), args.output.resolve(), args.omit_core))

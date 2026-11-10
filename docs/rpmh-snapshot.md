@@ -58,8 +58,10 @@ initialization.** Final live-map/allocation lifetime and writer exclusion remain
 required for the genuine inherited ledger and production owner.
 
 The later isolated [Core pool lifetime](pool-lifetime-core.md) stage records
-actual allocations/free attempts and page/attribute invalidation. It has no
-final EBS collector and does not lift this pre-EBS-only snapshot boundary.
+actual allocations/free attempts and page/attribute invalidation. Its opt-in
+[exit-tail diagnostic](rpmh-exit-tail.md) now captures a separate phase2 record
+with local lifetime/map/translation checks. It does not lift this phase1
+pre-EBS-only boundary or establish global writer exclusion/hardware ownership.
 
 ## Local Acceptance
 

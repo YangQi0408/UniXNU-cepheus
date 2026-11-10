@@ -102,7 +102,11 @@ occurred. No new hardware test is requested for this building block.
 PAS13=false, supported=false rejection and CP halt remain unchanged;
 scratch/fence and Metal are unrun.
 
-Next: genuine final inherited ARC/BCM ledger, exclusive writer/deep-idle
+The locally accepted [core exit-tail diagnostic](rpmh-exit-tail.md) is now a
+software-request collection building block. It has no DarwinBoot/XNU consumer
+or phone evidence, and does not supply this sender's production owner or ACK.
+
+Next: hardware-diagnostic integration, genuine final inherited ARC/BCM ledger, exclusive writer/deep-idle
 coordination, then actual resource backend binding. Parent measurement
 admission/provenance, remaining clocks/GDSC, PAS13/secure PA/crypto and SMMU
 remain open; successful host sender tests do not close any of those contracts.
