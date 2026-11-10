@@ -60,6 +60,7 @@ static int ceph_scm_info_context(void *unused)
 #include "cepheus_gpu_power_native_private.h"
 #include "cepheus_gpu_tsens_native_private.h"
 #include "cepheus_gmu_start_native_private.h"
+#include "cepheus_gpu_pdc_native_private.h"
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
     if(!r || ceph_scm_info_context(NULL))return -1;

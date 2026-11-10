@@ -1,5 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11后续：ce190d9原生CM3已提交推送，继续原生PDC/RSC实际固定五map，
+copied owner/input/config、GPLL0同锁/逐map及访问guard；要求既有retention/
+CM3 reset/GX off，拒绝继承PDC enable，不改apps DRV或释放reset。共享PDC
+去裸cold读、VA溢出/UINT32_MAX拒绝、失败输出原子/post store/barrier及sticky
+失败，distinct GMU/PDC callback后再查PDC lease。48 attempted effects保留资源。
+final-v1 local PASS：34844 native/2807 MMIO PROT_NONE边界、五map失败/
+copied/reenter/off-aperture/冷态、ASanUBSan/native/staged/analysis。四步
+pdc-native-preflight-20261111-final-v1全PASS，73 host/七生产分析；real GMU/
+SQE mixed ASanUBSan链模式0..22退出0，log SHA530b021bd...，explicit captured
+FDT通过，详见pdc-native-backend.md。不是GPU真机执行，ZAP optional未提供。
+全native批仍待完整XNU link，无新CI/镜像/手机操作；USB仍无手机。旧未boot
+诊断保持CI42835691416 @2bf48ab/SHA b7d88d435...，不含后续代码、不追认HEAD。
+下一真实继承资源owner/idle/foreign-writer与原生SMMU/upload发布整合；
+PAS13=false/supported=false/CP halt不绕，GPU/Metal未执行，目标active继续。
+
 2026-11-11更新：继续工作，原生CM3 cold-start接固定GCC/GPUCC/GMU映射和
 真实时间/delay，共享GPLL0锁、复制owner/config，逐map及GMU前置读前后
 guard/sticky失效；要求既有TCM retention，不暗含upload/资源配置。无启动

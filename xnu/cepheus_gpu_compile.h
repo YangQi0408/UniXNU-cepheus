@@ -48,6 +48,7 @@
 #include "cepheus_gpu_tsens.h"
 #include "cepheus_gpu_tsens_native.h"
 #include "cepheus_gmu_start_native.h"
+#include "cepheus_gpu_pdc_native.h"
 #include "cepheus_cp_ring_config.h"
 #include "cepheus_cp_protection.h"
 #include "cepheus_cp_snapshot_mmio.h"

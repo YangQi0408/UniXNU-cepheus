@@ -6,6 +6,14 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 native PDC/RSC continuation:
+`out/pdc-native-preflight-20261111-final-v1/receipt.json` passes all four
+local prerequisites, 73 host programs and seven production-unit analyses.
+`out/pdc-native-local-20261111-final-v1/receipt.json` accepts the actual native
+PDC/RSC and shared MMIO guards, host sanitizers and staged AArch64 compilation.
+See `pdc-native-backend.md` for explicit captured-FDT and real-firmware host
+regressions. Full XNU link remains pending for the combined native batch.
+
 2026-11-11 native CM3 continuation:
 `out/cm3-native-preflight-20261111-final-v1/receipt.json` passes all four
 local prerequisites, 72 host programs and seven production-unit analyses.
