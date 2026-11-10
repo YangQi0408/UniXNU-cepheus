@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 13:32：离线资源续查，8个boot模块PE身份核验通过（增加
+Env/Pmic/Epsilon Hash/Cipher），receipt npa-state-verification-v4，8合成测试
+通过。实际Hash为Epsilon SM8150版，不是cepheus目录版；/clk/ce1是
+/icb/arbiter向量client名，不是直接时钟API。请求布局/单位、仲裁器driver/
+完成/EBS/XNU所有权未建立；Env该路径为ICB消费者，Clock两helper为CPU表/
+模式设置。新增env/hash-selected-vector/clock-target-followup证据已保存，
+详见RPMh文档。仍无生产资源后端、无新内核/构建/手机操作或测试点。
+手机保持可用配对版；PAS13=false根因和shared资源接管仍缺，GPU/Metal未执行。
+
 最新 2026-11-10 13:24 +08:00：本机离线推进，无新手机操作/SMC/内核改动。
 新增有界PAS13原指令回放，12段219条静态指令与原生Ghidra/LLVM一致，8场景
 通过、16项无私有材料守卫测试通过。原表空cache两记录MPIDR均true，count/ID

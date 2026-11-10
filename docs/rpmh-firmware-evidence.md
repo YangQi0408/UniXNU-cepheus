@@ -1,5 +1,41 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 13:32：crypto资源链与模块身份续查
+
+模块身份核验扩为8项，新增Env/Pmic及Epsilon Hash/Cipher；最终receipt
+`../logs/pas13-instruction-replay-20261110/npa-state-verification-v4.json`，SHA256
+`47d35ae4ee23e26735337cf4a6f6e722c59431a7bb78aec4301c8adfb92403be`。
+8项合成测试仍通过。这只更新离线脚本，无生产内核/固件/phone操作。
+
+已验收HashDxe的SHA是`0fd065458824be63d61a851d039b5d3198d556a6bee3ecfec423b9a24e3be266`，
+来自Epsilon/BOOT.XF.3.0-00527-SM8150LZB-1，不是cepheus设备目录的58afbd5e...。
+首次误选设备目录版只有strings/xrefs，已停止，另存
+hash-unselected-reference-evidence.json；不把其结果当本轮已打包行为。
+Cipher也为Epsilon版SHA94ed2f29...。两者PE与已验收内层FFS逐字节一致，
+这仍不是运行时dispatch或PAS对其资源需求的证明。
+
+- EnvDxe0x2358在NPA协议可用后为`/icb/arbiter`注册ResourceAvailableCb；
+  所展开路径只有client创建/向量请求/可用回调，不定义ARC/ICB节点。
+  ev_6b183416d2e52345ff8de84c98bdc1dbfd1048598beb081173bb72d31f35f81f，
+  证据env-npa-evidence.json。
+- 实际Hash0x5138创建名为`/clk/ce1`的**向量客户端**，其resource是
+  `/icb/arbiter`，type0x400、创建参数8、配置输入0x17；不是直接时钟API。
+  准备的请求字中有0x10004、1600000000、0x34b0c50，0x9d90验证请求数后
+  通过0x9ee0调用NPA IssueVectorRequest(slot0x90)，长度8。这些数值的
+  ICB结构/单位/master-slave含义尚未核验，不能直接移植为PAS/GPU带宽票。
+  ev_0d6febbc2af7c460bb2e428973c36c0af053ec06a26d5105edc74e0f8b969bd7、
+  ev_8c0ccc8dcacd0d71313aadaa6afdad551f60cb1d1849c981704d85d57cd59809；
+  hash-selected-vector-evidence.json（保留原字节读和Ghidra局限）。
+- Clock目标helper0xaa64在展开本体内构造4组CPU频率表；0xad68只设置
+  context+0x60字节1。它们未提供新的ARC DefineNode证据；不是穷举整个
+  ClockDxe/间接callee。clock-target-followup-evidence.json。
+
+结论：找到了本候选crypto带宽的具体消费者调用链，但还没有仲裁器driver/
+完成屏障/最终EBS状态或XNU所有者。不能从NPA客户端调用返回推导hardware
+ACK，不能把DXE函数指针当运行时接口，不能让PAS acquire返回成功。
+下一定位实际`/arc/client/rail_cx`、rail_mx与`/icb/arbiter`注册者及driver，
+连同最后EBS写入/停止与lease；supported=false和CP halt保持，GPU/Metal未执行。
+
 ## 2026-11-10：NPA查询/退出与已验收模块身份
 
 新增`scripts/verify-npa-state-evidence.py`，直接从已验收配对boot

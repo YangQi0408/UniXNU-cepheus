@@ -29,6 +29,18 @@ MODULES = (
     ('CPRDxe', '1B52138D-3FA3-4E50-B958-20887353F809',
      'Binaries/Cambria/BOOT.XF.3.0.1-00243-SC8180XWZB-2/QcomPkg/Drivers/CPRDxe/CPRDxe.efi',
      '63a777c11fc8006ca540886e2ea3ebdafa56bea752d716ea09f7514756821fbb'),
+    ('EnvDxe', '90A49AFD-422F-08AE-9611-E788D3804845',
+     'Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/Binaries/QcomPkg/Drivers/EnvDxe/EnvDxe.efi',
+     'bdb328c49aece6f16132ef27f2ad89c12bd28b52565ec11a5eae3c63668862ee'),
+    ('PmicDxe', '5776232E-082D-4B75-9A0E-FE1D13F7A5D9',
+     'Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/Binaries/QcomPkg/Drivers/PmicDxe/PmicDxeLa.efi',
+     '9282a7fe7431ac2f6ae125ebe13b1f00afeea39d6713672d41002d4e7ecc3010'),
+    ('HashDxe', '3ADF8DDA-1850-44C5-8C63-BB991849BC6F',
+     'Binaries/Epsilon/BOOT.XF.3.0-00527-SM8150LZB-1/QcomPkg/Drivers/HashDxe/HashDxe.efi',
+     '0fd065458824be63d61a851d039b5d3198d556a6bee3ecfec423b9a24e3be266'),
+    ('CipherDxe', '5F0937CD-73F9-445E-B320-BB6FD5D3CBDE',
+     'Binaries/Epsilon/BOOT.XF.3.0-00527-SM8150LZB-1/QcomPkg/Drivers/CipherDxe/CipherDxe.efi',
+     '94ed2f295e533705aac16aa57133b3831f31abd687b136da6e61190657584c67'),
 )
 
 
@@ -186,7 +198,7 @@ def main():
     with args.output.open('x') as output:
         json.dump(report, output, indent=2)
         output.write('\n')
-    print('PASS: four accepted-boot modules, four original PE evidence ranges, exact NPA query/deinit instructions')
+    print(f'PASS: {len(MODULES)} accepted-boot modules, four original PE evidence ranges, exact NPA query/deinit instructions')
 
 
 if __name__ == '__main__':
