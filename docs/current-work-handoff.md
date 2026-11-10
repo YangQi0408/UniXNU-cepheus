@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 14:08：原件补证RPMh issue slot0x78→0x2cdc共同返回内部
+隐式churn（handle/request_id/1/1），pending轮询HAL IRQ并处理完成；外层
+barrier不支持不能再推断整链缺少等待。找到一个EBS回调0x149c：卸载RPMh
+后0x38f4清配置DRV/TCS的control与command enable（0xd14/0xd1c或+0x20000），
+无完成调用；不是电源票清除证明，也未穷举其他EBS写入/顺序。原字节核验
+v5普通/优化receipt相同且PASS，21合成测试两模式通过，NPA8通过。证据
+rpmh-implicit-churn-final/rpmh-ebs-final bundle/snapshot及icb-registrar-
+verification-v5位于既有私有logs目录，详见RPMh文档。无内核/boot/手机操作，
+无新GPU测试点。实际ARC/最终交接/XNU所有权仍缺；正常配对版保持，
+PAS13=false、supported=false/CP halt不绕过，GPU/Metal/认证未执行。
+
 最新2026-11-10 13:49：本机离线连通ICB注册链。patched DAL /icb/arb属性
 icb_info索引20→/icb/arbiter node/resource，实际Clock入口0x1a74→0xc520
 设置driver/plugin并经NPA定义；plugin按32B请求解码并提交RPMh。node driver

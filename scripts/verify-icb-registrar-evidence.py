@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import struct
+import uuid
 
 SPEC = importlib.util.spec_from_file_location('npa_verify', Path(__file__).with_name('verify-npa-state-evidence.py'))
 NPA = importlib.util.module_from_spec(SPEC)
@@ -61,6 +62,86 @@ def instruction(blob, segments, address, mnemonic, operands):
     return item
 
 
+def implicit_churn(blob, segments, reads):
+    need_read(reads, 0xe0f8, 200)
+    require(struct.unpack('<Q', NPA.span(blob, segments, 0xe0f8 + 0x78, 8))[0] == 0x17f4,
+            'unexpected RPMh issue slot')
+    for address, size in ((0x17f4, 68), (0x2ec8, 64), (0x2a1c, 148),
+                          (0x4014, 160), (0x3f54, 48), (0x561c, 80), (0x735c, 236)):
+        need_read(reads, address, size)
+    checks = ((0x181c, 'bl', '#0x2cdc'),
+              (0x2ec8, 'mov', 'w2, #1'), (0x2ecc, 'mov', 'w3, #1'),
+              (0x2ed0, 'mov', 'x0, x19'), (0x2ed4, 'mov', 'w1, w20'),
+              (0x2ed8, 'bl', '#0x2a1c'), (0x2a80, 'bl', '#0x4014'),
+              (0x4044, 'bl', '#0x3e8c'), (0x4074, 'bl', '#0x3f54'),
+              (0x4088, 'bl', '#0x4014'), (0x3f68, 'bl', '#0x561c'),
+              (0x3f70, 'cbz', 'w8, #0x3f64'), (0x3f80, 'b', '#0x2b20'),
+              (0x5648, 'bl', '#0x735c'),
+              (0x73e8, 'add', 'w8, w8, #0xd04'), (0x73f0, 'ldr', 'w9, [x8]'),
+              (0x73f4, 'and', 'w9, w9, #0xf'),
+              (0x7404, 'movk', 'w10, #2, lsl #16'), (0x7410, 'ldr', 'w11, [x9]'),
+              (0x7414, 'and', 'w10, w11, #0xff'))
+    decoded = [instruction(blob, segments, *item) for item in checks]
+    return {'issue_slot': '0x78', 'issue_wrapper': '0x17f4', 'inner_issue': '0x2cdc',
+            'return_wait': '0x2a1c(handle, request_id, 1, 1)',
+            'pending_record_lookup': '0x3e8c', 'wait': '0x4014',
+            'poll': '0x3f54 -> 0x561c -> 0x735c', 'completion_handler': '0x2b20',
+            'hal_irq_offsets': ['base+0xd04 & 0xf', 'base+0x20d04 & 0xff'],
+            'instructions': decoded,
+            'observation': 'Normal command-set return includes handle-scoped implicit churn; outer barrier failure alone does not establish missing completion',
+            'limitations': ['Static bytes, not observed phone execution or a live ACK',
+                            'The wait retries while pending records remain; no timeout in this polling loop',
+                            'HAL geometry, final EBS writers, resource votes and XNU ownership still require verification']}
+
+
+def ebs_clear(blob, segments, reads):
+    for address, size in ((0xe028, 16), (0x14dc, 152), (0x149c, 20),
+                          (0x14b0, 44), (0x38f4, 136), (0x7d2c, 232), (0x7e14, 232)):
+        need_read(reads, address, size)
+    event_guid = uuid.UUID('27abf055-b1b8-4c26-8048-748f37baa2df')
+    require(NPA.span(blob, segments, 0xe028, 16) == event_guid.bytes_le,
+            'unexpected EBS event GUID')
+    checks = ((0x14f8, 'adrp', 'x2, #0x1000'), (0x1508, 'add', 'x2, x2, #0x49c'),
+              (0x14fc, 'adrp', 'x4, #0xe000'), (0x150c, 'add', 'x4, x4, #0x28'),
+              (0x1504, 'adrp', 'x5, #0xe000'), (0x1510, 'add', 'x5, x5, #0x288'),
+              (0x1514, 'ldr', 'x8, [x8, #0x170]'),
+              (0x1518, 'mov', 'w0, #0x200'), (0x151c, 'mov', 'w1, #8'),
+              (0x1520, 'mov', 'x3, xzr'), (0x1524, 'blr', 'x8'),
+              (0x14a4, 'bl', '#0x14b0'), (0x14ac, 'b', '#0x38f4'),
+              (0x14c8, 'add', 'x1, x1, #0x78'), (0x14cc, 'add', 'x2, x2, #0xf8'),
+              (0x14d4, 'ldr', 'x4, [x10, #0x150]'), (0x14d8, 'br', 'x4'),
+              (0x3938, 'bl', '#0x7d2c'), (0x3944, 'bl', '#0x7e14'),
+              (0x3948, 'add', 'w19, w19, #1'), (0x3954, 'b.hi', '#0x3930'),
+              (0x3958, 'add', 'w20, w20, #1'), (0x3964, 'b.lo', '#0x391c'),
+              (0x7db0, 'mov', 'w10, #0x2a0'), (0x7db8, 'madd', 'w8, w9, w10, w8'),
+              (0x7dbc, 'add', 'w8, w8, #0xd14'), (0x7dc0, 'str', 'wzr, [x8]'),
+              (0x7dcc, 'mov', 'w11, #0x2a0'), (0x7dd0, 'mov', 'w13, #0xd14'),
+              (0x7dd4, 'madd', 'w12, w10, w11, w8'),
+              (0x7dd8, 'movk', 'w13, #2, lsl #16'),
+              (0x7de0, 'add', 'w9, w12, w13'), (0x7de4, 'str', 'wzr, [x9]'),
+              (0x7e98, 'mov', 'w10, #0x2a0'), (0x7ea0, 'madd', 'w8, w9, w10, w8'),
+              (0x7ea4, 'add', 'w8, w8, #0xd1c'), (0x7ea8, 'str', 'wzr, [x8]'),
+              (0x7eb4, 'mov', 'w11, #0x2a0'), (0x7eb8, 'mov', 'w13, #0xd1c'),
+              (0x7ebc, 'madd', 'w12, w10, w11, w8'),
+              (0x7ec0, 'movk', 'w13, #2, lsl #16'),
+              (0x7ec8, 'add', 'w9, w12, w13'), (0x7ecc, 'str', 'wzr, [x9]'))
+    decoded = [instruction(blob, segments, *item) for item in checks]
+    loop = NPA.decode(NPA.span(blob, segments, 0x38f4, 136), 0x38f4)
+    calls = [item['operands'] for item in loop if item['mnemonic'] in ('bl', 'blr')]
+    require(calls == ['#0x7d2c', '#0x7e14'], 'unexpected EBS clear loop calls')
+    return {'event_guid': str(event_guid), 'event_type': '0x200', 'notify_tpl': 8,
+            'callback': '0x149c', 'uninstall': '0x14b0', 'clear_loop': '0x38f4',
+            'control_clear': '0x7d2c', 'command_enable_clear': '0x7e14',
+            'control_offsets': ['base+tcs*0x2a0+0xd14', 'base+tcs*0x2a0+0x20d14'],
+            'command_enable_offsets': ['base+tcs*0x2a0+0xd1c', 'base+tcs*0x2a0+0x20d1c'],
+            'instructions': decoded, 'clear_loop_instructions': loop,
+            'observation': 'One EBS callback uninstalls RPMh and clears configured TCS control/command enable; the clear loop has no completion call',
+            'limitations': ['Static bytes, not observed execution or successful event registration',
+                            'Not a proof that ARC rail votes are cleared',
+                            'HAL geometry validation, other EBS writers and callback ordering are not fully verified',
+                            'Pre-EBS software vote snapshots do not by themselves prove final XNU ownership']}
+
+
 def dal_chain(blob, segments):
     def word(address, width=8):
         return int.from_bytes(NPA.span(blob, segments, address, width), 'little')
@@ -107,7 +188,7 @@ def verify(root):
     results, binaries = {}, {}
     for name, filename in (('ClockDxe', 'clock-icb-barrier-evidence.json'),
                            ('DALSys', 'dal-icb-config-evidence.json'),
-                           ('RpmhDxe', 'rpmh-barrier-slot-evidence.json')):
+                           ('RpmhDxe', 'rpmh-implicit-churn-final-evidence.json')):
         module = modules[name]
         blob = (root / 'uefi' / module['source']).read_bytes()
         raw = (evidence_root / filename).read_bytes()
@@ -147,12 +228,21 @@ def verify(root):
     require(NPA.span(rpmh, rs, 0x18dc, 8) == bytes.fromhex('e00b41b2c0035fd6'),
             'unexpected RPMh unsupported return')
     barrier = NPA.decode(NPA.span(rpmh, rs, 0x18dc, 8), 0x18dc)
+    churn = implicit_churn(rpmh, rs, rr)
+    ebs_raw = (evidence_root / 'rpmh-ebs-final-evidence.json').read_bytes()
+    _, ebs_reads = checked_reads(rpmh, modules['RpmhDxe']['sha256'], json.loads(ebs_raw))
+    ebs = ebs_clear(rpmh, rs, ebs_reads)
+    results['RpmhDxeEbs'] = {'module_sha256': modules['RpmhDxe']['sha256'],
+                             'evidence_sha256': hashlib.sha256(ebs_raw).hexdigest(),
+                             'read_evidence_ids': list(ebs_reads.values())}
     return {'status': 'PASS_STATIC_BYTES_ONLY', 'boot_sha256': boot_receipt['boot_sha256'],
             'modules': boot_receipt['modules'], 'evidence': results, 'dal_chain': chain,
             'clock_plugin': {'address': '0x432a0', 'fields_u64': [hex(x) for x in plugin]},
             'rpmh_barrier': {'protocol_revision': '0x10001', 'slot': '0xb8', 'target': '0x18dc',
                              'return': '0x8000000000000003', 'instructions': barrier,
                              'authority': 'original bytes; name correlated with pinned EFIRpmh.h'},
+            'rpmh_implicit_churn': churn,
+            'rpmh_ebs_clear': ebs,
             'exact_instructions': decoded,
             'observations': ['DAL supplies the /icb/arbiter definition via /icb/arb -> icb_info -> structure 20',
                              'Clock 0xc520 installs the ICB plugin and forwards node definitions to NPA slot 0x20',
@@ -160,11 +250,14 @@ def verify(root):
                              'ICB plugin processes eight-word/32-byte requests and forwards attributes to 0xdb80',
                              'Completion 0xe9dc invokes 0x128fc on a conditional branch',
                              'RPMh slot 0xb8 returns EFI_UNSUPPORTED and Clock wrapper does not check its result',
-                             'This branch cannot establish hardware completion; no repair or alternate path is executed'],
+                             'This outer barrier is not a completion guarantee',
+                             'Inner command-set return includes implicit churn of its handle pending records',
+                             'One EBS callback uninstalls RPMh and clears configured TCS control/command enable',
+                             'No target firmware execution, live completion observation or backend repair is performed'],
             'unknowns': ['Runtime registration and active configuration are not observed',
                          'Request ABI units and master/slave IDs require independent correlation',
                          'Complete hardware success/failure and all RPMh completion paths are not verified',
-                         'ARC rail registrar, EBS final writers and XNU ownership remain unverified',
+                         'ARC rail registrar, remaining EBS writers/order and XNU ownership remain unverified',
                          'No PAS authentication or GPU execution is authorized by this receipt']}
 
 

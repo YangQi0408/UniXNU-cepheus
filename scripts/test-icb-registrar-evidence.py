@@ -5,6 +5,8 @@ import importlib.util
 from pathlib import Path
 import struct
 import unittest
+from unittest.mock import patch
+import uuid
 
 SPEC = importlib.util.spec_from_file_location('icb_verify', Path(__file__).with_name('verify-icb-registrar-evidence.py'))
 VERIFY = importlib.util.module_from_spec(SPEC)
@@ -142,6 +144,103 @@ class DalChainTests(unittest.TestCase):
         put(0x1dd30, struct.pack('<Q', 0x50000))
         with self.assertRaisesRegex(ValueError, 'file-backed'):
             VERIFY.dal_chain(blob, VERIFY.NPA.pe_segments(blob))
+
+
+class CompletionTests(unittest.TestCase):
+    CHURN_READS = ((0xe0f8, 200), (0x17f4, 68), (0x2ec8, 64), (0x2a1c, 148),
+                   (0x4014, 160), (0x3f54, 48), (0x561c, 80), (0x735c, 236))
+    EBS_READS = ((0xe028, 16), (0x14dc, 152), (0x149c, 20), (0x14b0, 44),
+                (0x38f4, 136), (0x7d2c, 232), (0x7e14, 232))
+
+    def fixture(self):
+        blob, put = DalChainTests().fixture()
+        put(0xe0f8 + 0x78, struct.pack('<Q', 0x17f4))
+        put(0xe028, uuid.UUID('27abf055-b1b8-4c26-8048-748f37baa2df').bytes_le)
+        put(0x38f4, struct.pack('<II', 0x94000000 | ((0x7d2c - 0x38f4) // 4),
+                               0x94000000 | ((0x7e14 - 0x38f8) // 4)))
+        put(0x38fc, bytes.fromhex('1f2003d5') * 32)
+        return blob, put, VERIFY.NPA.pe_segments(blob)
+
+    def reads(self, ranges):
+        return {item: 'synthetic-' + hex(item[0]) for item in ranges}
+
+    def capture(self, blob, segments, address, mnemonic, operands):
+        return {'address': hex(address), 'mnemonic': mnemonic, 'operands': operands}
+
+    def test_churn_scope_and_poll_checks(self):
+        blob, _, segments = self.fixture()
+        with patch.object(VERIFY, 'instruction', side_effect=self.capture):
+            result = VERIFY.implicit_churn(blob, segments, self.reads(self.CHURN_READS))
+        checked = {(item['address'], item['operands']) for item in result['instructions']}
+        self.assertIn(('0x2ed0', 'x0, x19'), checked)
+        self.assertIn(('0x2ed4', 'w1, w20'), checked)
+        self.assertIn(('0x3f70', 'w8, #0x3f64'), checked)
+        self.assertIn(('0x7414', 'w10, w11, #0xff'), checked)
+        self.assertIn('handle-scoped', result['observation'])
+
+    def test_churn_requires_every_range(self):
+        blob, _, segments = self.fixture()
+        for missing in self.CHURN_READS:
+            reads = self.reads(self.CHURN_READS)
+            del reads[missing]
+            with patch.object(VERIFY, 'instruction', side_effect=self.capture):
+                with self.assertRaisesRegex(ValueError, 'missing'):
+                    VERIFY.implicit_churn(blob, segments, reads)
+
+    def test_churn_rejects_changed_issue_slot(self):
+        blob, put, segments = self.fixture()
+        put(0xe0f8 + 0x78, struct.pack('<Q', 0x18dc))
+        with self.assertRaisesRegex(ValueError, 'issue slot'):
+            VERIFY.implicit_churn(blob, segments, self.reads(self.CHURN_READS))
+
+    def test_instruction_failures_propagate(self):
+        blob, _, segments = self.fixture()
+        for function, ranges in ((VERIFY.implicit_churn, self.CHURN_READS),
+                                  (VERIFY.ebs_clear, self.EBS_READS)):
+            with patch.object(VERIFY, 'instruction', side_effect=ValueError('changed opcode')):
+                with self.assertRaisesRegex(ValueError, 'changed opcode'):
+                    function(blob, segments, self.reads(ranges))
+
+    def test_ebs_requires_every_range(self):
+        blob, _, segments = self.fixture()
+        for missing in self.EBS_READS:
+            reads = self.reads(self.EBS_READS)
+            del reads[missing]
+            with patch.object(VERIFY, 'instruction', side_effect=self.capture):
+                with self.assertRaisesRegex(ValueError, 'missing'):
+                    VERIFY.ebs_clear(blob, segments, reads)
+
+    def test_ebs_rejects_wrong_guid_endianness(self):
+        blob, put, segments = self.fixture()
+        put(0xe028, uuid.UUID('27abf055-b1b8-4c26-8048-748f37baa2df').bytes)
+        with self.assertRaisesRegex(ValueError, 'GUID'):
+            VERIFY.ebs_clear(blob, segments, self.reads(self.EBS_READS))
+
+    def test_ebs_clear_offsets_and_scope(self):
+        blob, _, segments = self.fixture()
+        calls = [{'mnemonic': 'bl', 'operands': '#0x7d2c'},
+                 {'mnemonic': 'bl', 'operands': '#0x7e14'}]
+        with patch.object(VERIFY, 'instruction', side_effect=self.capture), \
+                patch.object(VERIFY.NPA, 'decode', return_value=calls):
+            result = VERIFY.ebs_clear(blob, segments, self.reads(self.EBS_READS))
+        checked = {(item['address'], item['operands']) for item in result['instructions']}
+        self.assertIn(('0x1514', 'x8, [x8, #0x170]'), checked)
+        self.assertIn(('0x7dbc', 'w8, w8, #0xd14'), checked)
+        self.assertIn(('0x7ea4', 'w8, w8, #0xd1c'), checked)
+        self.assertIn(('0x7ecc', 'wzr, [x9]'), checked)
+        self.assertIn('Not a proof that ARC rail votes are cleared', result['limitations'])
+
+    def test_ebs_rejects_extra_or_missing_calls(self):
+        blob, put, segments = self.fixture()
+        with patch.object(VERIFY, 'instruction', side_effect=self.capture):
+            VERIFY.ebs_clear(blob, segments, self.reads(self.EBS_READS))
+        for address, code in ((0x38f4, '1f2003d5'), (0x38fc, '00000094'),
+                               (0x38fc, '00003fd6')):
+            blob, put, segments = self.fixture()
+            put(address, bytes.fromhex(code))
+            with patch.object(VERIFY, 'instruction', side_effect=self.capture):
+                with self.assertRaisesRegex(ValueError, 'loop calls'):
+                    VERIFY.ebs_clear(blob, segments, self.reads(self.EBS_READS))
 
 
 if __name__ == '__main__':

@@ -1,5 +1,53 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 14:08：内部隐式等待与EBS清理补证
+
+同一已验收RpmhDxe原件SHA03ccd266...，REA/Ghidra12.1.2与本机Capstone
+核验；只读文件，不执行固件/协议/SMC/MMIO，也没有新内核或手机测试。
+
+**修正13:49的过宽推论：**slot0xb8/0xc0返回EFI_UNSUPPORTED仍成立，外层
+barrier本身不保证完成；但不能由此推断整条提交链缺少等待，或断言CPR请求
+没有完成。实际slot0x78→wrapper0x17f4，0x181c调用issue_command_set0x2cdc。
+其共同返回点0x2ec8设置kind=1/churn=1、handle=x19/request_id=w20，再在
+0x2ed8调用0x2a1c→0x4014；后者查pending record0x3e8c，必要时循环/递归
+等待0x3f54。0x3f68→0x561c→0x735c读HAL IRQ位图，type0取base+0xd04&0xf，
+type2取base+0x20d04&0xff；0x3f70无IRQ则继续，0x3f80进入完成处理0x2b20。
+这是**handle范围的隐式churn**，不是所有客户端/EBS的全局屏障。该轮询循环
+没有超时；静态代码不证明手机观察到ACK、错误处理正确或已有完整所有权。
+
+**首次定位实际EBS写入路径：**entry0x14dc以BootServices+0x170创建type0x200、
+TPL8的event，GUID0xe028为`27abf055-b1b8-4c26-8048-748f37baa2df`
+（本机MdePkg EventGroup.h的ExitBootServices GUID），callback0x149c。
+callback先0x14b0卸载RPMh协议，再尾跳0x38f4遍历配置的DRV/TCS：
+
+- 0x3938→0x7d2c将TCS控制寄存器写0，type0为base+tcs*0x2a0+0xd14，
+  type2为base+tcs*0x2a0+0x20d14。
+- 0x3944→0x7e14将TCS命令使能写0，相应offset为0xd1c/0x20d1c。
+- 完整0x38f4的两次直接调用只有上述clear函数，无pending/completion检查。
+  这只是已定位的一个EBS回调，不是全部回调及顺序的证明；HAL校验失败路径
+  仍存在，静态event构造也不证明运行时注册成功。
+
+不能把TCS寄存器清零扩展成“ARC电源投票被清除”。但pre-EBS缓存快照不能
+直接冒充最终XNU交接状态，必须处理此回调、其他最后写入者与接管顺序。
+DarwinBoot.c现有GetMemoryMap→ExitBootServices→DarwinEnter源码路径没有
+资源quiesce；这里仅作源码观察，不把未核对的源码当已验收二进制行为。
+
+完整私有证据：`../logs/pas13-instruction-replay-20261110/`
+`rpmh-implicit-churn-final-evidence.json`（61 records）和
+`rpmh-ebs-final-evidence.json`（81 records），分别保留snapshot。
+EBS clear原字节Evidence为`ev_c2646efd12d8a4b9aa30e293414570a79a88574de6ccba45bb14d053e59aa49c`、
+`ev_4cbb1fef0d38d7f4e662fb98de819faf8bd8354ec6fd5f16288f93222741e79c`、
+`ev_105a5d4029cef478b7c8ad72ca8f58a5897d492ec799c8d9047bc734d2910589`。
+核验脚本增加issue slot、20条隐式等待指令、43条event/uninstall/clear指令
+以及完整clear loop调用约束。`icb-registrar-verification-v5.json`和优化模式
+receipt均PASS且逐字节相同，SHA256
+`363162d04711addb3047d1f4367505fe6e42089d5775037267bcbe5fab8b5e73`。
+21项合成测试普通/优化模式通过，NPA8测试通过；旧v1-v4 receipt不覆盖。
+
+下一查ARC节点/配置、其他EBS写入者和唯一XNU共享所有者。尚无资源生产后端
+或新的GPU真机点；手机保持正常配对版，PAS13=false/CP halt不改，
+GPU scratch/fence、Metal、PAS认证均未执行。
+
 ## 2026-11-10 13:49：ICB注册者已定位，完成屏障有不支持分支
 
 本机只做原件静态分析与有界文件核验，无手机操作、协议调用、SMC或MMIO。
@@ -25,7 +73,7 @@
 - 主node driver0xc650仅`LDR w0,[x0,#0x30]; RET`，直接返回requested_state。
   真正工作在plugin→0xdb80→0xe9dc。节点状态/EFI同步成功仍不是hardware ACK。
 
-**完成链存在明确静态缺口，不能提前取消门禁：**
+**外层barrier分支不保证完成（内部等待见14:08修正）：**
 
 0xe9dc批量提交active/sleep/wake；条件分支0xeb78调用0x128fc。该包装读取
 RPMh协议slot0xb8（固定0x10001参考布局名`rpmh_barrier_all`），0x12964 BLR后
