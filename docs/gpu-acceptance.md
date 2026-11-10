@@ -4,6 +4,19 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-10 20:19：父时钟保持/计数器完整XNU构建验收通过，未启动GPU
+
+CI42810544983 @aa585f5于20:05:32成功；内核和日志已下载，本机独立核验
+85核心入口/22内存API、无unresolved、生产source身份及touch/PA64/SCM
+capture通过。kernel17450712B，SHA256
+`dd7d7339da56279976d8ca881a26419d943ccb3b6e5a6c2a14ef37c9128b4a83`；
+receipt `out/kernel-verification-ci-42810544983.json`。旧macOS ASan失败不追认。
+后续仅强化计数器测试：独立六地址/固定count/精确频率与一致性边界，208 lease/
+15 store变化及ASan/UBSan/原生/staged编译通过，生产代码未变，不重复完整云构建。
+详见[计数器后端](clock-measure-backend.md)。未打包/boot/操作手机；正常SCM
+配对版保持，不追加触摸/SCM/内存轮。真实owner/最终ARC继承及ACK/PAS13/PA/
+crypto/SMMU仍缺，supported=false/CP halt不绕过，GPU scratch/fence和Metal未执行。
+
 ## 2026-11-08 19:14：上电访问顺序/MMIO适配层完整构建通过，尚无GPU执行候选
 
 ceph_power_start不再于CX/GMU时钟关闭时读CM3 SYSRESET，改到电源和时钟

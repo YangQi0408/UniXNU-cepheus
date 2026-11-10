@@ -27,7 +27,13 @@ static void absolutetime_to_nanoseconds(uint64_t value,uint64_t *out){*out=value
 #include "cepheus_gpll0_private.h"
 #include "cepheus_clock_measure_private.h"
 
-static uint32_t *reg(enum ceph_measure_reg r){return regs+ceph_measure_offset(r)/4;}
+/* Independent SM8150 register fixtures, not the adapter's offset helper. */
+static const uint32_t model_offsets[CE_ME_NREG]={
+    [CE_ME_MUX]=0x62000,[CE_ME_DIV]=0x62004,[CE_ME_DEBUG]=0x62008,
+    [CE_ME_XO]=0x43008,[CE_ME_CTL]=0x62038,[CE_ME_STATUS]=0x6203c
+};
+static uint32_t *reg(enum ceph_measure_reg r)
+{assert(r>=0 && r<CE_ME_NREG);return regs+model_offsets[r]/4;}
 static void hardware(void)
 {
     struct ceph_clock_measure *s=&ceph_measure_native;
@@ -35,13 +41,16 @@ static void hardware(void)
         model_stores=s->attempted_stores;
         /* Only emulate the actual counter control store, not a hidden engine. */
         uint32_t control=*reg(CE_ME_CTL);
-        if(control&CE_ME_ENABLE) {
+        if(control&(1u<<20)) {
             if(!due) {
                 ++counters;
-                uint32_t ticks=control&0x1ffffu;
-                uint64_t numerator=UINT64_C(300000000)*(UINT64_C(10)*ticks+35);
-                counter_value=(uint32_t)((numerator/4800000-15+5)/10);
-                due=now+(UINT64_C(1000000000)*ticks+4799999)/4800000;
+                assert((*reg(CE_ME_MUX)&0x3ffu)==0x167);
+                assert(!(*reg(CE_ME_DIV)&0xfu));
+                assert((*reg(CE_ME_DEBUG)&1u) && (*reg(CE_ME_XO)&1u));
+                /* Fixed raw observations; do not invert the rate under test. */
+                assert(control==0x101000 || control==0x110000);
+                counter_value=control==0x101000?256217:4096217;
+                due=now+(control==0x101000?853334:13653334);
                 if(early_ticks)due=now+early_ticks;
             }
         } else {
@@ -96,15 +105,48 @@ static void reset(void)
 }
 static int run(struct ceph_clock_sample *out)
 {struct ceph_measure_owner o={regs,measure_owner,finish};return cepheus_gpu_gpll0_measure(&o,out);}
+static void known_counts(void)
+{
+    const struct {uint32_t count,ticks;uint64_t hz;} rates[]={
+        {0,0x1000,1756},{1,0x1000,2927},{1,0x10000,183},
+        {256216,0x1000,299998536},{256217,0x1000,299999707},
+        {256218,0x1000,300000878},{4096216,0x10000,299999908},
+        {4096217,0x10000,299999981},{4096218,0x10000,300000054},
+        {0x1fffffe,0x1000,UINT64_C(39288028100)},
+        {0x1fffffe,0x10000,2457468720}
+    };
+    for(unsigned n=0;n<sizeof(rates)/sizeof(rates[0]);++n)
+        assert(ceph_measure_rate(rates[n].count,rates[n].ticks)==rates[n].hz);
+    const struct {uint32_t short_count,full_count;uint64_t short_hz,full_hz;} pairs[]={
+        {16397,262157,19200585,19200036},
+        {170811,2730811,200000000,200000000},
+        {256217,4096217,299999707,299999981},
+        {512436,8192436,600000000,600000000},
+        {256217,4096230,299999707,300000933}
+    };
+    for(unsigned n=0;n<sizeof(pairs)/sizeof(pairs[0]);++n) {
+        struct ceph_clock_sample r={.short_count=pairs[n].short_count,.full_count=pairs[n].full_count};
+        assert(!ceph_measure_counts(&r));
+        assert(r.short_hz==pairs[n].short_hz && r.full_hz==pairs[n].full_hz);
+        assert(r.short_quantum_hz==1171 && r.full_quantum_hz==74);
+    }
+    struct ceph_clock_sample r={.short_count=256217,.full_count=4096231};
+    assert(ceph_measure_counts(&r)==CE_ME_INVALID);
+    assert(r.short_hz==299999707 && r.full_hz==300001007);
+}
 int main(void)
 {
+    for(unsigned n=0;n<CE_ME_NREG;++n)
+        assert(ceph_measure_offset((enum ceph_measure_reg)n)==model_offsets[n]);
+    known_counts();
     regs=mmap(NULL,CE_GPLL0_BYTES,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
     assert(regs!=MAP_FAILED);reset();
     uint32_t before[CE_GPLL0_BYTES/4];memcpy(before,regs,sizeof(before));
     struct ceph_clock_sample out={0};assert(!run(&out));
     unsigned total=checks,stores=effects;
     assert(finished==1 && !kept && counters==2 && ceph_measure_native.phase==CE_ME_DONE);
-    assert(out.short_count!=out.full_count && out.full_hz>299999900 && out.full_hz<300000100);
+    assert(out.short_count==256217 && out.full_count==4096217);
+    assert(out.short_hz==299999707 && out.full_hz==299999981);
     assert(out.short_quantum_hz==1171 && out.full_quantum_hz==74);
     assert(out.short_ns && out.full_ns>out.short_ns);
     for(unsigned n=0;n<CE_GPLL0_BYTES/4;++n) {
@@ -166,5 +208,5 @@ int main(void)
     r=(struct ceph_clock_sample){.short_count=10,.full_count=10};assert(ceph_measure_counts(&r));
     r=(struct ceph_clock_sample){.short_count=CE_ME_COUNT_MASK,.full_count=1};assert(ceph_measure_counts(&r));
     assert(!munmap(regs,CE_GPLL0_BYTES));
-    printf("Clock counter native adapter: %u protected-aperture lease faults/%u store mutations, short/full counts, fresh DONE, bounded deadlines, restoration/retention PASS (host hardware model, not phone measurement)\n",total,stores);
+    printf("Clock counter native adapter: %u protected-aperture lease faults/%u store mutations, independent offsets/fixed counts, fresh DONE, bounded deadlines, restoration/retention PASS (host hardware model, not phone measurement)\n",total,stores);
 }

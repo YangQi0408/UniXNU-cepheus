@@ -80,9 +80,15 @@ Full four-step local preflight: `out/gpll0-preflight-20261110-final/receipt.json
   both entrypoints. Boot-source checks prohibit startup calls. Existing SCM,
   PAS and CP-halt policy is unchanged.
 
-These are building-block tests, not actual clock, XNU link or GPU acceptance.
+These are building-block tests, not actual clock or GPU acceptance.
 Earlier receipts are retained as historical runs, not final source identity.
 No phone operation or boot packaging occurred. Accepted SCM-pair UI/touch/wake
 remain the last reported hardware result; GPU scratch/fence, Metal and PAS
 authentication remain unrun. Next: real shared owner/current-vote ledger,
 parent measurement, remaining clock/GDSC, secure PA/crypto/PAS13 and SMMU.
+
+20:05 update: full XNU `42810544983 @aa585f5` now compiles/links both parent
+entrypoints and the counter entrypoint and passes independent downloaded-artifact
+acceptance. Receipt `out/kernel-verification-ci-42810544983.json`; exact kernel
+identity and test-only independent fixtures are recorded in
+`clock-measure-backend.md`. This is not a production owner or phone/GPU result.

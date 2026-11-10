@@ -94,9 +94,10 @@ Final four-step source/build preflight:
 - SCM native-policy tests pass after adding the new header/time declarations
   to their test-only platform preamble. PAS13 rejection and CP halt unchanged.
 
-Earlier receipts remain historical. This is not complete XNU link or hardware
-acceptance. No new touch/SCM/memory test is needed. GPU scratch/fence, Metal,
-PAS authentication, true shared ownership and SMMU remain uncompleted.
+Earlier receipts remain historical. These local receipts are not complete XNU
+link or hardware acceptance. No new touch/SCM/memory test is needed. GPU
+scratch/fence, Metal, PAS authentication, true shared ownership and SMMU remain
+uncompleted.
 
 Implementation `6482292` was pushed and full job `42809502486` dispatched at
 19:41:21 CST. It **failed before XNU compilation** at 19:44:54: Apple ASan
@@ -105,3 +106,37 @@ steps passed; no kernel was built. The test script now disables only leak
 detection on Darwin while retaining ASan/UBSan and Linux leak detection. This
 does not change the production parent/counter code. The failure is not accepted
 as a full build; a replacement run must prove compile/link/artifact acceptance.
+
+## Accepted Full Build And Independent Fixtures
+
+Replacement `42810544983 @aa585f57fab0a327198c9856a032270b270c8c30`
+completed successfully at **2026-11-10 20:05:32 CST**. The downloaded kernel and
+build log independently pass `verify-ci-scm-pair.py`: 85 required core symbols,
+22 memory API symbols, no unresolved symbols, exact production-source identity,
+ordered-touch/64-bit-PA checks and native SCM CPU capture/codegen.
+
+- Kernel: `../inputs/ci-42810544983/kernel.macho`, 17450712 bytes.
+- Kernel SHA256: `dd7d7339da56279976d8ca881a26419d943ccb3b6e5a6c2a14ef37c9128b4a83`.
+- Acceptance: `out/kernel-verification-ci-42810544983.json`.
+- Build log: `../logs/clock-measure-ci-42810544983/build.log`.
+
+The follow-up changes **only the test and documentation**, not production.
+The hardware fixture now uses its own explicit six register offsets, asserts
+selector/divider/gates at counter start, and uses fixed raw counts and window
+durations rather than inverting the implementation's conversion. Eleven exact
+rate fixtures cover low counts, adjacent counts and 64-bit multiplication; five
+valid pairs cover nominal 19.2/200/300/600MHz and the consistency boundary, with
+the next count rejected. Non-300MHz diagnostic results stay valid and are not
+GPU admission. All 208 lease failures and 15 store mutations still pass.
+
+Local ASan/UBSan, native/staged compilation and static-analysis receipt:
+`out/clock-measure-independent-20261110-v2/receipt.json`.
+All four local kernel-preflight steps, including 68 host programs and seven
+production-unit host static analyses, pass:
+`out/clock-measure-independent-preflight-20261110/receipt.json`.
+The initial independent run is retained as FAIL: one test-only expected rate
+was 1Hz too low; correcting that constant required no production change.
+The accepted kernel remains identified by `aa585f5`; this test-only follow-up
+does not require another full kernel build. No boot image or phone operation
+occurred, and this acceptance does not establish real clock ownership, actual
+measured frequency or GPU execution.

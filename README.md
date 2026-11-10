@@ -1,9 +1,10 @@
 # UniXNU-cepheus
 
-> **当前工作总览（2026-11-07）：** [全部工作交接文档](docs/current-work-handoff.md)。
-> 历史主屏幕／触摸／电源基线已通过，但最新`allprobes-da8ffc1`触摸验收
-> **FAIL**，`query7-da8ffc1`未启动；GPU/Metal未完成，触摸与PAS13=false根因
-> 均未知。下文及专题早期章节为历史bring-up记录，不应按“当前可用”直接启动。
+> **当前工作总览（2026-11-10）：** [全部工作交接文档](docs/current-work-handoff.md)。
+> 最新SCM配对版主屏幕／触摸／熄屏唤醒已通过，接管前后PAS13均为false。
+> ARC与GPLL0保持／计数器入口已通过完整XNU构建及本机产物核验，尚无真实
+> 资源owner或GPU执行版；GPU/Metal未完成。旧触摸失败及其根因未被抹去，
+> 下文及专题早期章节为历史bring-up记录，不应按“当前可用”直接启动。
 
 **在小米 9（`cepheus`，骁龙 855 / SM8150）上通过 UEFI 引导苹果 XNU 内核，跑到 iOS 16.7.16 的 SpringBoard。**
 

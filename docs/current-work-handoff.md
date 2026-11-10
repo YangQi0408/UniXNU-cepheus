@@ -1,5 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 20:19：完整XNU CI42810544983 @aa585f5于20:05:32成功，
+产物/日志已下载并本机独立验收PASS，kernel17450712B，SHA256
+dd7d7339da56279976d8ca881a26419d943ccb3b6e5a6c2a14ef37c9128b4a83；
+85核心入口/22内存API、无unresolved、生产source/touch/PA64/SCM capture通过。
+receipt out/kernel-verification-ci-42810544983.json，日志../logs/
+clock-measure-ci-42810544983/。以下19:45待构建记录为历史，旧失败保留。
+随后仅改测试/文档，六固定地址/固定计数/精确频率及一致性边界独立验证，
+208 lease/15 store变化、ASan/UBSan/原生/staged/静态分析通过，receipt
+out/clock-measure-independent-20261110-v2/；四步preflight/68 host/7生产
+静态分析PASS，out/clock-measure-independent-preflight-20261110/。
+初次独立测试FAIL为预期值差1Hz，修正测试常量，生产代码未变；接受核仍绑定
+aa585f5，不重跑完整云构建。无手机/打包/boot/新测试点，正常配对版保持。
+下一真实owner/最终ARC票及ACK/资源协调，再闭合其余clocks/GDSC/PAS13/PA/
+crypto/SMMU；PAS13=false/supported=false/CP halt不绕过，GPU/Metal未执行。
+
 最新2026-11-10 19:37：新增实际GPLL0分频源counter测量入口，与父时钟同映射/
 锁，固定GCC selector167/短1000+全10000，fresh DONE/稳定读回/最短窗口/
 25ms poll及100ms整体/独立次数界。干净完成恢复原控制/门/分频/mux字段，
