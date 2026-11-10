@@ -11,6 +11,7 @@
 #include "cepheus_arc_active.h"
 #include "cepheus_gpu_submit.h"
 #include "cepheus_gmu_start.h"
+#include "cepheus_gmu_oob_native.h"
 #include "cepheus_gpu_ring.h"
 #include "cepheus_sqe.h"
 #include "cepheus_zap_image.h"

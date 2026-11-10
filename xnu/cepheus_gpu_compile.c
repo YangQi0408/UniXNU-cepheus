@@ -60,6 +60,7 @@ static int ceph_scm_info_context(void *unused)
 #include "cepheus_gpu_power_native_private.h"
 #include "cepheus_gpu_tsens_native_private.h"
 #include "cepheus_gmu_start_native_private.h"
+#include "cepheus_gmu_oob_native_private.h"
 #include "cepheus_gpu_pdc_native_private.h"
 #include "cepheus_smmu_native_private.h"
 #include "cepheus_gmu_upload_native_private.h"

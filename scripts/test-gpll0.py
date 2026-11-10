@@ -52,6 +52,8 @@ def main():
     names += ('xnu/cepheus_qmp_native.h','xnu/cepheus_qmp_native_private.h','xnu/test_qmp_native.c',
               'xnu/cepheus_qmp_mmio.h','xnu/cepheus_qmp_connect.h','xnu/cepheus_qmp_acd.h',
               'xnu/test_qmp_mmio.c','xnu/test_qmp_connect.c')
+    names += ('xnu/cepheus_gmu_oob.h','xnu/cepheus_gmu_oob_native.h',
+              'xnu/cepheus_gmu_oob_native_private.h','xnu/test_gmu_oob.c','xnu/test_gmu_oob_native.c')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -121,6 +123,27 @@ def main():
                        r'qcom,irq-mask = <0x1>;.*?mbox-desc-offset = <0x0>;'))
         for text,pattern in patterns:
             if not re.search(pattern,text,re.S):raise SystemExit('Changed QMP source rule: '+pattern)
+        oob_paths=('drivers/gpu/msm/adreno_a6xx_gmu.c','drivers/gpu/msm/a6xx_reg.h',
+                   'drivers/gpu/msm/kgsl_gmu_core.h')
+        oob_text={}
+        for path in oob_paths:
+            recorded=subprocess.check_output(['git','-C',str(android),'show',pin+':'+path])
+            if recorded!=(android/path).read_bytes():raise SystemExit('Modified OOB reference: '+path)
+            receipt['android_reference']['sha256'][path]=hashlib.sha256(recorded).hexdigest()
+            oob_text[path]=recorded.decode()
+        rules=((oob_text[oob_paths[0]],r'#define GPU_START_TIMEOUT\s+100'),
+               (oob_text[oob_paths[0]],r'set = BIT\(30 - req \* 2\);\s*check = BIT\(31 - req\);'),
+               (oob_text[oob_paths[0]],r'set = BIT\(req \+ 16\);\s*check = BIT\(req \+ 16\);'),
+               (oob_text[oob_paths[0]],r'clear = BIT\(31 - req \* 2\);'),
+               (oob_text[oob_paths[0]],r'clear = BIT\(req \+ 24\);'),
+               (oob_text[oob_paths[0]],r'A6XX_GMU_GMU2HOST_INTR_INFO,\s*check,\s*GPU_START_TIMEOUT,\s*check'),
+               (oob_text[oob_paths[1]],r'#define A6XX_GMU_HOST2GMU_INTR_SET\s+0x1F994'),
+               (oob_text[oob_paths[1]],r'#define A6XX_GMU_GMU2HOST_INTR_INFO\s+0x1F992'),
+               (oob_text[oob_paths[1]],r'#define A6XX_GMU_GMU2HOST_INTR_CLR\s+0x1F991'),
+               (oob_text[oob_paths[1]],r'#define A6XX_GMU_HOST2GMU_INTR_RAW_INFO\s+0x1F996'),
+               (oob_text[oob_paths[2]],r'oob_gpu = 0,'))
+        for text,pattern in rules:
+            if not re.search(pattern,text,re.S):raise SystemExit('Changed OOB source rule: '+pattern)
 
     def run(label, command, env=None):
         log = out/(label+'.log')
@@ -158,7 +181,7 @@ def main():
         exe = out/(name+'-power-mmio')
         run(name+'-power-mmio-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_gpu_power_mmio.c'), '-o', str(exe)])
         run(name+'-power-mmio-run', [str(exe)], env)
-        for sensor in ('qmp_mmio','qmp_connect','qmp_native','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
+        for sensor in ('gmu_oob','gmu_oob_native','qmp_mmio','qmp_connect','qmp_native','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
             exe=out/(name+'-'+sensor)
             run(name+'-'+sensor+'-compile', [compiler,*common,*flags,str(ROOT/'xnu'/('test_'+sensor+'.c')),'-o',str(exe)])
             run(name+'-'+sensor+'-run',[str(exe)],env)
@@ -197,6 +220,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gpu_smmu_install_native:',
                    'cepheus_gmu_upload_native:',
                    'cepheus_gpu_qmp_acd_native:',
+                   'cepheus_gpu_oob_acquire_native:', 'cepheus_gpu_oob_release_native:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)
@@ -206,7 +230,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                           str(ROOT/'xnu/test_gpll0.c'), '-o', os.devnull])
     run('measure-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                  str(ROOT/'xnu/test_clock_measure.c'), '-o', os.devnull])
-    for name in ('qmp_native','qmp_mmio','qmp_connect','gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
+    for name in ('gmu_oob','gmu_oob_native','qmp_native','qmp_mmio','qmp_connect','gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
         run(name+'-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                    str(ROOT/'xnu'/('test_'+name+'.c')), '-o', os.devnull])
     # Stage exactly as the existing local/CI copy manifests do, then compile
@@ -235,6 +259,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
             raise SystemExit('Staged source mismatch: '+name)
     native_source = (tree/'bsd/dev/cepheus_gpu_compile.c').read_text()
     for name in ('cepheus_gpu_tsens.h','cepheus_gpu_tsens_native.h','cepheus_gpu_tsens_native_private.h',
+                 'cepheus_gmu_oob_native.h','cepheus_gmu_oob_native_private.h',
                  'cepheus_gmu_start_native.h','cepheus_gmu_start_native_private.h','cepheus_gmu_mmio.h',
                  'cepheus_gpu_pdc_native.h','cepheus_gpu_pdc_native_private.h','cepheus_pdc_mmio.h',
                  'cepheus_smmu_native.h','cepheus_smmu_native_private.h','cepheus_smmu_mmio.h','cepheus_gpu_memory_private.h',
@@ -249,7 +274,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                                  '-I', str(tree/'bsd/dev'), '-c', str(file), '-o', str(out/'staged-native.o')])
     receipt['result'] = 'PASS'
     (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
-    print('GPLL0/counter/native power/TSENS/CM3/PDC/SMMU/upload local acceptance PASS; no phone measurement or GPU execution')
+    print('GPLL0/counter/native power/TSENS/CM3/PDC/SMMU/upload/QMP/OOB local acceptance PASS; no phone measurement or GPU execution')
     if args.output:
         print(out/'receipt.json')
     if temporary:

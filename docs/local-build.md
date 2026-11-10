@@ -6,6 +6,17 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 03:54: native OOB0 uses the actual private CM3 HFI_READY record,
+retained mappings/config/version, real RPMh/idle scope and fixed OOB bits.
+Focused final-v3 PASS SHA256 `afdeff4a251699ca592f712d9b4373e15414fb72a431ec24eb66078db3d2b065`;
+full final-v3 preflight PASS SHA256 `2cde8885d30cb158adefe4024a36754d388abf10ed54466a918369e595800752`,
+four prerequisites/79 host/seven analyses; unchanged recorded source hashes.
+Earlier powered-down peer-fixture final-v2 FAIL remains archived. See
+`oob-native-backend.md`; this follow-on still needs full XNU link acceptance.
+Exactly one QMP+parent run `42886831693 @8c539ca` was dispatched at 03:35:40;
+all prerequisites pass and complete XNU is building. It excludes OOB follow-on.
+No phone operation, new packaged image or GPU/Metal execution.
+
 2026-11-11 update: GPLL0 CI `42881254237 @d5bf1dd` completed SUCCESS and
 independent archived-source acceptance PASS. Kernel 17473248 bytes, SHA256
 `3dd662d8d21c6a1d35d01e5af06793e7c8e1d13c0f1f689c4db581c9ea88cf10`;

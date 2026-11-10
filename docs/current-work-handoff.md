@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 03:54：QMP8c539ca已提交推送，唯一组合CI42886831693于03:35:40
+派发，全部前置已PASS/完整XNU构建中，不是完整link验收，勿重复派发。
+后续native OOB0使用actual CM3/HFI_READY private record及maps/config/version，
+逐GMU读前电源门禁/后复核、真实rpmh scope永久保留、raw/ACK继承拒绝，
+fixed OOB0 request/clear/drained release，copied owner/sticky failure，无startup。
+focused final-v3 PASS SHAafdeff4a...，完整preflight final-v3四步/79host/七分析
+PASS SHA2cde8885...，完结source hashes仍匹配；8863/17728 acquire与2698/5396
+release owner/scope PROT_NONE为actual CM3函数+synthetic hardware，不是真GPU。
+final-v2 FAIL定位测试peer断电PROT_NONE误读，保留，不放宽production门禁。
+详见oob-native-backend.md；此批不在8c539ca CI，待提交/后续link。
+下一HFI逐word租约/实际门铃与真resource owner/继承/PAS13；无phone操作，
+无USB手机，等已有手动fastboot确认。旧tail unbooted镜像不含后续native。
+PAS13=false/supported=false/CP halt保持，GPU/Metal未执行，目标active不停工。
+
 2026-11-11 03:30后更新：GPLL0 CI42881254237 @d5bf1dd于03:27:42全成功，
 archived-source独立验收PASS，kernel17473248B/SHA3dd662d8...，97core/30memory，
 receipt SHA3222babe...；linked RPMh/idle PASS，GPLL0 disassembly仅手动检查，
