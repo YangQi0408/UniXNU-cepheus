@@ -99,6 +99,11 @@ Full tail-aware XNU CI `42835691416 @2bf48ab` and independent local receipt
 `out/kernel-verification-ci-42835691416.json` passed. The genuine kernel is in
 `../inputs/ci-42835691416/kernel.macho`; firmware is built locally. This does
 not establish a successful diagnostic phone boot or GPU execution.
+The real-kernel local candidate now passes all five packaging steps:
+`out/rpmh-tail-real-42835691416-v1/boot-rpmh-tail.img`, 70696960 bytes, SHA256
+`b7d88d435723fd317825050de0ed93d890fb540b79cc1bbf89c9c5209f287c44`.
+The `receipt.json` and independent `boot-verification.json` in that directory
+pass. It has not been booted; earlier synthetic fixtures are never candidates.
 
 ## Full Linux XNU
 

@@ -34,7 +34,25 @@ is 17467744 bytes, SHA256
 `out/kernel-verification-ci-42835691416.json` independently passes 86 core and
 22 memory symbols, no unresolved symbols, staged source identity, touch, PA64,
 native SCM capture and tail helper/caller/ABI checks. No duplicate CI was run.
-Real-kernel packaging is next; no phone operation or GPU execution has occurred.
+23:03: real-kernel local packaging has passed all five steps, including fresh
+loader/core acceptance and independent nested-FV/FAT/ADT verification.
+Candidate: `out/rpmh-tail-real-42835691416-v1/boot-rpmh-tail.img`, 70696960 bytes,
+SHA256 `b7d88d435723fd317825050de0ed93d890fb540b79cc1bbf89c9c5209f287c44`.
+Both `receipt.json` and `boot-verification.json` pass; exact embedded loader/core
+match, other FV sections, shim, DTB, other FAT files and touch settings remain
+unchanged. This is the only current real-kernel tail candidate, not an executed
+GPU image. The user has been asked to connect and manually enter fastboot.
+At 23:03 host USB enumeration found no phone; no boot/flash/reboot was issued.
+
+For the one consolidated hardware round, configure only the SWEET USB log
+interface, start an exclusive bounded `capture-usb-log.py` before the temporary
+`fastboot boot`, and retain packet timings. No partition flash or automatic
+recovery is part of the round. Expect the scheduled 90-second XNU tail marker,
+18 ordered raw chunks, core summary, gated read-only GPU probe and end marker.
+Analyze the completed log with `analyze-rpmh-tail-log.py --output NEW.json`.
+Missing chunks or transport/collector failure are recorded as such, not replaced
+with assumed votes. Ask for just one brief touch/wake confirmation afterward.
+A valid software request snapshot is still not global ownership or hardware ACK.
 
 22:50 correction: the earlier 422400-byte isolated core lacks the accepted
 boot core's LZMA/CRC registration libraries and uses different RELEASE PCDs.

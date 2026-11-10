@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+23:03更新：真实tail启动包本地五步验收全部PASS，
+out/rpmh-tail-real-42835691416-v1/boot-rpmh-tail.img，70696960B，
+SHAb7d88d435723fd317825050de0ed93d890fb540b79cc1bbf89c9c5209f287c44；
+receipt.json/boot-verification.json均通过，真实kernel绑定CI42835691416
+@2bf48ab，固件绑定loader v3/core平台v3；精确双EFI及其余FV/shim/DTB/
+FAT/touch参数保持核验。1b8f738已推送，未重复CI。手机未检测到，已请求
+用户连接并手动fastboot；无boot/flash/reboot/restore。下一仅一次集中采集
+退出尾18 raw chunks及只读GPU状态，最后一次短触摸/唤醒确认。有效软件
+请求不当owner/ACK，GPU/Metal仍未执行，准入与CP halt保持。
+
 22:59更新：完整XNU CI42835691416 @2bf48ab成功，已下载并独立验收PASS；
 kernel17467744B/SHA97df727b22a19ee58ac0a2e83156dc4bedb2477eb3a09b4c93f26786d05a1ca8，
 receipt out/kernel-verification-ci-42835691416.json，86 core/22 memory/无
