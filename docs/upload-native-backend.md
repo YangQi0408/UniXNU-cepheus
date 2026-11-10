@@ -77,6 +77,13 @@ archived, warnings are not suppressed and those runs are not accepted final.
 `out/upload-native-preflight-20261111-final-v1/receipt.json` passes all four
 local prerequisites, 75 host programs and seven production-unit analyses.
 No-startup and staging checks pass. This is not complete kernel acceptance.
+Preflight receipt SHA256:
+`88d4ee34d13bcfbb1aa5566f7a4de0bac16e7889cfe74231052a9c39d27d13c1`.
+
+Committed as `d22a054` after SMMU `b5c8f2a`; combined full XNU run
+`42860421403 @d22a0541c5f4afd17fcf5cef90625dc76801405f` started at
+2026-11-11 01:00:29 Asia/Shanghai. Initial state is in_progress, not link PASS.
+Track that run and independently accept its artifact before integrated use.
 
 Next is one combined XNU compile/link and independent
 artifact acceptance for the recent native batches. Continue the real owner/

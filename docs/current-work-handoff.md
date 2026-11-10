@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 01:00：SMMU b5c8f2a及native upload d22a054均提交推送。
+完整合并XNU CI42860421403 @d22a0541c5f4afd17fcf5cef90625dc76801405f于
+01:00:29启动，已确认in_progress，尚非link PASS。只跟踪此run，不重复派发。
+upload final-v1 preflight receipt SHA88d4ee34...四步/75 host/七分析通过，
+focused及real GMU/SQE host chain已terminal PASS；当前全部自有exec已退出。
+下一跟踪CI/下载独立验收，同时继续真实owner/继承票/idle边界；无手机操作。
+旧未boot tail诊断仍CI42835691416 @2bf48ab，不含近期native，不冒充HEAD。
+目标active未完成，PAS13=false/supported=false/CP halt不绕，GPU/Metal未执行。
+
 2026-11-11续推进upload：原生固定三map、copied owner/publication、实际pool
 ICACHE/DCACHE pin及sealed firmware snapshot接通，无caller/startup。逐TCM word/
 cache byte pre/post guard及store前计数，失效sticky，Normal-NC真实发布、final
