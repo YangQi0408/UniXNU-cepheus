@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Local GPLL0 adapter acceptance; no phone, clock measurement or full XNU build."""
+import argparse
+import datetime
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--android', type=Path)
+    args = parser.parse_args()
+    temporary = tempfile.TemporaryDirectory() if not args.output else None
+    out = args.output.resolve() if args.output else Path(temporary.name)
+    if args.output:
+        out.mkdir(parents=True, exist_ok=False)
+    receipt = {'time_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+               'phone_operations': False, 'full_xnu_build': False, 'frequency_measured': False,
+               'source_sha256': {}, 'steps': [], 'result': 'RUNNING'}
+    names = ('xnu/cepheus_gpll0.h', 'xnu/cepheus_gpll0_private.h', 'xnu/test_gpll0.c',
+             'xnu/cepheus_gpu_compile.c', 'xnu/cepheus_gpu_compile.h', 'scripts/test-gpll0.py')
+    receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
+    if args.android:
+        android = args.android.resolve()
+        pin = '36f369fdb77319a2984a48b89f025ac3e5f97386'
+        head = subprocess.check_output(['git', '-C', str(android), 'rev-parse', 'HEAD'], text=True).strip()
+        if head != pin:
+            raise SystemExit('Wrong SM8150 reference commit')
+        files = ('gcc-sm8150.c', 'gpucc-sm8150.c', 'clk-alpha-pll.c', 'clk-branch.c', 'clk-regmap.c')
+        paths = ['drivers/clk/qcom/'+name for name in files]
+        subprocess.run(['git', '-C', str(android), 'diff', '--exit-code', 'HEAD', '--', *paths], check=True)
+        texts = {name: (android/'drivers/clk/qcom'/name).read_text() for name in files}
+        receipt['android_reference'] = {'commit': pin, 'sha256': {
+            name: hashlib.sha256((android/'drivers/clk/qcom'/name).read_bytes()).hexdigest() for name in files}}
+        def require(name, pattern):
+            if not re.search(pattern, texts[name], re.S):
+                raise SystemExit('Reference rule changed: '+name+' '+pattern)
+        require('gcc-sm8150.c', r'static struct clk_alpha_pll gpll0 = \{.*?\.offset = 0x0,.*?'
+                r'\.type = TRION_PLL,.*?\.enable_reg = 0x52000,.*?\.enable_mask = BIT\(0\),')
+        require('gcc-sm8150.c', r'static struct clk_gate2 gcc_gpu_gpll0_div_clk_src = \{.*?'
+                r'\.udelay = 500,.*?\.enable_reg = 0x52004,.*?\.enable_mask = BIT\(16\),.*?'
+                r'"gpll0_out_even".*?\.ops = &clk_gate2_ops,')
+        require('gcc-sm8150.c', r'post_div_table_trion_even\[\] = \{\s*'
+                r'\{ 0x0, 1 \},\s*\{ 0x1, 2 \},\s*\{ 0x3, 4 \},\s*\{ 0x7, 8 \}')
+        require('clk-alpha-pll.c', r'#define TRION_PLL_USER_CTL\s+0xc')
+        require('clk-alpha-pll.c', r'#define TRION_PLL_STATUS\s+0x30')
+        require('clk-alpha-pll.c', r'#define TRION_PLL_ALPHA_VAL\s+0x40')
+        require('clk-alpha-pll.c', r'#define TRION_PCAL_DONE\s+BIT\(26\)')
+        require('clk-alpha-pll.c', r'if \(val & PLL_VOTE_FSM_ENA\) \{\s*'
+                r'ret = clk_enable_regmap\(hw\);\s*if \(ret\)\s*return ret;\s*'
+                r'return wait_for_pll_enable_active\(pll\);')
+        require('clk-alpha-pll.c', r'alpha_bw = ALPHA_REG_16BITWIDTH;\s*'
+                r'return \(prate \* l\) \+ \(\(prate \* a\) >> alpha_bw\);')
+        require('clk-branch.c', r'clk_gate_toggle.*?ret = clk_enable_regmap\(hw\);.*?'
+                r'if \(gt->udelay\)\s*udelay\(gt->udelay\);')
+        require('clk-regmap.c', r'clk_enable_regmap.*?regmap_update_bits\(.*?'
+                r'rclk->enable_reg,.*?rclk->enable_mask,.*?val\)')
+        require('gpucc-sm8150.c', r'P_GPLL0_OUT_MAIN_DIV, 6')
+        require('gpucc-sm8150.c', r'F\(200000000, P_GPLL0_OUT_MAIN_DIV, 1\.5, 0, 0\)')
+
+    def run(label, command, env=None):
+        log = out/(label+'.log')
+        with log.open('w') as stream:
+            code = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT,
+                                  env=env, timeout=120).returncode
+        body = log.read_text()
+        if 'warning:' in body or 'error:' in body:
+            code = code or 1
+        receipt['steps'].append({'label': label, 'command': command, 'exit_code': code,
+                                 'log': log.name, 'sha256': hashlib.sha256(log.read_bytes()).hexdigest()})
+        receipt['result'] = 'FAIL' if code else 'RUNNING'
+        (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
+        print(label, 'FAIL' if code else 'PASS', flush=True)
+        if code:
+            raise SystemExit(body)
+
+    common = ['-std=c11', '-Wall', '-Wextra', '-Werror', '-I', str(ROOT/'xnu')]
+    for name, compiler, flags in (
+        ('host', os.environ.get('CC', 'cc'), ['-O2']),
+        ('sanitized', 'clang', ['-O1', '-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer']),
+    ):
+        exe = out/name
+        run(name+'-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_gpll0.c'), '-o', str(exe)])
+        env = os.environ.copy()
+        env['ASAN_OPTIONS'] = 'detect_leaks=1:halt_on_error=1'
+        run(name+'-run', [str(exe)], env)
+    # Compile the actual native branch of the production translation unit.
+    source = (ROOT/'xnu/cepheus_gpu_compile.c').read_text()
+    native = source.split('static LCK_GRP_DECLARE', 1)[1].split('\n#endif', 1)[0]
+    declarations = '''
+#define KERNEL 1
+#include "cepheus_gpu_compile.h"
+#define LCK_GRP_DECLARE(n,s) int n __attribute__((unused))
+#define LCK_MTX_DECLARE(n,g) int n __attribute__((unused))
+extern void lck_mtx_lock(int *);
+extern void lck_mtx_unlock(int *);
+extern int ml_get_interrupts_enabled(void);
+extern int ml_at_interrupt_context(void);
+extern int get_preemption_level(void);
+extern void disable_preemption(void);
+extern void enable_preemption(void);
+extern int printf(const char *, ...);
+extern void delay(unsigned);
+extern uintptr_t ml_io_map(uint64_t,size_t);
+'''
+    file = out/'native.c'
+    file.write_text(declarations+'static LCK_GRP_DECLARE'+native)
+    command = ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding', *common]
+    run('native-compile', [*command, '-c', str(file), '-o', str(out/'native.o')])
+    run('native-assembly', [*command, '-S', str(file), '-o', str(out/'native.s')])
+    assembly = (out/'native.s').read_text()
+    for marker in ('cepheus_gpu_gpll0_hold:', 'cepheus_gpu_gpll0_check:', 'dsb\tosh', 'ml_io_map', 'delay'):
+        if marker not in assembly:
+            raise SystemExit('Missing actual native assembly marker: '+marker)
+    run('native-analysis', [*command, '--analyze', '-Xanalyzer', '-analyzer-output=text',
+                            str(file), '-o', os.devnull])
+    run('host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
+                          str(ROOT/'xnu/test_gpll0.c'), '-o', os.devnull])
+    # Stage exactly as the existing local/CI copy manifests do, then compile
+    # only from that tree. This catches missing transitive header copies.
+    module_spec = importlib.util.spec_from_file_location('verification', ROOT/'scripts/verify-gpu-kernel.py')
+    verification = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(verification)
+    patches = out/'patches'
+    patches.mkdir()
+    for name in verification.HEADERS:
+        shutil.copyfile(ROOT/'xnu'/name, patches/name)
+    script = patches/'0087-stage-cepheus-gpu-memory.sh'
+    shutil.copyfile(ROOT/'xnu'/script.name, script)
+    for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory_state.h'):
+        shutil.copyfile(ROOT/'xnu'/name, patches/name)
+    tree = out/'staged'
+    (tree/'bsd/dev').mkdir(parents=True)
+    (tree/'bsd/conf').mkdir()
+    (tree/'bsd/conf/files').write_text('base\n')
+    with (out/'staging.log').open('w') as stream:
+        subprocess.run(['bash', str(script)], cwd=tree, stdout=stream, stderr=subprocess.STDOUT, check=True)
+    for name in ('cepheus_gpll0.h', 'cepheus_gpll0_private.h', 'cepheus_gpu_compile.c', 'cepheus_gpu_compile.h'):
+        if (tree/'bsd/dev'/name).read_bytes() != (ROOT/'xnu'/name).read_bytes():
+            raise SystemExit('Staged source mismatch: '+name)
+    native_source = (tree/'bsd/dev/cepheus_gpu_compile.c').read_text()
+    file = out/'staged-native.c'
+    file.write_text(declarations+'static LCK_GRP_DECLARE'+
+                    native_source.split('static LCK_GRP_DECLARE', 1)[1].split('\n#endif', 1)[0])
+    run('staged-native-compile', ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding',
+                                 '-std=c11', '-Wall', '-Wextra', '-Werror',
+                                 '-I', str(tree/'bsd/dev'), '-c', str(file), '-o', str(out/'staged-native.o')])
+    receipt['result'] = 'PASS'
+    (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
+    print('GPLL0 adapter local acceptance PASS; not executed on hardware, not frequency measurement')
+    if args.output:
+        print(out/'receipt.json')
+    if temporary:
+        temporary.cleanup()
+
+
+if __name__ == '__main__':
+    main()

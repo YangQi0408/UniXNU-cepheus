@@ -15,6 +15,7 @@ for name in touch-fifo touch-replay touch-soc-log touch-sysinfo ready-boot-args 
 done
 python3 scripts/test-gpu-arc.py "$PATCHES"
 python3 scripts/test-arc-active-native.py "$PATCHES"
+python3 scripts/test-gpll0.py
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=undefined \

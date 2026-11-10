@@ -47,6 +47,9 @@ with tempfile.TemporaryDirectory() as directory:
     declarations = '''
 #define KERNEL 1
 #include "cepheus_zap_pas.h"
+#include "cepheus_gpll0.h"
+extern void delay(unsigned);
+extern uintptr_t ml_io_map(uint64_t,size_t);
 #define LCK_GRP_DECLARE(n,s) int n __attribute__((unused))
 #define LCK_MTX_DECLARE(n,g) int n __attribute__((unused))
 extern void lck_mtx_lock(int *);

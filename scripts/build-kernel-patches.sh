@@ -38,6 +38,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_zap_pas.h cepheus_zap_memory_private.h \
     cepheus_scm_handoff.h \
     cepheus_gpu_power_mmio.h \
+    cepheus_gpll0.h cepheus_gpll0_private.h \
     cepheus_gmu_upload_mmio.h \
     cepheus_qmp_connect.h \
     cepheus_gpu_tsens.h \

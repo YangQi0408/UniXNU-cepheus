@@ -53,6 +53,7 @@ static int ceph_scm_info_context(void *unused)
     return ml_get_interrupts_enabled() && !ml_at_interrupt_context() &&
         get_preemption_level()==0?0:-1;
 }
+#include "cepheus_gpll0_private.h"
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
     if(!r || ceph_scm_info_context(NULL))return -1;

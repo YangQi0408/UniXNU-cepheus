@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 19:22：新增实际GCC映射/原生delay的GPLL0父时钟保持接口，
+仅已校准FSM/ACTIVE/LOCK/RUN稳定PLL，apps bit0及GPU分频门bit16只置位，
+500us等待、逐访问owner、共享字变化拒绝、异常保留/终止不重试；无PLL配置/
+校准/启动hook。configured_div_hz为寄存器推算，不能满足实测parent合同。
+最终receipt out/gpll0-local-20261110-final-v2/receipt.json，四步preflight
+out/gpll0-preflight-20261110-final/receipt.json；验收状态以receipt为准。
+详见gpll0-backend.md。真实owner/频率测量仍缺，无手机操作/打包/新测试点，
+正常SCM配对版保持。PAS13=false/supported=false/CP halt不变；GPU scratch/
+fence、Metal与认证未执行。本批完整XNU编译/链接尚未开始，不能冒称新核。
+
 最新2026-11-10 18:50：实际RPMh只读采集构件完成并本地验收。DAL slot90/98
 确认为type4 UEFI pool/free，旧数组resize释放风险留证。因EBS callback后
 池页存活/guard/unmap未闭合，最终实现收窄为final map后、EBS前采集，phase1
