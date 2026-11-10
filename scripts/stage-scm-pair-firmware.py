@@ -53,7 +53,49 @@ def integrate(source):
     return source
 
 
-def stage(repository, output):
+def integrate_snapshot(source):
+    def replace(old, new):
+        nonlocal source
+        if source.count(old) != 1:
+            raise ValueError('unexpected RPMh snapshot anchor: ' + old)
+        source = source.replace(old, new)
+    replace('#include "CepheusScmPair.h"', '#include "CepheusScmPair.h"\n#include "CepheusRpmhSnapshot.h"')
+    replace('UINTN *ScmOffset)', 'UINTN *ScmOffset, UINTN *RpmhOffset)')
+    replace('  UINTN  ScmCandidate;', '  UINTN  ScmCandidate;\n  UINTN  RpmhCandidate;')
+    replace('  ScmCandidate = MAX_UINTN;', '  ScmCandidate = MAX_UINTN;\n  RpmhCandidate = MAX_UINTN;')
+    replace('    *Offset += Length;', '''    if (AsciiStrCmp ((CONST CHAR8 *)(Data + *Offset - 36), CE_RPMH_SNAPSHOT_PROPERTY) == 0) {
+      if ((RpmhCandidate != MAX_UINTN) || (Length != CE_RPMH_SNAPSHOT_BYTES)) { return FALSE; }
+      for (UINTN Byte = 0; Byte < Length; Byte++) { if (Data[*Offset + Byte] != 0) { return FALSE; } }
+      RpmhCandidate = *Offset;
+    }
+    *Offset += Length;''')
+    replace('  if (Children > (Size - *Offset) / 8)', '''  if (RpmhCandidate != MAX_UINTN) {
+    if ((Path != 1) || (*RpmhOffset != MAX_UINTN)) { return FALSE; }
+    *RpmhOffset = RpmhCandidate;
+  }
+  if (Children > (Size - *Offset) / 8)''')
+    replace('WindowSize, KeepPacked, ScmOffset))', 'WindowSize, KeepPacked, ScmOffset, RpmhOffset))')
+    replace('  int                             ScmProfile;', '  int                             ScmProfile;\n  int                             RpmhProfile;\n  UINTN                           RpmhOffset;')
+    replace('  ScmProfile = ceph_scm_pair_profile (CommandLine);', '''  RpmhProfile = ceph_rpmh_snapshot_profile (CommandLine);
+  if (RpmhProfile < 0) { return EFI_INVALID_PARAMETER; }
+  if ((RpmhProfile == 1) && mCepheusRpmhAttempted) { return EFI_ALREADY_STARTED; }
+  ScmProfile = ceph_scm_pair_profile (CommandLine);''')
+    replace('  ScmOffset = MAX_UINTN;', '  ScmOffset = MAX_UINTN;\n  RpmhOffset = MAX_UINTN;')
+    replace('&WindowSize, &KeepPacked, &ScmOffset)', '&WindowSize, &KeepPacked, &ScmOffset, &RpmhOffset)')
+    replace('  if (KeepPacked &&', '''  if ((RpmhProfile == 1) != (RpmhOffset != MAX_UINTN)) { Status = EFI_COMPROMISED_DATA; goto Fail; }
+  if (KeepPacked &&''')
+    replace('  Status = GetMap (&Map, &Capacity, &MapSize, &Key, &Stride);', '''  if (RpmhProfile == 1) { CepheusRpmhPrepare (); }
+  Status = GetMap (&Map, &Capacity, &MapSize, &Key, &Stride);''')
+    replace('  if (ScmProfile == 1) { CepheusScmCapture (); }', '''  if (RpmhProfile == 1) { CepheusRpmhBind (Map, MapSize, Stride); }
+  if (ScmProfile == 1) { CepheusScmCapture (); }''')
+    replace('    Status = gBS->ExitBootServices (mImage, Key);', '''    if (RpmhProfile == 1) { CepheusRpmhCapture (Map, MapSize, Stride); }
+    Status = gBS->ExitBootServices (mImage, Key);''')
+    replace('      DarwinEnter (ArgsAddress', '''      if (RpmhProfile == 1) { CepheusRpmhHandoff (TreeAddress + RpmhOffset, Attempt); }
+      DarwinEnter (ArgsAddress''')
+    return source
+
+
+def stage(repository, output, rpmh_snapshot=False):
     if output.exists():
         raise ValueError('output already exists')
     archive = subprocess.check_output(['git', '-C', str(repository), 'archive', BASE])
@@ -70,6 +112,13 @@ def stage(repository, output):
     for file in ('cepheus_scm_discovery.h', 'cepheus_scm_handoff.h'):
         shutil.copyfile(ROOT/'xnu'/file, driver/file)
     shutil.copyfile(ROOT/'firmware/CepheusScmPair.h', driver/'CepheusScmPair.h')
+    if rpmh_snapshot:
+        source.write_text(integrate_snapshot(source.read_text()))
+        for file in ('CepheusRpmhSnapshot.h', 'cepheus_rpmh_snapshot.h',
+                     'cepheus_rpmh_snapshot_reader.h', 'cepheus_rpmh_pool.h'):
+            shutil.copyfile(ROOT/'firmware'/file, driver/file)
+        subprocess.run(['python3', str(ROOT/'scripts/generate-rpmh-snapshot-identity.py'),
+                        str(ROOT.parent), str(driver/'CepheusRpmhSnapshotIdentity.h')], check=True)
     manifest = {'base_commit': BASE, 'aligned_sha256': ALIGNED_SHA, 'files': {}}
     for file in sorted(driver.iterdir()):
         if file.is_file():
@@ -82,5 +131,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('repository', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--rpmh-snapshot', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(stage(args.repository.resolve(), args.output.resolve()), indent=2))
+    print(json.dumps(stage(args.repository.resolve(), args.output.resolve(), args.rpmh_snapshot), indent=2))

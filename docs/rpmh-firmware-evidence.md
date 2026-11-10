@@ -1,5 +1,43 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 18:50：实际分配器与只读采集实现
+
+RPMh globals `e644/e648`、资源24B/DRV72B和resize路径继续由原件绑定：
+`2f80`递增count，`2fc0→6340→a514`分配新数组、copy后`a504`释放旧数组，
+再更新全局pointer并排序移动。`a4bc`调用`2710(size+4,out)`，保存size prefix，
+返回allocation+4；`a504`减4再经`2730`释放。不能误读反编译中的NULL输出。
+
+`e610`通过DALModEnv `2578→2638`和GUID
+`AE37B942-457F-4C91-A196-D9669FD347A3`取得DAL函数表。accepted patched DAL
+`97231a87...`的`141c`返回`1f0d0`表；slot90=`3390`调用BS+40
+`AllocatePool(type4,size,out)`，slot98=`33c8`调用BS+48 FreePool。实际分配
+来源是BootServicesData，不是自定义DAL heap。只读原件查询，未执行固件。
+
+新增私有bundle/snapshot：`rpmh-snapshot-layout-20261110`124 records、
+`rpmh-allocator-20261110`130、`rpmh-snapshot-layout-final-20261110`136、
+`rpmh-final-pointer-writers-20261110`144、`dal-rpmh-allocator-20261110`49、
+`cmddb-snapshot-binding-20261110`38，均在既有私有logs目录，REA已全部关闭。
+最后RPMh bundle SHA `d8a4bcbc936ea9a67e9b67bd10990c8bc92c7e84a2f60872ef6ea4a511863b71`；
+DAL bundle SHA `1cfb3a7d2e7310c4b3e3e71456a564f46a29b8f391b26b8d3b269c1b6e0e0c34`。
+DAL关键read Evidence：init `141c/168B`
+`ev_74e316d16ea87b73cf273cd0c7553e673618b3ae1ff7fe0d8ce2a323ac2ae3c9`；
+table `1f0d0/272B`
+`ev_01bc8385c63e3e7821e0bea3b749561470f2675ba4f030ce1ce44888a71a8e76`；
+alloc `3390/52B`
+`ev_0e101dd5709d18a6c30d9d61a2e7682d9ba0d70612ea6dc3f927b9fd6b342edb`；
+free `33c8/32B`
+`ev_c1cf8e93046884be925b178e82ca34f60b295df3044e77b3735bdac937a700b0`。
+RPMh分配原指令Evidence
+`ev_4d9706311089fcec315723252e04bd2234852537e52cc8540a66d120853e5f60`。
+
+已新增真实只读固件采集器，但**最终接受的是pre-EBS诊断，不是post-EBS
+最终投票**。最终map在callback前获得，不能排除callback释放/guard/unmap
+pool，所以post-EBS遍历方案及对应早期build已弃用。新方案在最终map后、
+EBS调用前读取当前数组，成功后仅seal/copy纯数据；phase=1显式限制来源。
+身份绑定/池头尾/有界结构/重读以及实际staged C测试、本地完整构建PASS，
+详见`rpmh-snapshot.md`。没有XNU hook/boot打包/手机操作；不是ACK/owner。
+上一节18:03的“下一post-EBS采集”计划被本节生命周期限制修正，旧证据保留。
+
 ## 2026-11-10 18:03：完成入口不是排空，getter指针不能直接继承
 
 复用同SHA `03ccd266...` 的已打开Ghidra目标；本轮只做静态查询，没有调用

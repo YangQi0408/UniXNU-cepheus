@@ -67,6 +67,13 @@ Next: a genuine post-EBS inherited-vote ledger and exclusive owner must bind
 this transport to power `prepare/vote/finish`; a synthetic callback is not an
 admission path. Do not schedule another touch/SCM/memory test for this module.
 
+At 18:50 CST, the separate UEFI request snapshot building block passed full
+local firmware build and actual-parser/adapter tests. It deliberately captures
+**pre-EBS** and carries an explicit phase, with post-EBS seal/copy only; pool
+lifetime across exit callbacks is not proved. See `rpmh-snapshot.md`. It cannot
+initialize the owner/current-vote ledger or enable this transport. No new phone
+test or GPU execution candidate was produced.
+
 At 17:37 CST, implementation commit `7c80907` was pushed and full XNU job
 `42792076835` started at that exact commit. Source staging passed; compilation,
 linking and compiled-artifact acceptance were pending at that observation. Local

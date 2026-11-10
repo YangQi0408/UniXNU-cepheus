@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 18:50：实际RPMh只读采集构件完成并本地验收。DAL slot90/98
+确认为type4 UEFI pool/free，旧数组resize释放风险留证。因EBS callback后
+池页存活/guard/unmap未闭合，最终实现收窄为final map后、EBS前采集，phase1
+显式诊断，EBS后仅seal/copy；不能当最终投票/ACK/owner。四PE text重定位
+绑定、当前数组/池头尾/环/变化/33失败读、实际staged ADT/adapter/完整复制
+夹具、ASan/UBSan/静态分析PASS，本地完整固件336896B/SHAdb654314c91a...。
+receipt out/rpmh-snapshot-local-20261110/accepted-receipt.json，build
+out/rpmh-snapshot-pre-ebs-accepted-20261110/，详见rpmh-snapshot.md。
+默认SCM stage不变，无XNU修改/打包/手机操作/新测试点。下一最终RAM生命周期/
+唯一writer及生产owner，PAS13/PA/crypto/SMMU仍缺；GPU/Metal/认证未执行。
+18:03计划中的post-EBS遍历已由本节限制取代，不boot此独立构件。
+
 最新2026-11-10 18:03：ARC完整XNU CI42792610794 @bba0314于17:51:44成功，
 本机独立验收PASS：kernel17433272B/SHA00abd9206e8b...，82核心入口/22内存API/
 无unresolved、全部生产source及touch/PA64/capture核验。receipt在

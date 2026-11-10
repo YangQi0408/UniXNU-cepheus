@@ -2,11 +2,18 @@
 # Isolated driver build; no sibling source edits or device access.
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-DEST=${1:?usage: build-scm-pair-firmware.sh NEW_OUTPUT_DIR}
+DEST=${1:?usage: build-scm-pair-firmware.sh NEW_OUTPUT_DIR [--rpmh-snapshot]}
 test ! -e "$DEST"
 mkdir -p "$DEST"
 DEST=$(cd "$DEST" && pwd)
-python3 "$ROOT/scripts/stage-scm-pair-firmware.py" "$ROOT/../unixnu/drivers/DarwinBoot" "$DEST/source"
+STAGE_OPTIONS=()
+if [[ ${2:-} == --rpmh-snapshot ]]; then
+    STAGE_OPTIONS+=(--rpmh-snapshot)
+elif [[ -n ${2:-} ]]; then
+    printf 'unknown build option: %s\n' "$2" >&2
+    exit 2
+fi
+python3 "$ROOT/scripts/stage-scm-pair-firmware.py" "$ROOT/../unixnu/drivers/DarwinBoot" "$DEST/source" "${STAGE_OPTIONS[@]}"
 export WORKSPACE=$DEST
 export PACKAGES_PATH=$DEST/source:$ROOT/../unixnu/package:$ROOT/../uefi/MU_BASECORE
 export EDK_TOOLS_PATH=$ROOT/../uefi/MU_BASECORE/BaseTools
