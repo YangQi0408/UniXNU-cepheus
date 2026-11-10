@@ -30,6 +30,46 @@ Screen blank/unblank success therefore does not prove a system suspend cycle.
 Neither an absent CPU_SUSPEND implementation nor `NO_MONITOR` establishes a
 safe resource-owner lease. No boot arguments or CPU idle code were changed.
 
+## Idle Callback And Touch Writer
+
+2026-11-11 continuation while combined native XNU CI `42860421403 @d22a054`
+is pending. Actual SWEET CPU registration zero-initializes
+`ml_processor_info_t` and does not assign `processor_idle` or
+`platform_cache_dispatch`. The inspected `ml_processor_register` copies
+`processor_idle` directly into each CPU's `cpu_idle_notify`.
+`processor_idle_t` returns void and receives only CPU id, entry/exit and a
+timeout output. `cpu_idle` calls it before WFI but does not test a veto result;
+the timeout controls the idle timer, not permission to enter WFI. Adding a
+successful notification callback would not establish an idle hold.
+
+The old pinned RPMh source's opening comment asserts "deep idle disabled";
+neither its touch-power function nor shared `rh_lock` implements that policy.
+The applied Cepheus power transform adds `cepheus_touch_power_enable`, taking
+the same `rh_lock` and sending only `ldoc1` XOB enable=1. It does not add idle
+coordination. GPU ARC/BCM uses this same lock/terminal poison, while native
+GPLL0/power/CM3/PDC/SMMU/upload uses the separate GPLL0 lock. The GPU owner must
+coordinate both participating writer domains and inherited hardware state.
+No idle toggle, callback or fake owner was added in this inspection.
+
+These facts come from the read-only older XNU reference and pinned patches,
+not a runtime policy measurement or complete current linked-tree proof:
+
+```text
+osfmk/arm64/machine_routines.c
+4914ed3dd20c16da933b374980974eadbf17023bd5e1fe8251fdec5723810d4b
+osfmk/arm/machine_routines.h
+1eec9e9dac950421a27a6db83e81adc05ea15eac6549542805ec7a764c43644e
+```
+
+Actual pinned `0062-sweet-touch-power-battery.patch` SHA256 is
+`8a4dc08c61545d31bd2c0a70530434824b3e3d6c4bf96e8b63559db31148a617`.
+Local `scripts/prepare-touch-power-patch.py` SHA256 is
+`85ef5cac48574d1e5816fc674c93aa48f5ea1523d53b8f77faefa50d5b232a48`;
+accepted generated `0084-cepheus-touch-power.patch` SHA256 is
+`2d70d35fadc2beb7eed2c90c9f2e400986f379a4c52a6a0d5c6e4b4e66865868`.
+No sibling input was edited. Still verify the complete applied build and
+hardware behavior before any production owner/startup admission.
+
 ## Required Next Evidence
 
 The actual owner must identify every participating XNU writer, own the exact
