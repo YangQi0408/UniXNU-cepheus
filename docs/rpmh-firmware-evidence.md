@@ -1,5 +1,73 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 15:08：crypto BCM映射、CmdDb来源与换算
+
+本机离线原件续查；没有执行固件/协议/SMC/MMIO，手机和生产后端均未改动。
+accepted boot新增第11个模块身份核验：device CmdDbDxe，GUID
+ABA01FF8-2CCB-4E12-8B2E-CD3F4A742993，32768B，SHA256
+`f1fe60c53ca0eb2613cec20aa6c69d8375543c76bbc226ba3a8c41bfc5535849`，
+与boot内PE逐字节相同。不能依据邻近Epsilon版本代替device版本。
+
+沿上一节八个route节点的原结构和Clock实际访问指令，确认master的BCM count/
+table为+0xd0/+0xd8，slave为+0x90/+0x98；每个BCM均在topology+0x48/+0x50
+所指30项hardware table0x313f0中唯一出现。具体映射：
+
+| Route Node | Configured BCM |
+| --- | --- |
+| qxm_crypto | CE0 (0x3ca30) |
+| qns_a2noc_snoc | 空 |
+| qnm_aggre2_noc | SN11 (0x3b160) |
+| qns_gemnoc_sf | SN0 (0x3b260) |
+| qnm_snoc_sf | 空 |
+| qns_llcc | SH0 (0x321f8) |
+| llcc_mc | 空 |
+| ebi | MC0 (0x32350), ACV (0x32448) |
+
+CE0/SN11/SN0/SH0/MC0的kind=0，ACV kind=2(vector)；每项文件里的command
+address+0xc、width+0x10、bw_unit+0x14、clock_id+0x18均为0。**这些零是
+待初始化字段，不是有效命令地址、有效单位或当前投票**。
+
+Clock0xd9d4使用上述count/table建立hardware request list；master request
+kind7，slave kind8。0xd350/0xd3d0再通过这些表排入hardware queue；前者有
+不连续函数体0xd0e0..0xd137与0xd350..0xd3cf，已补读完整两段，不能按单段
+边界误判末尾。这里核验指针/字段和排队指令，不宣称完整运行生命周期完成。
+
+Clock0xe474依hardware table取每个节点名，0x129f8经CmdDb slot0x38查询8B
+aux数据，0x12978经slot0x10查地址；两者使用GUID
+1c34f691-d33d-4e14-b8f8-32c6c029e95b。aux的u32+0、u16+4、u8+6分别存入
+节点unit/width/clock_id；address存入+0xc。这是**动态字段来源**，尚未读取
+手机数据库或确认初始化成功。Clock查询helper存在失败/返回零路径，不放宽
+未来后端的非零地址/单位、bounds与所有权门槛。
+
+CmdDb原表0x6078 revision0x10000，slot0x10→0x1444→0x2128(address查询)，
+slot0x38→0x15b0→0x2410(aux查询)。初始化0x2540→0x45c0用32位load读取
+`0x0c3f000c`的数据库指针并零扩展，随后核验version=1及magic=0x0c0330db，
+不匹配则清数据库指针。这是已验收固件的**静态来源/头部校验**，本轮未读
+该寄存器、未访问手机RAM，也不据此确认活态数据库边界或可被XNU继承。
+
+Clock0xd450按BCM width/node width及aggregation ports缩放，IB/AB在有余数
+时向上取整，分别取各类别最大值。0xe894随后按bw_unit再次向上取整；
+0xe190饱和至14位，IB放低14位，AB放bits14..27，非零加valid bit29；
+0xed58用动态地址构造command，每组末尾加commit bit30。这与现有
+`ceph_bcm_div`的Android floor/minimum-one规则**不完全相同**，不能直接把
+Android helper当作UEFI唯一聚合器的复刻。仍缺原请求/其他client的完整聚合
+快照、运行模式/边界、ACV应用策略及最后EBS状态；不能生成“已确认”lease。
+
+`verify-crypto-icb-evidence.py`扩展六节点、topology membership、动态零字段、
+Clock指令和CmdDb原表/入口核验；参考identity追加EFICmdDb.h及cmd_db_bcm.h
+固定git blob，异构建关联而非来源证明，未复制专有源码。新增10项合成测试，
+共26项普通/优化通过；v2原件两模式PASS_STATIC_BYTES_ONLY且一致，SHA256
+`df7c8a06837159c7d89fdeaafb97fffbc28d0d4003ddbacb3f481c2e1577a3c7`。
+原NPA8/ICB24测试通过。v1和所有旧证据保留，没有内核构建。
+
+新增私有bundle/snapshot在`../logs/pas13-instruction-replay-20261110/`：
+`dal-crypto-bcm-v2-evidence.json`（77 records）、
+`clock-crypto-bcm-final-evidence.json`（110 records）、
+`cmddb-crypto-bcm-v2-evidence.json`（37 records）；v2两模式receipt同目录。
+下一处理完整资源聚合/最终EBS交接及XNU唯一owner，另需PAS13支持条件、
+secure PA/XPU、crypto时钟生命周期与SMMU。无新GPU真机测试点，不改
+supported=false/CP halt，GPU scratch/fence、Metal和PAS认证未执行。
+
 ## 2026-11-10 14:48：具体crypto路由与请求ABI核验
 
 仅本机离线取证，无固件执行、手机操作、SMC/MMIO或内核改动。复用已验收

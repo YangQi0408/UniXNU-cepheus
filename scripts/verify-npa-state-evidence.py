@@ -47,6 +47,9 @@ MODULES = (
     ('LimitsDxe', 'F09AD92E-4E91-490F-AB99-E69939B840B2',
      'Binaries/Epsilon/BOOT.XF.3.0-00527-SM8150LZB-1/QcomPkg/Drivers/LimitsDxe/LimitsDxe.efi',
      '550617c51be7f95e4681944518c724a47ad8cd6242d9d861c7dfd1b5e819ede1'),
+    ('CmdDbDxe', 'ABA01FF8-2CCB-4E12-8B2E-CD3F4A742993',
+     'Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/Binaries/QcomPkg/Drivers/CmdDbDxe/CmdDbDxe.efi',
+     'f1fe60c53ca0eb2613cec20aa6c69d8375543c76bbc226ba3a8c41bfc5535849'),
 )
 
 

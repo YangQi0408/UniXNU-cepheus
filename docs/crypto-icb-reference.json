@@ -17,6 +17,16 @@
       "path": "adsp_proc/core/settings/systemdrivers/icb/interface/icb_soc_data.h",
       "git_blob": "73504991c665da2c93b7b7af199860350c8f1377",
       "size": 13459
+    },
+    {
+      "path": "adsp_proc/core/systemdrivers/icb/src/common/cmd_db_bcm.h",
+      "git_blob": "facb1193d16e8e767f4686d324eca66dfead07d6",
+      "size": 1344
+    },
+    {
+      "path": "boot_images/QcomPkg/Include/Protocol/EFICmdDb.h",
+      "git_blob": "3c1a520501dc3341cfba8b2e93b73e165ad753ab",
+      "size": 9063
     }
   ],
   "correlations": {

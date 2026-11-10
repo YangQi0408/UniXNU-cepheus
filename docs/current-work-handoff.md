@@ -1,5 +1,18 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 15:08：crypto六BCM与动态参数来源已离线绑定原件：CE0/SN11/
+SN0/SH0/MC0/ACV（vector kind2）；DAL初始command/width/unit/clock_id均0，
+非活票。Clock通过CmdDb slot0x38(aux8B)/0x10(address)填参数；accepted boot
+第11模块device CmdDbDxe逐字节相同，初始化从0x0c3f000c读32位指针并核验
+DB version1/magic0x0c0330db。只读文件，未读手机寄存器/RAM。Clock换算是
+ceil两级缩放、IB低14/AB高14/valid29/commit30，和Android floor/minimum1
+不同，不混用。crypto核验v2两模式PASS一致，共26合成测试普通/优化通过，
+NPA8/ICB24通过；dal-crypto-bcm-v2/clock-crypto-bcm-final/cmddb-crypto-bcm-v2
+bundle/snapshot及v2 receipt保存在私有logs，详见RPMh文档。14:48批9088461
+已推送。仍需完整client聚合/最终EBS/XNU owner、PAS13支持、PA/XPU/crypto
+clock/SMMU，无生产后端/内核/构建/手机操作或新真机点，正常配对版保持；
+supported=false/CP halt不绕过，GPU/Metal/PAS认证未执行。
+
 最新2026-11-10 14:48：具体crypto ICB路由与Hash ABI已离线原件核验。
 DAL topology DRV2/tree八节点→四pairs：crypto→a2noc_snoc、aggre2→gemnoc_sf、
 snoc_sf→llcc、llcc_mc→ebi；Hash生成master23/slave0、type0x10004的32B请求，

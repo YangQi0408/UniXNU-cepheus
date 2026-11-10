@@ -5,6 +5,7 @@ from pathlib import Path
 import struct
 import unittest
 from unittest.mock import patch
+import uuid
 
 SPEC = importlib.util.spec_from_file_location(
     'crypto_verify', Path(__file__).with_name('verify-crypto-icb-evidence.py'))
@@ -188,6 +189,122 @@ class AbiTests(unittest.TestCase):
     def test_optimization_keeps_guard(self):
         with self.assertRaisesRegex(ValueError, 'guard'):
             VERIFY.require(False, 'explicit guard')
+
+
+class BcmTests(unittest.TestCase):
+    def fixture(self):
+        blob, segments, reads, put = fixture()
+        put(0x30f20, struct.pack('<I4xQ', 30, 0x313f0))
+        hardware = tuple(item[0] for item in VERIFY.BCM_NAMES) + tuple(range(0x4000, 0x40c0, 8))
+        put(0x313f0, struct.pack('<30Q', *hardware))
+        for address, side, table, expected in VERIFY.BCM_ASSOCIATIONS:
+            offset = 0xd0 if side == 'master' else 0x90
+            put(address + offset, struct.pack('<I4xQ', len(expected), table))
+            if expected:
+                put(table, struct.pack('<' + str(len(expected)) + 'Q', *expected))
+        for index, (address, name, kind) in enumerate(VERIFY.BCM_NAMES):
+            pointer = 0x2800 + index * 32
+            put(address, struct.pack('<Q5I', pointer, kind, 0, 0, 0, 0))
+            put(pointer, name.encode('ascii') + b'\0')
+        return blob, segments, reads, put
+
+    def test_six_nodes_and_vector_kind(self):
+        blob, segments, reads, _ = self.fixture()
+        result = VERIFY.crypto_bcms(blob, segments, reads)
+        self.assertEqual([item['name'] for item in result['nodes']],
+                         ['CE0', 'SN11', 'SN0', 'SH0', 'MC0', 'ACV'])
+        self.assertEqual(result['nodes'][-1]['kind'], 2)
+        self.assertEqual(result['associations'][-1]['bcms'], ['0x32350', '0x32448'])
+
+    def test_changed_association_pointer_count(self):
+        for data in (struct.pack('<I4xQ', 2, 0x3ca28), struct.pack('<I4xQ', 1, 0x3ca30)):
+            blob, segments, reads, put = self.fixture()
+            put(0x3c8e8 + 0xd0, data)
+            with self.assertRaisesRegex(ValueError, 'association'):
+                VERIFY.crypto_bcms(blob, segments, reads)
+
+    def test_changed_pointed_node(self):
+        blob, segments, reads, put = self.fixture()
+        put(0x3ca28, struct.pack('<Q', 0x32350))
+        with self.assertRaisesRegex(ValueError, 'associated BCM pointer'):
+            VERIFY.crypto_bcms(blob, segments, reads)
+
+    def test_dynamic_fields_are_not_static_votes(self):
+        for offset in (12, 16, 20, 24):
+            blob, segments, reads, put = self.fixture()
+            put(0x3ca30 + offset, struct.pack('<I', 1))
+            with self.assertRaisesRegex(ValueError, 'dynamic BCM'):
+                VERIFY.crypto_bcms(blob, segments, reads)
+
+    def test_wrong_kind_or_name(self):
+        for address, data in ((0x32448 + 8, struct.pack('<I', 0)), (0x2800, b'CE1\0')):
+            blob, segments, reads, put = self.fixture()
+            put(address, data)
+            with self.assertRaisesRegex(ValueError, 'name/kind'):
+                VERIFY.crypto_bcms(blob, segments, reads)
+
+    def test_missing_or_duplicate_topology_member(self):
+        for index, value in ((0, 0x4000), (6, 0x3ca30)):
+            blob, segments, reads, put = self.fixture()
+            put(0x313f0 + index * 8, struct.pack('<Q', value))
+            with self.assertRaisesRegex(ValueError, 'missing/duplicated'):
+                VERIFY.crypto_bcms(blob, segments, reads)
+
+    def test_required_dynamic_record_evidence(self):
+        blob, segments, reads, _ = self.fixture()
+        del reads[0x3ca30, 28]
+        with self.assertRaisesRegex(ValueError, 'coverage'):
+            VERIFY.crypto_bcms(blob, segments, reads)
+
+
+class BcmInstructionsTests(unittest.TestCase):
+    def fixture(self):
+        blob, segments, reads, put = fixture()
+        reads.clear()
+        guid = uuid.UUID('1c34f691-d33d-4e14-b8f8-32c6c029e95b').bytes_le
+        put(0x2f0e8, guid)
+        put(0x6048, guid)
+        put(0x6078, struct.pack('<9Q', 0x10000, 0x13f0, 0x1444, 0x148c,
+                               0x14d4, 0x1520, 0x1568, 0x15b0, 0x1608))
+        for address, size in ((0xd9d4, 428), (0xd350, 128), (0xd3d0, 128), (0xe474, 664),
+                              (0x129f8, 156), (0x12978, 128), (0xd450, 376), (0xe894, 104),
+                              (0xe190, 44), (0xed58, 356), (0x1444, 72), (0x15b0, 88),
+                              (0x2540, 276), (0x45c0, 24)):
+            put(address, bytes(size))
+        return blob, segments, reads, put
+
+    def test_consumer_and_provider_offsets(self):
+        blob, segments, reads, _ = self.fixture()
+        with patch.object(VERIFY.ICB, 'instruction', side_effect=AbiTests().capture):
+            consumer = VERIFY.clock_bcm(blob, segments, reads)
+            provider = VERIFY.cmddb_provider(blob, segments, reads)
+        self.assertEqual((consumer['aux_slot'], consumer['address_slot']), ('0x38', '0x10'))
+        self.assertEqual(consumer['runtime_offsets']['unit'], 20)
+        self.assertIn('0x0c3f000c', provider['database_pointer_register'])
+        checked = {(item['address'], item['operands']) for item in consumer['instructions']}
+        self.assertIn(('0xd53c', 'x7, x7, ne'), checked)
+        self.assertIn(('0xe1a8', 'w8, w9, #0xe, #0xe'), checked)
+        self.assertIn(('0xee5c', 'w15, w15, #0x40000000'), checked)
+
+    def test_guid_or_slot_change_rejected(self):
+        for address in (0x2f0e8, 0x6048, 0x6088):
+            blob, segments, reads, put = self.fixture()
+            put(address, bytes(8))
+            function = VERIFY.clock_bcm if address == 0x2f0e8 else VERIFY.cmddb_provider
+            with self.assertRaisesRegex(ValueError, 'GUID|table'):
+                function(blob, segments, reads)
+
+    def test_changed_opcodes_and_missing_ranges(self):
+        for function, missing in ((VERIFY.clock_bcm, (0xe474, 664)),
+                                   (VERIFY.cmddb_provider, (0x45c0, 24))):
+            blob, segments, reads, _ = self.fixture()
+            with patch.object(VERIFY.ICB, 'instruction', side_effect=ValueError('changed opcode')):
+                with self.assertRaisesRegex(ValueError, 'changed opcode'):
+                    function(blob, segments, reads)
+            del reads[missing]
+            with patch.object(VERIFY.ICB, 'instruction', side_effect=AbiTests().capture):
+                with self.assertRaisesRegex(ValueError, 'coverage'):
+                    function(blob, segments, reads)
 
 
 if __name__ == '__main__':

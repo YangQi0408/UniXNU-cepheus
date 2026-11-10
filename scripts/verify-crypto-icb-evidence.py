@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import struct
+import uuid
 
 SPEC = importlib.util.spec_from_file_location(
     'icb_verify', Path(__file__).with_name('verify-icb-registrar-evidence.py'))
@@ -24,6 +25,17 @@ ROUTE_NODES = (
     ((0x3acd0, 'qnm_aggre2_noc', 112, 16, 1), (0x3ae10, 'qns_gemnoc_sf', 104, 16, 1)),
     ((0x3af10, 'qnm_snoc_sf', 76, 16, 1), (0x31bd0, 'qns_llcc', 243, 16, 4)),
     ((0x31cd0, 'llcc_mc', 180, 4, 4), (0x31e10, 'ebi', 0, 4, 4)))
+BCM_ASSOCIATIONS = (
+    (0x3c8e8, 'master', 0x3ca28, (0x3ca30,)),
+    (0x3abd0, 'slave', 0, ()),
+    (0x3acd0, 'master', 0x3b158, (0x3b160,)),
+    (0x3ae10, 'slave', 0x3b258, (0x3b260,)),
+    (0x3af10, 'master', 0, ()),
+    (0x31bd0, 'slave', 0x321f0, (0x321f8,)),
+    (0x31cd0, 'master', 0, ()),
+    (0x31e10, 'slave', 0x32340, (0x32350, 0x32448)))
+BCM_NAMES = ((0x3ca30, 'CE0', 0), (0x3b160, 'SN11', 0), (0x3b260, 'SN0', 0),
+             (0x321f8, 'SH0', 0), (0x32350, 'MC0', 0), (0x32448, 'ACV', 2))
 
 
 def covered(reads, address, size):
@@ -104,6 +116,106 @@ def instructions(blob, segments, reads, ranges, checks):
     for address, size in ranges:
         covered(reads, address, size)
     return [ICB.instruction(blob, segments, *item) for item in checks]
+
+
+def crypto_bcms(blob, segments, reads):
+    count, table = struct.unpack('<I4xQ', read(blob, segments, reads, 0x30f20, 16))
+    require((count, table) == (30, 0x313f0), 'unexpected topology hardware table')
+    hardware = struct.unpack('<30Q', read(blob, segments, reads, table, 240))
+    associations = []
+    for address, side, expected_table, expected in BCM_ASSOCIATIONS:
+        offset = 0xd0 if side == 'master' else 0x90
+        count, table = struct.unpack('<I4xQ', read(blob, segments, reads, address + offset, 16))
+        require((count, table) == (len(expected), expected_table), 'unexpected BCM association count/table')
+        nodes = struct.unpack('<' + str(count) + 'Q', read(blob, segments, reads, table, count * 8)) if count else ()
+        require(nodes == expected, 'unexpected associated BCM pointer')
+        associations.append({'node': hex(address), 'side': side,
+                             'count_offset': hex(offset), 'bcms': [hex(x) for x in nodes]})
+    nodes = []
+    for address, name, kind in BCM_NAMES:
+        require(hardware.count(address) == 1, 'BCM missing/duplicated in topology hardware table')
+        raw = read(blob, segments, reads, address, 28)
+        pointer, observed_kind, command, width, unit, clock_id = struct.unpack('<Q5I', raw)
+        require(string(blob, segments, reads, pointer) == name and observed_kind == kind,
+                'unexpected BCM name/kind')
+        require((command, width, unit, clock_id) == (0, 0, 0, 0), 'unexpected initial dynamic BCM fields')
+        nodes.append({'address': hex(address), 'name': name, 'kind': kind,
+                      'command_address': command, 'width': width, 'unit': unit, 'clock_id': clock_id})
+    return {'associations': associations, 'hardware_table': '0x313f0', 'nodes': nodes,
+            'observation': 'Configured associations only; command/width/unit/clock_id are populated at runtime',
+            'acv': 'Vector kind 2, not a bandwidth divider; no runtime apps-bit policy inferred here'}
+
+
+def clock_bcm(blob, segments, reads):
+    protocol_guid = uuid.UUID('1c34f691-d33d-4e14-b8f8-32c6c029e95b')
+    require(read(blob, segments, reads, 0x2f0e8, 16) == protocol_guid.bytes_le,
+            'unexpected Clock CmdDb GUID')
+    checks = (
+        (0xda94, 'ldr', 'x12, [x25, #0xd8]'), (0xdaa0, 'add', 'x1, x13, #0xa8'),
+        (0xdaa4, 'bl', '#0xd96c'), (0xdaac, 'ldr', 'w13, [x25, #0xd0]'),
+        (0xdb18, 'ldr', 'x17, [x25, #0x98]'), (0xdb24, 'add', 'x1, x1, #0xa8'),
+        (0xdb28, 'bl', '#0xd96c'), (0xdb30, 'ldr', 'w16, [x25, #0x90]'),
+        (0xd394, 'ldr', 'x9, [x20, #0xd8]'), (0xd3a0, 'add', 'x1, x10, #0x58'),
+        (0xd3a4, 'bl', '#0xd270'), (0xd3ac, 'ldr', 'w8, [x20, #0xd0]'),
+        (0xd414, 'ldr', 'x9, [x20, #0x98]'), (0xd420, 'add', 'x1, x10, #0x58'),
+        (0xd424, 'bl', '#0xd270'), (0xd42c, 'ldr', 'w8, [x20, #0x90]'),
+        (0xe624, 'ldr', 'x1, [x23, #0x50]'), (0xe62c, 'ldr', 'x25, [x1, w24, uxtw #3]'),
+        (0xe634, 'ldr', 'x0, [x25]'), (0xe638, 'strb', 'w22, [sp, #4]'),
+        (0xe4f4, 'mov', 'w22, #8'), (0xe644, 'bl', '#0x129f8'),
+        (0xe648, 'cbnz', 'w0, #0xe69c'), (0xe64c, 'ldr', 'x0, [x25]'),
+        (0xe650, 'bl', '#0x12978'), (0xe654, 'ldrh', 'w15, [sp, #0xc]'),
+        (0xe65c, 'ldr', 'w16, [sp, #8]'), (0xe660, 'ldrb', 'w17, [sp, #0xe]'),
+        (0xe664, 'stp', 'w0, w15, [x25, #0xc]'), (0xe668, 'stp', 'w16, w17, [x25, #0x14]'),
+        (0x12a28, 'add', 'x0, x0, #0xe8'), (0x12a74, 'ldr', 'x10, [x0, #0x38]'),
+        (0x12a78, 'blr', 'x10'), (0x12998, 'add', 'x0, x0, #0xe8'),
+        (0x129dc, 'ldr', 'x10, [x0, #0x10]'), (0x129e0, 'blr', 'x10'),
+        (0xd4a8, 'ldr', 'w3, [x2, #0x28]'), (0xd4ac, 'add', 'x17, x2, #0x40'),
+        (0xd4c4, 'ldp', 'w1, w2, [x3, #0x18]'), (0xd4c8, 'add', 'x17, x3, #0x20'),
+        (0xd510, 'mul', 'x4, x3, x9'), (0xd51c, 'mul', 'w2, w2, w1'),
+        (0xd520, 'udiv', 'x7, x4, x5'), (0xd52c, 'msub', 'x4, x7, x5, x4'),
+        (0xd538, 'mul', 'x4, x3, x9'), (0xd53c, 'cinc', 'x7, x7, ne'),
+        (0xd54c, 'udiv', 'x3, x4, x2'), (0xd55c, 'msub', 'x7, x3, x2, x4'),
+        (0xd574, 'cinc', 'x17, x3, ne'),
+        (0xe8ac, 'ldr', 'w10, [x19, #0x14]'), (0xe8b8, 'sub', 'x8, x10, #1'),
+        (0xe8c8, 'udiv', 'x0, x15, x10'), (0xe8cc, 'udiv', 'x1, x16, x10'),
+        (0xe8d0, 'bl', '#0xe190'), (0xe190, 'mov', 'w8, #0x3fff'),
+        (0xe1a8, 'bfi', 'w8, w9, #0xe, #0xe'), (0xe1ac, 'orr', 'w9, w8, #0x20000000'),
+        (0xedfc, 'ldr', 'w12, [x12, #0xc]'), (0xee00, 'str', 'w12, [x16, #0xc]'),
+        (0xee5c, 'orr', 'w15, w15, #0x40000000'))
+    ranges = ((0xd9d4, 428), (0xd350, 128), (0xd3d0, 128), (0xe474, 664),
+              (0x129f8, 156), (0x12978, 128), (0xd450, 376), (0xe894, 104),
+              (0xe190, 44), (0xed58, 356))
+    return {'protocol_guid': str(protocol_guid), 'aux_slot': '0x38', 'address_slot': '0x10',
+            'aux_requested_bytes': 8, 'aux_fields': {'unit': 0, 'width': 4, 'clock_id': 6},
+            'runtime_offsets': {'command': 12, 'width': 16, 'unit': 20, 'clock_id': 24},
+            'normalization': 'Ceil scaled IB by width; ceil scaled AB by width*ports; then ceil by bw_unit',
+            'encoding': '14-bit IB in low bits; AB in bits 14..27; valid bit29; group commit bit30',
+            'instructions': instructions(blob, segments, reads, ranges, checks),
+            'limitations': ['Instruction/static data correlation, not observed runtime initialization',
+                            'Not identical to Android ceph_bcm_div floor/minimum-one policy',
+                            'Other consumers, overflow/zero-unit behavior, vector policy and live completion not authorized']}
+
+
+def cmddb_provider(blob, segments, reads):
+    guid = uuid.UUID('1c34f691-d33d-4e14-b8f8-32c6c029e95b')
+    require(read(blob, segments, reads, 0x6048, 16) == guid.bytes_le, 'unexpected CmdDb provider GUID')
+    table = struct.unpack('<9Q', read(blob, segments, reads, 0x6078, 72))
+    require(table == (0x10000, 0x13f0, 0x1444, 0x148c, 0x14d4, 0x1520, 0x1568, 0x15b0, 0x1608),
+            'unexpected CmdDb protocol table')
+    checks = ((0x1470, 'bl', '#0x2128'), (0x147c, 'str', 'w8, [x19]'),
+              (0x15ec, 'bl', '#0x2410'), (0x15f8, 'str', 'w8, [x19]'),
+              (0x2550, 'bl', '#0x45c0'), (0x2558, 'str', 'x0, [x20, #0x100]'),
+              (0x256c, 'cmp', 'w9, #1'), (0x2578, 'mov', 'w11, #0x30db'),
+              (0x257c, 'movk', 'w11, #0xc03, lsl #16'), (0x259c, 'str', 'xzr, [x20, #0x100]'),
+              (0x45c0, 'mov', 'w8, #0xc'), (0x45c4, 'movk', 'w8, #0xc3f, lsl #16'),
+              (0x45cc, 'ldr', 'w0, [x8]'), (0x45d0, 'str', 'x0, [x9, #0x150]'))
+    return {'protocol': '0x6078', 'guid': str(guid), 'revision': '0x10000',
+            'database_pointer_register': '0x0c3f000c (32-bit load, zero extended)',
+            'database_header': {'version': 1, 'magic': '0x0c0330db'},
+            'instructions': instructions(blob, segments, reads,
+                                         ((0x1444, 72), (0x15b0, 88), (0x2540, 276), (0x45c0, 24)), checks),
+            'limitations': ['No register or phone memory was read',
+                            'Static source pointer and header guard do not prove live database bounds/ownership']}
 
 
 def hash_request(blob, segments, reads):
@@ -190,14 +302,29 @@ def verify(root):
     route = crypto_route(*binaries['DALSys'])
     request = hash_request(*binaries['HashDxe'])
     parser = clock_abi(*binaries['ClockDxe'])
+    bcm_evidence, bcm_binaries = {}, {}
+    for name, filename in (('DALSys', 'dal-crypto-bcm-v2-evidence.json'),
+                           ('ClockDxe', 'clock-crypto-bcm-final-evidence.json'),
+                           ('CmdDbDxe', 'cmddb-crypto-bcm-v2-evidence.json')):
+        module = modules[name]
+        blob = (root / 'uefi' / module['source']).read_bytes()
+        raw = (root / 'logs/pas13-instruction-replay-20261110' / filename).read_bytes()
+        segments, reads = ICB.checked_reads(blob, module['sha256'], json.loads(raw))
+        bcm_binaries[name] = blob, segments, reads
+        bcm_evidence[name] = {'module_sha256': module['sha256'],
+                              'bundle_sha256': hashlib.sha256(raw).hexdigest(),
+                              'read_evidence_ids': list(reads.values())}
     reference = json.loads((Path(__file__).resolve().parents[1] /
                             'docs/crypto-icb-reference.json').read_text())
     return {'status': 'PASS_STATIC_BYTES_ONLY', 'boot_sha256': accepted['boot_sha256'],
             'evidence': evidence, 'crypto_route': route, 'hash_request': request,
             'clock_abi': parser, 'reference_correlation': reference,
+            'bcm_evidence': bcm_evidence, 'crypto_bcms': crypto_bcms(*bcm_binaries['DALSys']),
+            'clock_bcm': clock_bcm(*bcm_binaries['ClockDxe']),
+            'cmddb_provider': cmddb_provider(*bcm_binaries['CmdDbDxe']),
             'unknowns': ['Configured path and generated request are not observed live votes or ACKs',
                          'Reference source is a different build/platform, not firmware provenance',
-                         'BCM mapping/units, aggregation, last EBS writes and XNU ownership remain unverified',
+                         'Live BCM fields/aggregate votes, last EBS writes and XNU ownership remain unverified',
                          'PAS13=false, secure PA/XPU, crypto lifecycle and SMMU remain unresolved',
                          'This receipt authorizes no PAS authentication or GPU execution']}
 
