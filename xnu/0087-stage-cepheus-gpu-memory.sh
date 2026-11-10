@@ -26,6 +26,7 @@ install -m 0644 "$here/cepheus_bcm_active.h" "$here/cepheus_bcm_active_private.h
 install -m 0644 "$here/cepheus_gpu_fault_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_upload_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_qmp_connect.h" bsd/dev/
+install -m 0644 "$here/cepheus_qmp_native.h" "$here/cepheus_qmp_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_tsens.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_tsens_native.h" "$here/cepheus_gpu_tsens_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_start_native.h" "$here/cepheus_gmu_start_native_private.h" bsd/dev/

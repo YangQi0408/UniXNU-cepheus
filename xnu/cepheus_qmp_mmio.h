@@ -59,18 +59,32 @@ static inline void ceph_qmp_mmio_fence(void)
 static inline int ceph_qmp_mmio_resources(struct ceph_qmp_mmio *m)
 {
     return !m || !m->ram || !m->irq || (((uintptr_t)m->ram|(uintptr_t)m->irq)&3u) ||
+        (uintptr_t)m->ram>UINTPTR_MAX-4096 || (uintptr_t)m->irq>UINTPTR_MAX-4 || m->poisoned ||
         m->ram_pa!=0xc300000 || m->irq_pa!=0x17c0000c || m->bytes!=4096 ||
         !m->lease || !m->now_ns || !m->pause || !m->release || m->lease(m->owner)?-1:0;
 }
+static inline int ceph_qmp_mmio_load(struct ceph_qmp_mmio *m,uint32_t off,uint32_t *out)
+{
+    if(!out || (off&3u) || off>4092 || ceph_qmp_mmio_resources(m))return -1;
+    uint32_t value=m->ram[off/4];ceph_qmp_mmio_fence();
+    if(ceph_qmp_mmio_resources(m) || value==UINT32_MAX){m->poisoned=1;return -1;}
+    *out=value;return 0;
+}
+static inline int ceph_qmp_mmio_empty(struct ceph_qmp_mmio *m,uint32_t off)
+{uint32_t value;return ceph_qmp_mmio_load(m,off,&value) || value?-1:0;}
 static inline int ceph_qmp_mmio_snapshot(struct ceph_qmp_mmio *m,struct ceph_qmp_descriptor *d)
 {
     if(!d || ceph_qmp_mmio_resources(m))return -1;
-    for(unsigned i=0;i<16;++i)d->words[i]=m->ram[i];
+    struct ceph_qmp_descriptor copy;
+    for(unsigned i=0;i<16;++i)if(ceph_qmp_mmio_load(m,4*i,&copy.words[i]))return -1;
     ceph_qmp_mmio_fence();
     /* Reject a visibly changing descriptor; ABA cannot be excluded without
      * the external lifetime/firmware-generation lease. Do not infer one here. */
-    for(unsigned i=0;i<16;++i)if(d->words[i]!=m->ram[i])return -1;
-    return m->lease(m->owner);
+    for(unsigned i=0;i<16;++i) {
+        uint32_t value;if(ceph_qmp_mmio_load(m,4*i,&value) || copy.words[i]!=value)return -1;
+    }
+    if(ceph_qmp_mmio_resources(m))return -1;
+    *d=copy;return 0;
 }
 static inline int ceph_qmp_mmio_bind(struct ceph_qmp_mmio *m,unsigned enabled)
 {
@@ -78,7 +92,7 @@ static inline int ceph_qmp_mmio_bind(struct ceph_qmp_mmio *m,unsigned enabled)
     struct ceph_qmp_descriptor d;struct ceph_qmp_connection c;char text[33];
     if(ceph_qmp_acd_text(text,enabled)!=32 || ceph_qmp_mmio_snapshot(m,&d) ||
         ceph_qmp_descriptor_decode(&d,&c))return -1;
-    if(m->ram[c.tx.tx_offset/4] || m->ram[c.rx.tx_offset/4])return -1;
+    if(ceph_qmp_mmio_empty(m,c.tx.tx_offset) || ceph_qmp_mmio_empty(m,c.rx.tx_offset))return -1;
     m->identity=d;m->connection=c;
     for(unsigned i=0;i<8;++i) {
         uint32_t word=0;for(unsigned j=0;j<4;++j)word|=(uint32_t)(uint8_t)text[4*i+j]<<(8*j);
@@ -92,7 +106,7 @@ static inline int ceph_qmp_mmio_validate(void *ctx)
     if(!m || !m->bound || !m->active || m->terminal || m->poisoned)return -1;
     if(ceph_qmp_mmio_snapshot(m,&d))goto fail;
     for(unsigned i=0;i<16;++i)if(d.words[i]!=m->identity.words[i])goto fail;
-    if(m->ram[m->connection.rx.tx_offset/4])goto fail;
+    if(ceph_qmp_mmio_empty(m,m->connection.rx.tx_offset))goto fail;
     return 0;
 fail:
     m->poisoned=1;return -1;
@@ -102,7 +116,7 @@ static inline int ceph_qmp_mmio_begin(void *ctx,struct ceph_qmp_layout *out)
     struct ceph_qmp_mmio *m=ctx;
     if(!out || !m || !m->bound || m->active || m->terminal || m->poisoned)return -1;
     m->active=1;
-    if(ceph_qmp_mmio_validate(m) || m->ram[m->connection.tx.tx_offset/4]) {
+    if(ceph_qmp_mmio_validate(m) || ceph_qmp_mmio_empty(m,m->connection.tx.tx_offset)) {
         m->active=0;m->bound=0;m->terminal=1;m->release(m->owner,0);return -1;
     }
     *out=m->connection.tx;return 0;
@@ -111,29 +125,40 @@ static inline int ceph_qmp_mmio_read(void *ctx,uint32_t off,uint32_t *v)
 {
     struct ceph_qmp_mmio *m=ctx;
     if(!v || ceph_qmp_mmio_validate(m) || off!=m->connection.tx.tx_offset)return -1;
-    *v=m->ram[off/4];ceph_qmp_mmio_fence();return 0;
+    return ceph_qmp_mmio_load(m,off,v);
 }
 static inline int ceph_qmp_mmio_write(void *ctx,uint32_t off,uint32_t v)
 {
     struct ceph_qmp_mmio *m=ctx;
     if(ceph_qmp_mmio_validate(m) || m->writes>=9 || m->notified)return -1;
     uint32_t tx=m->connection.tx.tx_offset;
-    if(m->ram[tx/4] || (m->writes<8?(off!=tx+4+4*m->writes || v!=m->payload[m->writes]):(off!=tx || v!=32)))return -1;
-    ++m->writes;ceph_qmp_mmio_fence();m->ram[off/4]=v;ceph_qmp_mmio_fence();return 0;
+    if(ceph_qmp_mmio_empty(m,tx) || (m->writes<8?(off!=tx+4+4*m->writes || v!=m->payload[m->writes]):(off!=tx || v!=32)))return -1;
+    if(ceph_qmp_mmio_resources(m))return -1;
+    ++m->writes;ceph_qmp_mmio_fence();m->ram[off/4]=v;ceph_qmp_mmio_fence();
+    return ceph_qmp_mmio_resources(m);
 }
 static inline int ceph_qmp_mmio_barrier(void *ctx)
-{if(ceph_qmp_mmio_validate(ctx))return -1;ceph_qmp_mmio_fence();return 0;}
+{if(ceph_qmp_mmio_validate(ctx))return -1;ceph_qmp_mmio_fence();return ceph_qmp_mmio_resources(ctx);}
 static inline int ceph_qmp_mmio_notify(void *ctx)
 {
     struct ceph_qmp_mmio *m=ctx;
-    if(ceph_qmp_mmio_validate(m) || m->writes!=9 || m->notified || m->ram[m->connection.tx.tx_offset/4]!=32)return -1;
-    for(unsigned i=0;i<8;++i)if(m->ram[m->connection.tx.tx_offset/4+1+i]!=m->payload[i])return -1;
-    m->notified=1;ceph_qmp_mmio_fence();*m->irq=1;ceph_qmp_mmio_fence();return 0;
+    if(ceph_qmp_mmio_validate(m) || m->writes!=9 || m->notified)return -1;
+    uint32_t value;
+    if(ceph_qmp_mmio_load(m,m->connection.tx.tx_offset,&value) || value!=32)return -1;
+    for(unsigned i=0;i<8;++i)
+        if(ceph_qmp_mmio_load(m,m->connection.tx.tx_offset+4+4*i,&value) || value!=m->payload[i])return -1;
+    if(ceph_qmp_mmio_resources(m))return -1;
+    m->notified=1;ceph_qmp_mmio_fence();*m->irq=1;ceph_qmp_mmio_fence();
+    return ceph_qmp_mmio_resources(m);
 }
 static inline int ceph_qmp_mmio_now(void *ctx,uint64_t *now)
-{struct ceph_qmp_mmio *m=ctx;return !now || ceph_qmp_mmio_validate(m)?-1:m->now_ns(m->owner,now);}
+{
+    struct ceph_qmp_mmio *m=ctx;uint64_t value;
+    if(!now || ceph_qmp_mmio_validate(m) || m->now_ns(m->owner,&value) || ceph_qmp_mmio_resources(m))return -1;
+    *now=value;return 0;
+}
 static inline int ceph_qmp_mmio_pause(void *ctx)
-{struct ceph_qmp_mmio *m=ctx;return ceph_qmp_mmio_validate(m)?-1:m->pause(m->owner);}
+{struct ceph_qmp_mmio *m=ctx;return ceph_qmp_mmio_validate(m) || m->pause(m->owner) || ceph_qmp_mmio_resources(m)?-1:0;}
 static inline void ceph_qmp_mmio_end(void *ctx,int uncertain)
 {
     struct ceph_qmp_mmio *m=ctx;if(!m || !m->bound || !m->active)return;

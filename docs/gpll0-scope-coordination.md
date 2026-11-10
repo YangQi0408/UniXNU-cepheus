@@ -59,5 +59,22 @@ Production source did not change during this final preflight. Complete XNU
 link has a separate gate, not inferred from local PASS.
 GPLL0 integration was committed and pushed as `790e0e4`. CI42874717231
 @091c7ff completed and passed independent kernel/RPMh/idle linked checks,
-but does not contain this GPLL0 follow-on and cannot accept it. A subsequent
-complete XNU build is required. GPU and Metal have not executed.
+but does not contain this GPLL0 follow-on and cannot accept it.
+
+Complete GPLL0 run `42881254237 @d5bf1dd` succeeded at 03:27:42 Asia/Shanghai.
+Independent archived-source acceptance PASS: kernel 17473248 bytes, SHA256
+`3dd662d8d21c6a1d35d01e5af06793e7c8e1d13c0f1f689c4db581c9ea88cf10`,
+97 core/30 memory entries, no unresolved, touch/PA64/native SCM/tail PASS.
+`out/kernel-verification-ci-42881254237.json`, SHA256
+`3222babe60b28e6b238ae2ae8d234eee1a771f6a35f9a684bec2cbd82b9e297f`.
+Actual linked RPMh/idle checks also pass; their receipts are
+`out/rpmh-linked-ci-42881254237-final-v1.json` (SHA256
+`1d4c17c4cdecc142c6c8256203b6460eead6935e0c3a99f17df57549862abe2d`)
+and `out/idle-linked-ci-42881254237-final-v1.json` (SHA256
+`c53164a41d344dc27b308e2fb6a36cc976e7c6e5e4a5f1643acb5c5fe3f4f0d4`).
+GPLL0 keep-before-store and mapping scope calls were manually inspected in
+`out/gpll0-scope-ci-42881254237-disassembly.txt`, SHA256
+`85e7832445337b4d929ef720c3daca4b59fc24cf598ef5a044822cbd76281923`.
+This is not an independent automated GPLL0 CFG proof. The kernel excludes
+later `6e24284` native power-parent binding and native QMP. No packaging or
+phone boot was performed. GPU and Metal have not executed.

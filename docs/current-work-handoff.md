@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 03:30后更新：GPLL0 CI42881254237 @d5bf1dd于03:27:42全成功，
+archived-source独立验收PASS，kernel17473248B/SHA3dd662d8...，97core/30memory，
+receipt SHA3222babe...；linked RPMh/idle PASS，GPLL0 disassembly仅手动检查，
+不是独立自动CFG证明。native power父时钟/private counter绑定6e24284已推送，
+不在上述CI。QMP实际fixed maps/500us真实delay/真实scope/copied owner/逐word
+guard及cold连接/固定ACD=1后端focused final-v3 PASS（SHA5bfe6809...），完整
+preflight final-v3四步/78host/七分析PASS（SHAfa930323...），完结后source hashes
+全部仍匹配。3786owner/7574scope PROT_NONE、13stores/4IRQ只是synthetic peer。
+早期preflight夹具FAIL及500us改动前证据保留，详见qmp-native-backend.md。
+下一本批提交/唯一组合完整XNU link与真owner/继承/GMU通信；不自动phone操作，
+旧tail未boot镜像不含后来批次，等已有手动fastboot确认。PAS13=false/
+supported=false/CP halt不绕，GPU/Metal未执行，用户明确不停工，目标active。
+
+以下03:14记录是历史，已由以上完整CI/local验收取代。
 2026-11-11续推进：d5bf1dd已提交推送，唯一GPLL0合并CI42881254237于
 03:02派发，全部前置通过/03:14完整Build XNU中，待artifact独立验收。
 后续native power接实际保留父时钟/真实counter private publication，

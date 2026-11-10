@@ -45,6 +45,7 @@
 #include "cepheus_gpu_fault_mmio.h"
 #include "cepheus_gmu_upload_mmio.h"
 #include "cepheus_qmp_connect.h"
+#include "cepheus_qmp_native.h"
 #include "cepheus_gpu_tsens.h"
 #include "cepheus_gpu_tsens_native.h"
 #include "cepheus_gmu_start_native.h"

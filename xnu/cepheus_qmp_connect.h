@@ -29,27 +29,32 @@ static inline int ceph_qmp_connect_snapshot(struct ceph_qmp_connect *s,struct ce
             if(s->expected.words[i]==CE_QMP_UP && d.words[i]!=CE_QMP_UP)return -1;
         } else if(d.words[i]!=s->expected.words[i])return -1;
     }
-    if(m->ram[s->layout.tx.tx_offset/4] || m->ram[s->layout.rx.tx_offset/4])return -1;
+    if(ceph_qmp_mmio_empty(m,s->layout.tx.tx_offset) || ceph_qmp_mmio_empty(m,s->layout.rx.tx_offset))return -1;
     s->expected=d;return 0;
 }
 static inline int ceph_qmp_connect_write(struct ceph_qmp_connect *s,struct ceph_qmp_mmio *m,unsigned index)
 {
     if(index!=4 && index!=9 && index!=11 && index!=6)return -1;
     if(ceph_qmp_connect_snapshot(s,m) || s->expected.words[index]!=CE_QMP_DOWN)return -1;
+    if(ceph_qmp_mmio_resources(m))return -1;
     ++s->writes;ceph_qmp_mmio_fence();m->ram[index]=CE_QMP_UP;ceph_qmp_mmio_fence();
+    if(ceph_qmp_mmio_resources(m))return -1;
     s->expected.words[index]=CE_QMP_UP;return ceph_qmp_connect_snapshot(s,m);
 }
 static inline int ceph_qmp_connect_notify(struct ceph_qmp_connect *s,struct ceph_qmp_mmio *m)
 {
     if(ceph_qmp_connect_snapshot(s,m))return -1;
-    ++s->notifies;ceph_qmp_mmio_fence();*m->irq=1;ceph_qmp_mmio_fence();return 0;
+    if(ceph_qmp_mmio_resources(m))return -1;
+    ++s->notifies;ceph_qmp_mmio_fence();*m->irq=1;ceph_qmp_mmio_fence();
+    return ceph_qmp_mmio_resources(m);
 }
 static inline int ceph_qmp_connect_wait(struct ceph_qmp_connect *s,struct ceph_qmp_mmio *m,unsigned index)
 {
     if(index!=10 && index!=12)return -1;
     for(unsigned loops=0;loops<10000;++loops) {
         uint64_t now;
-        if(m->now_ns(m->owner,&now) || now<s->last || now-s->start>=5000000000ULL)return -2;
+        if(ceph_qmp_mmio_resources(m) || m->now_ns(m->owner,&now) ||
+            ceph_qmp_mmio_resources(m) || now<s->last || now-s->start>=5000000000ULL)return -2;
         s->last=now;
         if(ceph_qmp_connect_snapshot(s,m))return -1;
         /* Remote open and local-open ACK can arrive in either order. ACK the
@@ -58,7 +63,7 @@ static inline int ceph_qmp_connect_wait(struct ceph_qmp_connect *s,struct ceph_q
             if(ceph_qmp_connect_write(s,m,6) || ceph_qmp_connect_notify(s,m))return -1;
         }
         if(s->expected.words[index]==CE_QMP_UP && (index==10 || s->expected.words[6]==CE_QMP_UP))return 0;
-        if(m->pause(m->owner))return -1;
+        if(ceph_qmp_mmio_resources(m) || m->pause(m->owner) || ceph_qmp_mmio_resources(m))return -1;
     }
     return -2;
 }
@@ -72,7 +77,8 @@ static inline int ceph_qmp_connect_cold(struct ceph_qmp_connect *s,struct ceph_q
     const unsigned down[]={4,5,6,9,10,11,12};
     for(unsigned i=0;i<7;++i)if(s->expected.words[down[i]]!=CE_QMP_DOWN){e=-1;goto failed;}
     e=ceph_qmp_connect_snapshot(s,m);if(e)goto failed;
-    if(m->now_ns(m->owner,&s->start)){e=-1;goto failed;}s->last=s->start;
+    if(ceph_qmp_mmio_resources(m) || m->now_ns(m->owner,&s->start) ||
+        ceph_qmp_mmio_resources(m)){e=-1;goto failed;}s->last=s->start;
     /* Accept remote link, announce local link. No overwrite of ACKs. */
     e=ceph_qmp_connect_write(s,m,4);if(e)goto failed;
     e=ceph_qmp_connect_write(s,m,9);if(e)goto failed;

@@ -30,6 +30,7 @@ HEADERS += ('cepheus_rpmh_scope.h','cepheus_rpmh_scope_private.h')
 HEADERS += ('cepheus_gpu_fault_mmio.h',)
 HEADERS += ('cepheus_gmu_upload_mmio.h',)
 HEADERS += ('cepheus_qmp_connect.h',)
+HEADERS += ('cepheus_qmp_native.h','cepheus_qmp_native_private.h')
 HEADERS += ('cepheus_gpu_tsens.h',)
 HEADERS += ('cepheus_gpu_tsens_native.h','cepheus_gpu_tsens_native_private.h')
 HEADERS += ('cepheus_gmu_start_native.h','cepheus_gmu_start_native_private.h')
@@ -118,6 +119,7 @@ def main():
     required |= {'_cepheus_gpu_zap_snapshot_prepare'}
     required |= {'_cepheus_gpu_zap_load','_cepheus_gpu_zap_stop','_cepheus_gpu_zap_status'}
     required |= {'_cepheus_gpu_qmp_bind'}
+    required |= {'_cepheus_gpu_qmp_acd_native'}
     required |= {'_cepheus_gpu_pdc_mmio_bind'}
     required |= {'_cepheus_gpu_power_mmio_read', '_cepheus_gpu_power_mmio_write'}
     required |= {'_cepheus_gpu_power_start_native'}

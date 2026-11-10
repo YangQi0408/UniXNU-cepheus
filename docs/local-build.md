@@ -6,6 +6,23 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 update: GPLL0 CI `42881254237 @d5bf1dd` completed SUCCESS and
+independent archived-source acceptance PASS. Kernel 17473248 bytes, SHA256
+`3dd662d8d21c6a1d35d01e5af06793e7c8e1d13c0f1f689c4db581c9ea88cf10`;
+97 core/30 memory entries, no unresolved, touch/PA64/native SCM/tail PASS.
+Receipt SHA256 `3222babe60b28e6b238ae2ae8d234eee1a771f6a35f9a684bec2cbd82b9e297f`.
+Actual linked RPMh/idle receipts PASS; separate GPLL0 instruction inspection
+is manual, not a general CFG verifier. See `gpll0-scope-coordination.md`.
+
+Native power-parent/private counter binding is committed/pushed as `6e24284`.
+Native QMP focused and complete final-v3 local preflight PASS, with unchanged
+recorded source hashes: 78 host/seven production analyses/four prerequisites,
+preflight SHA256 `fa930323fc877ec9a999cc79207d8fcb86a80d0999f0c4fc728ad4dafe6d1086`.
+See `qmp-native-backend.md` for focused receipt and failed earlier run limits.
+Neither later batch is in CI42881254237; one subsequent combined full XNU
+link is needed. Firmware/patches/host/FV/boot/verification stay local. There
+is no production resource owner/startup or GPU/Metal execution.
+
 2026-11-11: complete RPMh-scope run `42874717231 @091c7ff` succeeded at
 02:55:48 and passes independent archived-source/kernel verification. Kernel
 17473184 bytes, SHA256
@@ -18,8 +35,8 @@ GPLL0 token/lifecycle integration was separately committed/pushed as `790e0e4`.
 Focused final-v2 PASS (SHA256 `88f257228b5db0e6e83035ec6ec08d71fb9b9de163efbb3a6098598615054d90`)
 and full preflight final-v2 PASS (SHA256 `5af17ec7ea7d7e3bc0b6daf632b7764eab79da0eb506c77adba0ecaeec423de2`),
 four prerequisites/77 host/seven analyses. Prior include failure remains
-archived. This later batch still needs its own full XNU link acceptance and
-is NOT in CI42874717231. No phone operation or GPU execution.
+archived. GPLL0 is NOT in CI42874717231; its later full-link acceptance is
+CI42881254237 above. No phone operation or GPU execution.
 
 2026-11-11 02:15 update: complete idle CI `42867280759 @91a5ec1` succeeded
 and independently passes archived-source/touch/PA64/SCM/tail plus actual linked
