@@ -24,9 +24,15 @@ class ArcIntegrationTests(unittest.TestCase):
             (tree / "bsd/conf/files").write_text("base XNU inventory\n")
             subprocess.run(["bash", str(ROOT / "xnu/0086-stage-cepheus-gpu-arc.sh")],
                            cwd=tree, check=True)
-            for name in ("cepheus_arc.h", "cepheus_arc_probe.h"):
+            for name in ("cepheus_arc.h", "cepheus_arc_probe.h", "cepheus_arc_active.h", "cepheus_arc_active_private.h"):
                 self.assertEqual((tree / "bsd/dev" / name).read_bytes(), (ROOT / "xnu" / name).read_bytes())
             self.assertFalse((tree / "bsd/dev/sweet_rpmh.c").exists())
+
+    def test_native_files_in_both_copy_manifests(self):
+        for path in ('scripts/build-kernel-patches.sh', '.github/workflows/touch-kernel.yml'):
+            text = (ROOT / path).read_text()
+            for name in ('cepheus_arc_active.h', 'cepheus_arc_active_private.h'):
+                self.assertIn(name, text, path)
 
     def test_real_patch_after_touch_enable_only(self):
         self.assertIsNotNone(PATCHES, "supply pinned ios-sweet/xnu/patches")
@@ -47,8 +53,10 @@ class ArcIntegrationTests(unittest.TestCase):
                             str(ROOT / "xnu/0086-cepheus-gpu-arc.patch")], check=True)
             after = file.read_text()
             self.assertEqual(after.count('#include "cepheus_arc_probe.h"'), 1)
-            self.assertEqual(after.replace('#include "cepheus_arc_probe.h"\n', ''), before)
-            self.assertTrue(after.rstrip().endswith('#include "cepheus_arc_probe.h"\n#endif /* ARM64_BOARD_CONFIG_SWEET */'))
+            added = ('#include "cepheus_arc_probe.h"\nextern int get_preemption_level(void);\n'
+                     '#include "cepheus_arc_active_private.h"\n')
+            self.assertEqual(after.replace(added, ''), before)
+            self.assertTrue(after.rstrip().endswith(added + '#endif /* ARM64_BOARD_CONFIG_SWEET */'))
 
     def test_probe_has_no_transport_write_or_send_calls(self):
         probe = (ROOT / "xnu/cepheus_arc_probe.h").read_text()

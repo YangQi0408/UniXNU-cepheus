@@ -78,7 +78,9 @@ def main():
                        {'CEPHEUS_GPU_HOST_ASAN':'1','ASAN_OPTIONS':'detect_leaks=0',
                         **({'CEPHEUS_ZAP_ELF':str(a.zap)} if a.zap else {})}))
     else:receipt['checks'].append({'name':'memory-real-fixtures','status':'SKIP','reason':'no proprietary GMU/SQE input'})
-    if a.patches:checks.append(('arc',['python3','scripts/test-gpu-arc.py',str(a.patches)],{}))
+    if a.patches:
+        checks.append(('arc',['python3','scripts/test-gpu-arc.py',str(a.patches)],{}))
+        checks.append(('arc-active-native',['python3','scripts/test-arc-active-native.py',str(a.patches)],{}))
     else:receipt['checks'].append({'name':'arc','status':'SKIP','reason':'no pinned ios-sweet patches'})
     if a.kernel_reference:
         kgsl=a.kernel_reference/'drivers/gpu/msm';iommu=a.kernel_reference/'drivers/iommu'

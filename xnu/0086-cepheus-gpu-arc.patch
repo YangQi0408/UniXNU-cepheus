@@ -1,8 +1,10 @@
 --- a/bsd/dev/sweet_rpmh.c
 +++ b/bsd/dev/sweet_rpmh.c
-@@ -354,4 +354,5 @@
+@@ -354,4 +354,7 @@
  	__atomic_store_n(&rh_lock, 0, __ATOMIC_RELEASE);
  	return error;
  }
 +#include "cepheus_arc_probe.h"
++extern int get_preemption_level(void);
++#include "cepheus_arc_active_private.h"
  #endif /* ARM64_BOARD_CONFIG_SWEET */

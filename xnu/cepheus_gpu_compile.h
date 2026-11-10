@@ -5,6 +5,7 @@
 #include "cepheus_smmu_install.h"
 #include "cepheus_gpu_power_txn.h"
 #include "cepheus_gpu_power_mmio.h"
+#include "cepheus_arc_active.h"
 #include "cepheus_gpu_submit.h"
 #include "cepheus_gmu_start.h"
 #include "cepheus_gpu_ring.h"

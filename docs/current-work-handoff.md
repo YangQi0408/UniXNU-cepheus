@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 17:32：新增实际sweet_rpmh翻译单元的ARC ACTIVE raise通道，
+共用触摸rh_lock/rh_poisoned；只升CX/MX合法档位、八bank冲突拒绝、fresh IRQ/
+issued+complete ACK、逐访问owner校验及异常保留。70 lease/14写入故障、
+ASan/UBSan、66 host、原生AArch64编译/静态分析和本机四步preflight PASS，
+final receipt在out/arc-active-local-20261110-final/。local/CI copy/stage/
+kernel符号核验已接通，详见arc-active-backend.md。真实owner/继承票仍缺，
+不是电源后端完成；完整XNU构建/链接尚未跑，无启动hook/镜像/手机操作或新
+真机点。正常配对版保持，PAS13=false/supported=false/CP halt不变，GPU
+scratch/fence、Metal和PAS认证未执行。下一真实资源交接/owner绑定。
+
 最新2026-11-10 17:11：PAS13内存合同收窄。固定descriptor flags20c=0/20d=1，
 默认mem_setup跳过一般load-region登记，auth不转换权限而检查已有页mask，
 HLOS mask8为subset候选；撤回PAS13必需OEM carveout/无条件hyp_assign推断。
