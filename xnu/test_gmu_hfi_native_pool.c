@@ -96,12 +96,26 @@ static int gx_validate(void *ctx)
     if(mode==40 && ceph_gx_native.result.writes==1)*word(6,0x808*4)=0;
     if(mode==41 && ceph_gx_native.result.writes==1)*word(6,0x823*4)=1;
     if(mode==42 && ceph_gx_native.result.writes==1)*word(6,0xe05*4)=0;
+    if(mode>=49) {
+        if(ceph_gx_native.sp_clock_off) {
+            *word(2,0x1f8d0*4-0x6a000)=*word(2,0x1a880*4-0x6a000)&1u?0:0x10;
+            if(mode==51 && ceph_gx_native.result.writes==4) {
+                assert(!mprotect((void *)windows[6],sizes[6],PROT_NONE));return -1;
+            }
+            if(mode==55 && ceph_gx_native.result.writes==4)*word(2,0x1f8d0*4-0x6a000)|=0x40;
+            if(mode==56 && ceph_gx_native.result.writes==4)*word(2,0x23b10*4-0x6a000)=1;
+        }
+        if(mode==52 && ceph_gx_native.result.writes==5)*word(6,0xb0*4)=0;
+        if(mode==53 && ceph_gx_native.result.writes==1)*word(2,0x23b09*4-0x6a000)=0;
+        if(ceph_gx_native.result.writes==55)assert(*word(6,0xae*4)==0x8aa8aa82 && !*word(6,0x3c03*4));
+        if(ceph_gx_native.result.writes==60)assert(*word(6,0x3c03*4)==0x71620 && !*word(6,0xe05*4));
+    }
     return 0;
 }
 static void gx_finish(void *ctx,unsigned stores,int keep)
 {
     assert(ctx==windows && ceph_gpll0_lock);++gx_ends;gx_stores=stores;gx_keep=keep;
-    if(mode==43)gx_expire=gx_checks+1;
+    if(mode==43 || mode==54)gx_expire=gx_checks+1;
 }
 static int query_begin(void *ctx,const struct ceph_gpu_publication *pub)
 {assert(ctx==windows && ceph_gpll0_lock && pub->group==publication.group);++begins;return 0;}
@@ -198,7 +212,7 @@ static void oob_finish(void *ctx,unsigned stores,int keep)
 int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
     const struct ceph_smmu_plan *plan,unsigned selected)
 {
-    assert(snapshot && workspace && plan && selected<=48);mode=selected;publication=workspace->publication;
+    assert(snapshot && workspace && plan && selected<=56);mode=selected;publication=workspace->publication;
     bin=mode==10 || mode>=24;boot_fail=mode>=11 && mode<=14?mode-10:0;late_boot=mode==15;late_start=mode==23;
     table=workspace->views[2].cpu;ticks=1000000;gpll0_scope_reset();
     for(unsigned n=0;n<7;++n) {
@@ -310,6 +324,8 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         struct ceph_gx_native_owner gx={windows,gx_begin,gx_validate,gx_finish,1};
         struct ceph_gx_native_result gr={.error=123};
         *word(6,0x808*4)=2;
+        if(mode>=49)*word(2,0x1a880*4-0x6a000)=1;
+        if(mode==50)*word(6,0xae*4)=0x8aa8aa82;
         if(mode==33)*word(6,0x808*4)=0;
         if(mode==34)*word(6,0x823*4)=1;
         if(mode==35)*word(2,0x1f8d0*4-0x6a000)=4;
@@ -317,8 +333,9 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         if(mode==37)gx_expire=1;
         if(mode==44)ceph_oob_native.release_attempted=1;
         if(mode==45)gx.rpmh_token=0;
-        unsigned before=maps;int ge=cepheus_gpu_gx_core_native(&gx,&gr);
-        assert((ge==0)==(mode==31));
+        unsigned before=maps;
+        int ge=mode>=49?cepheus_gpu_gx_setup_native(&gx,&gr):cepheus_gpu_gx_core_native(&gx,&gr);
+        assert((ge==0)==(mode==31 || mode==49 || mode==50));
         if(mode==44 || mode==45) {
             assert(gr.error==123 && !ceph_gx_native.attempted && !gx_begins && !gx_ends && maps==before);
         }else {
@@ -326,13 +343,23 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
             if(mode==48)assert(!gr.retained && !gx_ends && maps==before);
             else {
                 assert(gr.retained && gx_ends==1 && gx_keep && gr.writes==gx_stores);
-                assert(gr.configured==(mode==31));
+                assert(gr.configured==(mode==31 || mode==49 || mode==50));
                 if(mode==31 || mode==43)assert(gr.writes==23);
                 if(mode>=39 && mode<=42)assert(gr.writes==1);
                 if(mode>=35 && mode<=37)assert(!gx_maps && !gr.writes);
                 if(mode==31) {
                     for(unsigned n=0;n<23;++n)assert(*word(6,ceph_gx_native.plan.writes[n].word*4)==ceph_gx_native.plan.writes[n].value);
                     assert(*word(6,0x808*4)==2 && !*word(6,0x807*4));
+                }
+                if(mode>=49) {
+                    assert(gr.setup);
+                    if(mode==49 || mode==54)assert(gr.writes==83 && gr.hwcg_writes==55 && gr.gbif_writes==5);
+                    if(mode==50)assert(gr.writes==31 && gr.hwcg_writes==3 && gr.hwcg_skipped && gr.gbif_writes==5);
+                    if(mode==51 || mode==55 || mode==56)assert(gr.writes==4 && ceph_gx_native.sp_clock_off);
+                    if(mode==52)assert(gr.writes==5 && ceph_gx_native.sp_clock_off);
+                    if(mode==53)assert(gr.writes==1);
+                    if(mode==49 || mode==50)assert(*word(2,0x1a880*4-0x6a000)==1 && !ceph_gx_native.sp_clock_off &&
+                        *word(6,0x808*4)==2 && !*word(6,0x807*4));
                 }
             }
             gr.error=123;

@@ -1,4 +1,4 @@
-/* A640 GBIF/QSB block: the first thing a6xx_start() does, via
+/* A640 GBIF/QSB block: follows HWCG in a6xx_start(), via
  * adreno_vbif_start(adreno_dev, a6xx_vbif_platforms, ...).
  *
  * A640 selects the a640_gbif table, NOT a630_vbif: four GBIF_QSB_SIDE

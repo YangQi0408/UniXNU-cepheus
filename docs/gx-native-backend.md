@@ -1,5 +1,44 @@
 # Native GX Core Subset
 
+## HWCG And GBIF Follow-On
+
+The accepted subset below was committed/pushed as36c94c3. Single full XNU
+CI42915818943 is running at that commit; it excludes this later setup entry.
+`cepheus_gpu_gx_setup_native` shares the exact same singleton, copied owner,
+map and live HFI/OOB/pool prerequisites, but runs fixed HWCG -> GBIF -> core.
+Cold success is83 attempted writes:55 HWCG,5 GBIF,23 core. Already-on HWCG
+preserves the source early-out after3 GMU-AO stores; total31 writes.
+
+Only the source's SP-clock-off HWCG interval masks SP_CLK_OFF bit4 from the
+bus gate. SPT power bit2, GX power/clock bits6/7, fence, fault, CP halt and
+all ownership/publication guards remain required before/after accesses.
+That interval begins before the attempted gate store because it may land.
+After the enable/readback it closes before the top HWCG store. Any loss leaves
+the clock/owner/backing retained; no recovery write, CP start or security bypass.
+This adds no perfcounter/LLCC/GX SMMU/CP publication/global owner/startup caller.
+
+Focused actual adapter with synthetic upstream records passes exhaustive
+cold8790 owner/5844 admitted scope and early-out3318/2204 PROT_NONE points.
+Actual C/C++ memory-pool chain57 modes0..56 passes; modes49..56 add native
+setup success/early-out, clock-off revocation, table/GMU readback corruption,
+final owner loss and GX/fence loss while SP is gated. Hardware/ACK/owner/idle/
+IOKit remain emulated. Source audit independently matches49 HWCG and5 GBIF
+entries and vendor order/status bits at pin36f369f; no FDT/hardware proof.
+`out/gx-setup-vendor-20261111-v1.json` SHA256
+`0362cd5a11ed31fec70d4d0f97498f887148199e3eacc9f51446cbb50f4d77cc`.
+Fresh focused141-check PASS:
+`out/gx-setup-local-20261111-final-v1/receipt.json`, SHA256
+`0dae6de079f2ed00023bb29145a7dc83abb310154759474bc24478695348086b`.
+Fresh four-step/83-host full preflight PASS:
+`out/gx-setup-preflight-20261111-final-v1/receipt.json`, SHA256
+`b2043dcdf7c5333af5bf1ae9acff9700f0e2148dbe0ebe42415719f8a76cf25a`.
+Both source hash sets still matched after completion. Explicit original-firmware
+memory-chain log SHA256
+`f9dbd54c4d9e2326e560d1473afe4e88f0abb92e45d3ef0d2c6d384b99afa3ab`;
+all57 actual-pool modes and older whole-chain cases passed without sanitizer
+reports. Optional ZAP was not supplied. Old subset receipts below do not cover
+these later source changes. No phone operations or GPU execution.
+
 `cepheus_gpu_gx_core_native` maps exactly GPU `0x2c00000/0x40000` after
 actual native HFI query, boot, DCVS and START, with the same retained RPMh
 token and actual OOB0 HELD. The sealed six-buffer publication, native CM3,

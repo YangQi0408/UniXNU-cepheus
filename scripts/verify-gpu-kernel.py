@@ -151,7 +151,7 @@ def main():
     required |= {'_cepheus_cp_workspace_prepare','_cepheus_cp_workspace_release'}
     required |= {'_cepheus_gpu_vm39_build'}
     required |= {'_cepheus_gpu_gx_core_configure'}
-    required |= {'_cepheus_gpu_gx_core_native'}
+    required |= {'_cepheus_gpu_gx_core_native','_cepheus_gpu_gx_setup_native'}
     required |= {'_cepheus_gpu_gx_perfcounter_configure'}
     required |= {'_cepheus_gpu_gx_gbif_configure','_cepheus_gpu_gx_va_partition'}
     required |= {'_cepheus_gpu_gx_llc_configure'}

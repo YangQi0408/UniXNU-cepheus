@@ -29,6 +29,7 @@ static volatile uint8_t *gpu,*gmu;
 static unsigned ceph_gpll0_lock,checks,expire,maps,begins,ends,stores,kept,uncertain;
 static unsigned context,map_fail,map_revoke,final_loss,mutation,reentry,access_fail,corrupt;
 static unsigned halt_loss,fault_loss,token_loss;
+static unsigned sp_model,off_loss;
 static struct ceph_gx_native_owner owner;
 static int ceph_scm_info_context(void *unused){(void)unused;return context?-1:0;}
 static void revoke(void)
@@ -67,6 +68,11 @@ static int validate(void *ctx)
         reentry=0;struct ceph_gx_native_result out={.error=123};
         assert(cepheus_gpu_gx_core_native(&owner,&out)<0 && out.error==123 && ceph_gpll0_lock);
     }
+    if(sp_model) {
+        volatile uint32_t *ram=(volatile uint32_t *)gmu;
+        ram[0x1f8d0-0x1a800]=ram[0x1a880-0x1a800]&1u?0:0x10;
+        if(off_loss && ceph_gx_native.result.writes==4){revoke();return -1;}
+    }
     if(ceph_gx_native.result.writes) {
         if(corrupt)((volatile uint32_t *)gpu)[0xe05]=0;
         if(halt_loss)((volatile uint32_t *)gpu)[0x808]=0;
@@ -90,7 +96,7 @@ static void reset(void)
     memset(&ceph_oob_native,0,sizeof(ceph_oob_native));
     ceph_gpll0_lock=checks=expire=maps=begins=ends=stores=kept=uncertain=0;
     context=map_fail=map_revoke=final_loss=mutation=reentry=access_fail=corrupt=0;
-    halt_loss=fault_loss=token_loss=0;
+    halt_loss=fault_loss=token_loss=sp_model=off_loss=0;
     gpll0_scope_reset();scope_revoke=revoke;
     owner=(struct ceph_gx_native_owner){(void *)gpu,begin,validate,finish,1};
     ceph_hfi_native.sealed=ceph_hfi_native.pinned=ceph_hfi_native.boot_ready=1;
@@ -102,6 +108,7 @@ static void reset(void)
         {0x06040001,0x60000000,0x5000,0x60010000,0x1000},0x20000001,(void *)gpu,validate};
     ceph_oob_native.acquired=1;ceph_oob_native.txn.state=CE_OOB_HELD;
     ceph_oob_native.owner.rpmh_token=1;((volatile uint32_t *)gpu)[0x808]=2;
+    ((volatile uint32_t *)gmu)[0x1a880-0x1a800]=1;
 }
 int main(void)
 {
@@ -135,6 +142,31 @@ int main(void)
     reset();ceph_gpll0_lock=1;out.error=123;assert(cepheus_gpu_gx_core_native(&owner,&out)<0 && out.error==123 && !begins);
     reset();ceph_hfi_native.start.start_acked=0;out.error=123;
     assert(cepheus_gpu_gx_core_native(&owner,&out)<0 && out.error==123 && !ceph_gx_native.attempted && !begins);
+    unsigned setup_owner[2],setup_scope[2];
+    for(unsigned skipped=0;skipped<2;++skipped) {
+        reset();sp_model=1;if(skipped)((volatile uint32_t *)gpu)[0xae]=0x8aa8aa82;
+        assert(!cepheus_gpu_gx_setup_native(&owner,&out) && out.setup && out.configured &&
+            out.writes==(skipped?31u:83u) && out.hwcg_writes==(skipped?3u:55u) &&
+            out.gbif_writes==5 && out.hwcg_skipped==(int)skipped && !ceph_gx_native.sp_clock_off);
+        assert(((volatile uint32_t *)gmu)[0x1a880-0x1a800]==1);
+        assert(((volatile uint32_t *)gpu)[0xae]==0x8aa8aa82 && ((volatile uint32_t *)gpu)[0x3c03]==0x71620);
+        setup_owner[skipped]=checks;setup_scope[skipped]=scope_checks-2;
+        for(unsigned n=1;n<=setup_owner[skipped];++n) {
+            reset();sp_model=1;if(skipped)((volatile uint32_t *)gpu)[0xae]=0x8aa8aa82;
+            expire=n;assert(cepheus_gpu_gx_setup_native(&owner,&out)<0 && checks==n &&
+                ceph_gx_native.failed && uncertain==1 && ends==1 && kept && !out.configured);
+        }
+        for(unsigned n=3;n<=setup_scope[skipped]+2;++n) {
+            reset();sp_model=1;if(skipped)((volatile uint32_t *)gpu)[0xae]=0x8aa8aa82;
+            scope_expire=n;assert(cepheus_gpu_gx_setup_native(&owner,&out)<0 && scope_checks==n &&
+                ceph_gx_native.failed && uncertain==1 && ends==1 && kept && !out.configured);
+        }
+    }
+    reset();sp_model=off_loss=1;
+    assert(cepheus_gpu_gx_setup_native(&owner,&out)<0 && out.writes==4 && out.hwcg_writes==4 &&
+        ceph_gx_native.sp_clock_off && uncertain==1);
     assert(!munmap((void *)gpu,0x40000) && !munmap((void *)gmu,0x30000));
     printf("Actual GX backend: %u owner/%u scope PROT_NONE boundaries, fixed23 writes/readback/CP halt/sticky failure PASS (synthetic upstream records)\n",owner_boundaries,scope_boundaries-2);
+    printf("Native HWCG/GBIF/core cold=%u/%u skip=%u/%u owner/scope PROT_NONE,83/31 writes, no recovery after SP clock-off loss PASS (synthetic upstream)\n",
+        setup_owner[0],setup_scope[0],setup_owner[1],setup_scope[1]);
 }

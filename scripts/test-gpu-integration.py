@@ -181,7 +181,7 @@ class Integration(unittest.TestCase):
                    'cepheus_gpu_gpll0_measure','ceph_clock_measure_run',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
-                   'cepheus_gpu_gx_core_native',
+                   'cepheus_gpu_gx_core_native','cepheus_gpu_gx_setup_native',
                    'cepheus_gpu_submit','ceph_smmu_install_context','cepheus_gpu_zap_snapshot_prepare',
                    'cepheus_zap_memory_prepare','cepheus_gpu_zap_load','cepheus_gpu_zap_stop')
         for name in ('cepheus_soc.c','cepheus_touch.c','cepheus_arc_probe.h'):

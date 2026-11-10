@@ -70,7 +70,8 @@ def main():
               'xnu/test_gpu_config_native.c','xnu/test_hfi_session.c','scripts/test-hfi-native-pool.sh')
     names += ('xnu/cepheus_gx_core.h','xnu/cepheus_gx_core_native.h',
               'xnu/cepheus_gx_core_native_private.h','xnu/test_gx_core_native.c',
-              'xnu/cepheus_cp_protection.h','xnu/cepheus_cp_protect.h')
+              'xnu/cepheus_cp_protection.h','xnu/cepheus_cp_protect.h',
+              'xnu/cepheus_gx_hwcg.h','xnu/cepheus_gx_gbif.h','scripts/audit-gx-setup-source.py')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -184,6 +185,9 @@ def main():
             raise SystemExit(body[-6000:])
 
     common = ['-std=c11', '-Wall', '-Wextra', '-Werror', '-I', str(ROOT/'xnu')]
+    if args.android:
+        run('gx-setup-vendor-source',['python3','scripts/audit-gx-setup-source.py',
+            '--kernel',str(args.android),'--output',str(out/'gx-setup-vendor-source.json')])
     for name, compiler, flags in (
         ('host', os.environ.get('CC', 'cc'), ['-O2']),
         ('sanitized', 'clang', ['-O1', '-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer']),
@@ -269,7 +273,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gpu_oob_acquire_native:', 'cepheus_gpu_oob_release_native:',
                    'cepheus_gmu_hfi_version_native:',
                    'cepheus_gmu_hfi_boot_native:','cepheus_gmu_hfi_dcvs_native:','cepheus_gmu_hfi_start_native:',
-                   'cepheus_gpu_gx_core_native:',
+                   'cepheus_gpu_gx_core_native:','cepheus_gpu_gx_setup_native:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)
