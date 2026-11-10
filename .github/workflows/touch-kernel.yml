@@ -44,6 +44,7 @@ jobs:
           cp cepheus/xnu/cepheus_arc_active.h cepheus/xnu/cepheus_arc_active_private.h dxb/patches/
           cp cepheus/xnu/cepheus_bcm_active.h cepheus/xnu/cepheus_bcm_active_private.h cepheus/xnu/cepheus_rpmh_active_private.h dxb/patches/
           cp cepheus/xnu/cepheus_rpmh_scope.h cepheus/xnu/cepheus_rpmh_scope_private.h dxb/patches/
+          cp cepheus/xnu/cepheus_gpu_config_native.h cepheus/xnu/cepheus_gpu_config_native_private.h dxb/patches/
           cp cepheus/xnu/cepheus_bcm.h dxb/patches/
           for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
             cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h cepheus_zap_cache.h \
@@ -146,6 +147,8 @@ jobs:
           bash cepheus/scripts/test-gpu-stack.sh
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_config.c -o /tmp/ceph-config
           /tmp/ceph-config
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gpu_config_native.c -o /tmp/ceph-config-native
+          /tmp/ceph-config-native
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_qmp_mmio.c -o /tmp/ceph-qmp-mmio
           /tmp/ceph-qmp-mmio
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_gmu_retire_mmio.c -o /tmp/ceph-retire-mmio

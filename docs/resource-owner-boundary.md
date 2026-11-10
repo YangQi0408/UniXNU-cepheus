@@ -93,6 +93,13 @@ needs both TBU0 (`0x2cc5000/0x1000`, SID `[0,0x400)`) and TBU1
 `0x2cc2200/8` and `0x2cc2208/8`. The parent requires CX and MEMNOC/DVM/AHB
 clocks and carries `qcom,skip-init`/three-level tables.
 
+Follow-on pinned `drivers/iommu/arm-smmu.c:5597` inspection establishes that
+these status windows are ECATS DEBUG hardware-lock registers, not power-ready
+or global-owner evidence. `qsmmuv500_ecats_lock` skips the inaccessible status
+register on version1.0, otherwise polls for value1; `ecats_unlock` writes0.
+Do not introduce a passive readiness sampler or ownership claim from these
+values. No new TBU access was added.
+
 The source audit also verifies `qsmmuv500_tbu_halt` can clear faults, alter
 SCTLR, issue RESUME_TERMINATE and undo a halt on timeout. This destructive
 debug path must not be used as passive ownership acquisition. TBU list
@@ -135,6 +142,13 @@ token checks and permanent RPMh/idle retention before a parent vote store or
 zero-store successful adoption. Local focused acceptance passes; complete
 link/runtime remain separate. This adds cross-domain lifecycle coordination,
 not a complete source writer census or a global hardware writer lease.
+
+Native HFI continuation checks native configuration under `rh_lock` while it
+holds GPLL0 serialization. All copied config/HFI owner callbacks must remain
+non-sleeping, non-reentrant and must not acquire GPLL0 while holding `rh_lock`.
+This explicit local lock order does not prove exclusion of firmware, other
+DRVs or DMA, or create a real global owner. Also require AOP ACD consumption
+before CM3 release for bin1; a QMP success recorded only later is insufficient.
 
 ## Inspected Inputs
 

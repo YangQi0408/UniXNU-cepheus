@@ -2,6 +2,27 @@
 
 ## 2026-11-10：受限原指令回放
 
+### 2026-11-11：权限转换续查
+
+固定TZ原件的新增有界静态证据已保存，未执行这些代码或任何PAS操作。
+`0x1c04e2a8` 经descriptor+`0x228`回调或`0x1c04ef04`后更新state+`0x234`。
+后者按+`0x20c`条件，使用+`0x200/+0x208`旧/新VM列表和permissions6的
+24B目标记录，把region start/end交给`0x1c0a74d0`；该函数校验范围/权限，
+再调用`0x1c0a930c`。新解码的`0x1c0a930c..0x1c0aac1b`（6416B）涉及
+region ownership/VM permission masks、`DAT_1c17fbd8`逐页metadata和
+`PTR_FUN_1c159348`的XPU/权限回调表。在这个已解码本体内未见直接写
+PAS count/cache/ID；间接回调与callee的全部副作用仍未建立。
+这些事实**没有解释真机PAS13=false**，不得据此绕过supported=false/CP halt。
+
+私有原证据（27 records）为
+`../logs/pas13-instruction-replay-20261110/tz-permission-transition-v1-evidence.json`，
+SHA256 `9828717f73ff78276d8cb8c1175e0fa7bbeb9c1f76a824a56434cbd14ca04374`；
+匹配snapshot SHA256
+`fb9057e11b72869a7732d28f0fccddfd474463199ba1ed5ecf06f04641e9a85a`。
+range-helper Evidence为
+`ev_68af1916c2532ca34d3992c74c1c6445035f3899e5761d66f07834c108a06b41`。
+没有新SMC、phone操作、运行secure RAM读取或真实认证结论。
+
 配对真机已确认 UEFI/XNU 均 false 后，新增
 `scripts/replay-tz-pas13.py`。只把固定原件的12段lookup代码（219条静态指令）、
 count/15项descriptor/30项cache/锁复制到Unicorn 2.1.4的主机RAM；合成栈与

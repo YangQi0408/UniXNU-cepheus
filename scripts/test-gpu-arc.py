@@ -26,7 +26,8 @@ class ArcIntegrationTests(unittest.TestCase):
                            cwd=tree, check=True)
             for name in ("cepheus_arc.h", "cepheus_arc_probe.h", "cepheus_arc_active.h", "cepheus_arc_active_private.h",
                          "cepheus_bcm_active.h", "cepheus_bcm_active_private.h", "cepheus_rpmh_active_private.h",
-                         "cepheus_rpmh_scope.h", "cepheus_rpmh_scope_private.h"):
+                         "cepheus_rpmh_scope.h", "cepheus_rpmh_scope_private.h",
+                         "cepheus_gpu_config_native.h", "cepheus_gpu_config_native_private.h"):
                 self.assertEqual((tree / "bsd/dev" / name).read_bytes(), (ROOT / "xnu" / name).read_bytes())
             self.assertFalse((tree / "bsd/dev/sweet_rpmh.c").exists())
 
@@ -35,7 +36,8 @@ class ArcIntegrationTests(unittest.TestCase):
             text = (ROOT / path).read_text()
             for name in ('cepheus_arc_active.h', 'cepheus_arc_active_private.h',
                          'cepheus_bcm_active.h', 'cepheus_bcm_active_private.h', 'cepheus_rpmh_active_private.h',
-                         'cepheus_rpmh_scope.h', 'cepheus_rpmh_scope_private.h'):
+                         'cepheus_rpmh_scope.h', 'cepheus_rpmh_scope_private.h',
+                         'cepheus_gpu_config_native.h', 'cepheus_gpu_config_native_private.h'):
                 self.assertIn(name, text, path)
 
     def test_real_patch_after_touch_enable_only(self):
@@ -58,7 +60,8 @@ class ArcIntegrationTests(unittest.TestCase):
             after = file.read_text()
             self.assertEqual(after.count('#include "cepheus_arc_probe.h"'), 1)
             added = ('#include "cepheus_arc_probe.h"\nextern int get_preemption_level(void);\n'
-                     '#include "cepheus_arc_active_private.h"\n#include "cepheus_bcm_active_private.h"\n')
+                     '#include "cepheus_arc_active_private.h"\n#include "cepheus_bcm_active_private.h"\n'
+                     '#include "cepheus_gpu_config_native_private.h"\n')
             self.assertEqual(after.replace(added, ''), before)
             self.assertTrue(after.rstrip().endswith(added + '#endif /* ARM64_BOARD_CONFIG_SWEET */'))
 

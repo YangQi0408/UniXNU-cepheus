@@ -3,6 +3,7 @@
 #define CEPHEUS_GMU_HFI_NATIVE_H
 #include "cepheus_gpu_retire.h"
 #include "cepheus_rpmh_scope.h"
+#include "cepheus_gpu_config_native.h"
 struct ceph_hfi_native_owner {
     void *ctx;
     /* Acquire actual workspace, GMU/SMMU/power/thermal and global-writer
@@ -22,4 +23,21 @@ struct ceph_hfi_native_result {
  * Any admitted queue access permanently seals the six-buffer pin. */
 int cepheus_gmu_hfi_version_native(const struct ceph_hfi_native_owner *,
     const struct ceph_gpu_publication *,struct ceph_hfi_native_result *);
+struct ceph_hfi_boot_native_result {
+    uint32_t hfi_version,firmware_version;
+    unsigned acked,doorbells;
+    int error,retained;
+};
+/* Continue the SAME successfully queried native session with fixed tables,
+ * features and CORE_FW_START. Requires the private native config record;
+ * bin1 also requires actual QMP ACD consumption. No DCVS/GX/CP/START yet. */
+int cepheus_gmu_hfi_boot_native(const struct ceph_gpu_config *,struct ceph_hfi_boot_native_result *);
+struct ceph_hfi_start_native_result {
+    unsigned dcvs_acked,start_acked,doorbells;
+    int error,retained;
+};
+/* Fixed default GX level1/BW INVALID, then START only with the actual native
+ * OOB0 held. No arbitrary DCVS arguments, GX access, CP unhalt or submission. */
+int cepheus_gmu_hfi_dcvs_native(struct ceph_hfi_start_native_result *);
+int cepheus_gmu_hfi_start_native(struct ceph_hfi_start_native_result *);
 #endif

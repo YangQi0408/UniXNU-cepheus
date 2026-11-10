@@ -17,6 +17,7 @@ HEADERS += ('cepheus_zap_image.h','cepheus_zap_memory.h','cepheus_zap_cache.h')
 HEADERS += ('cepheus_zap_pas.h','cepheus_zap_memory_private.h')
 HEADERS += ('cepheus_gpu_bw.h','cepheus_gpu_firmware.h','cepheus_gpu_fault.h')
 HEADERS += ('cepheus_gpu_config.h',)
+HEADERS += ('cepheus_gpu_config_native.h','cepheus_gpu_config_native_private.h')
 HEADERS += ('cepheus_qmp_mmio.h',)
 HEADERS += ('cepheus_gmu_retire_mmio.h',)
 HEADERS += ('cepheus_pdc_mmio.h',)
@@ -118,6 +119,7 @@ def main():
                 '_cepheus_gpu_gmu_read','_cepheus_gpu_gmu_write','_cepheus_gpu_hfi_notify','_cepheus_gpu_gmu_fault',
                 '_cepheus_gmu_bringup_prepare','_cepheus_gmu_bringup_start'}
     required |= {'_cepheus_gpu_config_build'}
+    required |= {'_cepheus_gpu_config_build_native','_cepheus_gpu_config_check_native'}
     required |= {'_cepheus_gpu_zap_snapshot_prepare'}
     required |= {'_cepheus_gpu_zap_load','_cepheus_gpu_zap_stop','_cepheus_gpu_zap_status'}
     required |= {'_cepheus_gpu_qmp_bind'}
@@ -160,7 +162,8 @@ def main():
     required |= {'_cepheus_cp_workspace_restore'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
-    required |= {'_cepheus_gmu_hfi_version_native'}
+    required |= {'_cepheus_gmu_hfi_version_native','_cepheus_gmu_hfi_boot_native',
+                 '_cepheus_gmu_hfi_dcvs_native','_cepheus_gmu_hfi_start_native'}
     required |= {'_cepheus_gpu_park_read','_cepheus_gpu_park_write','_cepheus_gpu_slumber_read','_cepheus_gpu_slumber_write'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')

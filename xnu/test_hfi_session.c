@@ -6,11 +6,17 @@ struct fixture {
     uint32_t cmd[1024],reply[1024],cr,cw,rr,rw;
     struct ceph_hfi_queue tx,rx,fw_rx,fw_tx;
     struct ceph_hfi_session session;
-    uint64_t time;unsigned received,ids[16];int mode,fail_at;
+    uint64_t time;unsigned received,ids[16],faults;int mode,fail_at;
 };
 enum { NORMAL,SILENT,WRONG_HEADER,FW_ERROR,WRONG_VERSION,BAD_RX_INDEX,TIME_REVERSE,FROZEN,FAULT,
-       ASYNC_ERROR,BAD_LENGTH,ALT_ACK_ID };
+       ASYNC_ERROR,BAD_LENGTH,ALT_ACK_ID,LATE_NOTIFY,LATE_READ,LATE_FAULT,POST_REVERSE,POST_CLOCK_ERROR };
 static int okay(void *p) {(void)p;return 0;}
+static int rx_validate(void *p)
+{
+    struct fixture *f=p;
+    if(f->mode==LATE_READ && f->received)f->time=101000000;
+    return 0;
+}
 static int notify(void *p)
 {
     struct fixture *f=p;uint32_t cmd[255],reply[4];unsigned n;
@@ -27,21 +33,29 @@ static int notify(void *p)
     if(f->mode==FW_ERROR || (f->fail_at && f->received==(unsigned)f->fail_at))reply[2]=9;
     assert(!ceph_hfi_write(&f->fw_tx,reply,count));
     if(f->mode==BAD_RX_INDEX)f->rw=1024;
+    if(f->mode==LATE_NOTIFY)f->time=101000000;
     return 0;
 }
 static int now(void *p,uint64_t *n)
 {
     struct fixture *f=p;
+    if(f->received && f->mode==POST_CLOCK_ERROR)return -1;
     if(f->mode!=FROZEN)f->time+=1000000;
-    *n=f->mode==TIME_REVERSE && f->time>1000000?0:f->time;return 0;
+    *n=(f->mode==TIME_REVERSE && f->time>1000000) ||
+        (f->mode==POST_REVERSE && f->received)?0:f->time;return 0;
 }
-static int fault(void *p) {return ((struct fixture *)p)->mode==FAULT;}
+static int fault(void *p)
+{
+    struct fixture *f=p;++f->faults;
+    if(f->mode==LATE_FAULT && f->faults==2)f->time=101000000;
+    return f->mode==FAULT;
+}
 static void init(struct fixture *f)
 {
     memset(f,0,sizeof(*f));
     f->cr=f->cw=1020;f->rr=f->rw=1020; /* real wrap on first request/reply */
     f->tx=(struct ceph_hfi_queue){f->cmd,&f->cr,&f->cw,1024,2,{f,okay,okay,okay,notify,okay},0};
-    f->rx=(struct ceph_hfi_queue){f->reply,&f->rr,&f->rw,1024,2,{f,okay,okay,okay,okay,okay},0};
+    f->rx=(struct ceph_hfi_queue){f->reply,&f->rr,&f->rw,1024,2,{f,okay,okay,okay,okay,rx_validate},0};
     f->fw_rx=f->tx;f->fw_rx.io.notify=okay;f->fw_tx=f->rx;
     f->session=(struct ceph_hfi_session){&f->tx,&f->rx,f,now,okay,fault,0,0,0,0};
 }
@@ -59,6 +73,14 @@ int main(void)
     }
     init(&f);f.session.sequence=4095;assert(ceph_hfi_exchange(&f.session,cmd,2,reply,16,&n)==CE_HFI_INVALID && !f.received);
     init(&f);f.mode=ALT_ACK_ID;assert(!ceph_hfi_exchange(&f.session,cmd,2,reply,16,&n));
+    for(int mode=LATE_NOTIFY;mode<=POST_CLOCK_ERROR;++mode) {
+        init(&f);f.mode=mode;
+        for(unsigned i=0;i<16;++i)reply[i]=0x12345678;
+        int e=ceph_hfi_exchange(&f.session,cmd,2,reply,16,&n);
+        assert(e==(mode==POST_CLOCK_ERROR?CE_HFI_IO:CE_HFI_TIMEOUT));
+        assert(!n && f.session.poisoned && f.tx.poisoned && f.rx.poisoned && !f.session.busy);
+        for(unsigned i=0;i<16;++i)assert(reply[i]==0x12345678);
+    }
     init(&f);f.cr=0;f.cw=1020; /* full ring: cannot send */
     assert(ceph_hfi_exchange(&f.session,cmd,2,reply,16,&n)==CE_HFI_TIMEOUT && !f.received);
     struct ceph_arc_resource rail={.levels={0,16,48,64},.count=4};

@@ -64,6 +64,10 @@ static inline int ceph_hfi_exchange(struct ceph_hfi_session *s,const uint32_t *c
         /* An ACK and an asynchronous error can arrive together. Recheck the
          * hardware/debug fault path after receipt, before reporting success. */
         if(s->fault(s->ctx))return ceph_hfi_session_poison(s,CE_HFI_IO);
+        /* Doorbell, queue guards and fault polling can consume the budget.
+         * A late ACK must not publish output after the last clock check. */
+        if(s->now_ns(s->ctx,&now))return ceph_hfi_session_poison(s,CE_HFI_IO);
+        if(now<last || now-start>=100000000ULL)return ceph_hfi_session_poison(s,CE_HFI_TIMEOUT);
         for(unsigned i=0;i<count;++i)reply[i]=response[i];
         *reply_words=count;s->busy=0;return 0;
     }

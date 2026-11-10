@@ -13,8 +13,13 @@ static struct {
     struct ceph_gmu_mmio gmu;
     struct ceph_smmu_mmio smmu;
     struct ceph_hfi_native_result result;
+    struct ceph_gpu_config config;
+    struct ceph_hfi_boot_native_result boot;
+    struct ceph_hfi_start_native_result start;
+    uint32_t boot_packet[160];
     uint64_t last_ns;
-    unsigned attempted,acquired,pinned,sealed,failed,clock_seen;
+    unsigned attempted,acquired,pinned,sealed,failed,clock_seen,boot_attempted,boot_ready;
+    unsigned dcvs_attempted,start_attempted;
 } ceph_hfi_native;
 static int ceph_hfi_native_identity(const struct ceph_gpu_publication *p,
     const struct ceph_gpu_publication *q)
@@ -67,6 +72,15 @@ static int ceph_hfi_native_lease(void *unused)
         cepheus_gpu_rpmh_check(ceph_hfi_native.owner.rpmh_token) ||
         (ceph_hfi_native.pinned && ceph_memory_hfi_validate(&ceph_hfi_native.publication)) ||
         ceph_hfi_native.owner.validate(ceph_hfi_native.owner.ctx) || ceph_hfi_native_record() ||
+        (ceph_hfi_native.boot_attempted && cepheus_gpu_config_check_native(&ceph_hfi_native.config)) ||
+        (ceph_hfi_native.boot_attempted && ceph_hfi_native.config.policy.acd &&
+          (!ceph_qmp_native.attempted || !ceph_qmp_native.acquired || !ceph_qmp_native.finished ||
+           ceph_qmp_native.failed || ceph_qmp_native.result.error || !ceph_qmp_native.result.acd.consumed ||
+           ceph_qmp_native.result.acd.uncertain || ceph_qmp_native.owner.rpmh_token!=ceph_hfi_native.owner.rpmh_token)) ||
+        (ceph_hfi_native.start_attempted &&
+          (!ceph_oob_native.acquired || ceph_oob_native.failed || ceph_oob_native.release_attempted ||
+           ceph_oob_native.txn.state!=CE_OOB_HELD || ceph_oob_native.txn.error ||
+           ceph_oob_native.owner.rpmh_token!=ceph_hfi_native.owner.rpmh_token)) ||
         cepheus_gpu_rpmh_check(ceph_hfi_native.owner.rpmh_token) ||
         (ceph_hfi_native.pinned && ceph_memory_hfi_validate(&ceph_hfi_native.publication))) {
         ceph_hfi_native.failed=1;return -1;
@@ -102,6 +116,7 @@ static int ceph_hfi_native_access(void *unused)
         uint64_t value;
         if(ceph_smmu_mmio_read(&ceph_hfi_native.smmu,regs[i],&value) || value!=expected[i])goto failed;
     }
+    if(ceph_hfi_native.start_attempted && ceph_oob_native_access(NULL))goto failed;
     return ceph_hfi_native_lease(unused);
 failed:
     ceph_hfi_native.failed=1;return -1;
@@ -213,4 +228,106 @@ finish:
 done:
     __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);return e;
 }
+static int ceph_hfi_native_boot_send(unsigned words,unsigned *acked)
+{
+    uint32_t reply[16];unsigned count;
+    if(ceph_hfi_native_access(NULL))return CE_HFI_IO;
+    int e=ceph_hfi_exchange(&ceph_hfi_native.link.session,ceph_hfi_native.boot_packet,words,reply,16,&count);
+    if(e)return e;
+    if(count!=3)return ceph_hfi_session_poison(&ceph_hfi_native.link.session,CE_HFI_PROTOCOL);
+    if(acked)++*acked;
+    return 0;
+}
+int cepheus_gmu_hfi_boot_native(const struct ceph_gpu_config *config,struct ceph_hfi_boot_native_result *out)
+{
+    if(!config || !out || ceph_scm_info_context(NULL))return -1;
+    if(__atomic_exchange_n(&ceph_gpll0_lock,1,__ATOMIC_ACQUIRE))return -1;
+    int e=-1;
+    if(ceph_hfi_native.boot_attempted || !ceph_hfi_native.sealed || ceph_hfi_native.failed ||
+        ceph_hfi_native.result.error || !ceph_hfi_native.result.firmware_version ||
+        !ceph_hfi_native.link.bound || ceph_hfi_native.link.session.sequence!=1 ||
+        ceph_hfi_native.link.session.poisoned || ceph_hfi_native.link.session.busy ||
+        cepheus_gpu_config_check_native(config))goto done;
+    ceph_hfi_native.config=*config;ceph_hfi_native.boot_attempted=1;
+    struct ceph_hfi_boot_config c;
+    if(ceph_gpu_config_hfi(&ceph_hfi_native.config,ceph_hfi_native.result.hfi_version,&c) ||
+        ceph_hfi_native_access(NULL))goto finish;
+    if(c.acd && (!ceph_qmp_native.attempted || !ceph_qmp_native.acquired || !ceph_qmp_native.finished ||
+        ceph_qmp_native.failed || ceph_qmp_native.result.error || !ceph_qmp_native.result.acd.consumed ||
+        ceph_qmp_native.result.acd.uncertain ||
+        ceph_qmp_native.owner.rpmh_token!=ceph_hfi_native.owner.rpmh_token))goto finish;
+    uint32_t *packet=ceph_hfi_native.boot_packet;
+    if(ceph_hfi_perf(packet,160,c.gx,c.ng,c.cx,c.nc,c.gfx,c.cxl,c.mx)!=59)goto finish;
+    e=ceph_hfi_native_boot_send(59,&ceph_hfi_native.boot.acked);if(e)goto finish;
+    if(ceph_hfi_bandwidth(packet,160,c.bw)!=160){e=-1;goto finish;}
+    e=ceph_hfi_native_boot_send(160,&ceph_hfi_native.boot.acked);if(e)goto finish;
+    ceph_hfi_feature(packet,160,1,0,0);
+    e=ceph_hfi_native_boot_send(4,&ceph_hfi_native.boot.acked);if(e)goto finish;
+    if(c.acd) {
+        if(ceph_hfi_acd_table(packet,160,c.acd)!=17){e=-1;goto finish;}
+        e=ceph_hfi_native_boot_send(17,&ceph_hfi_native.boot.acked);if(e)goto finish;
+        ceph_hfi_feature(packet,160,12,1,0);
+        e=ceph_hfi_native_boot_send(4,&ceph_hfi_native.boot.acked);if(e)goto finish;
+    }
+    if(c.policy->lm) {
+        ceph_hfi_feature(packet,160,7,1,c.throttle_mask);
+        e=ceph_hfi_native_boot_send(4,&ceph_hfi_native.boot.acked);if(e)goto finish;
+    }
+    ceph_hfi_core_start(packet,160);
+    e=ceph_hfi_native_boot_send(2,&ceph_hfi_native.boot.acked);
+finish:
+    if(!e && ceph_hfi_native_access(NULL))e=-1;
+    ceph_hfi_native.boot.doorbells=ceph_hfi_native.result.doorbells-1;
+    ceph_hfi_native.boot.retained=1;
+    ceph_hfi_native.owner.finish(ceph_hfi_native.owner.ctx,160,ceph_hfi_native.boot.doorbells,1);
+    if(!e && ceph_hfi_native_access(NULL))e=-1;
+    if(e) {
+        ceph_hfi_native.failed=1;
+        (void)ceph_memory_hfi_finish(&ceph_hfi_native.publication,CE_MEMORY_HFI_UNCERTAIN);
+    } else {
+        ceph_hfi_native.boot.hfi_version=ceph_hfi_native.result.hfi_version;
+        ceph_hfi_native.boot.firmware_version=ceph_hfi_native.result.firmware_version;
+        ceph_hfi_native.boot_ready=1;
+    }
+    ceph_hfi_native.boot.error=e;*out=ceph_hfi_native.boot;
+done:
+    __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);return e;
+}
+static int ceph_hfi_native_start_stage(unsigned start,struct ceph_hfi_start_native_result *out)
+{
+    if(!out || ceph_scm_info_context(NULL))return -1;
+    if(__atomic_exchange_n(&ceph_gpll0_lock,1,__ATOMIC_ACQUIRE))return -1;
+    int e=-1;
+    if(!ceph_hfi_native.boot_ready || ceph_hfi_native.failed || ceph_hfi_native.boot.error ||
+        (start?(!ceph_hfi_native.start.dcvs_acked || ceph_hfi_native.start_attempted):ceph_hfi_native.dcvs_attempted))goto done;
+    if(start) {
+        if(!ceph_oob_native.acquired || ceph_oob_native.failed || ceph_oob_native.release_attempted ||
+            ceph_oob_native.txn.state!=CE_OOB_HELD || ceph_oob_native.txn.error ||
+            ceph_oob_native.owner.rpmh_token!=ceph_hfi_native.owner.rpmh_token)goto done;
+        ceph_hfi_native.start_attempted=1;
+        if(ceph_hfi_start(ceph_hfi_native.boot_packet,160)!=1)goto finish;
+    }else {
+        ceph_hfi_native.dcvs_attempted=1;
+        if(ceph_hfi_dcvs(ceph_hfi_native.boot_packet,160,1,CE_HFI_DCVS_INVALID)!=4)goto finish;
+    }
+    e=ceph_hfi_native_boot_send(start?1:4,NULL);
+finish:
+    if(!e && ceph_hfi_native_access(NULL))e=-1;
+    ceph_hfi_native.start.doorbells=ceph_hfi_native.result.doorbells-1-ceph_hfi_native.boot.doorbells;
+    ceph_hfi_native.start.retained=1;
+    ceph_hfi_native.owner.finish(ceph_hfi_native.owner.ctx,4,ceph_hfi_native.start.doorbells,1);
+    if(!e && ceph_hfi_native_access(NULL))e=-1;
+    if(e) {
+        ceph_hfi_native.failed=1;
+        (void)ceph_memory_hfi_finish(&ceph_hfi_native.publication,CE_MEMORY_HFI_UNCERTAIN);
+    }else if(start)ceph_hfi_native.start.start_acked=1;
+    else ceph_hfi_native.start.dcvs_acked=1;
+    ceph_hfi_native.start.error=e;*out=ceph_hfi_native.start;
+done:
+    __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);return e;
+}
+int cepheus_gmu_hfi_dcvs_native(struct ceph_hfi_start_native_result *out)
+{return ceph_hfi_native_start_stage(0,out);}
+int cepheus_gmu_hfi_start_native(struct ceph_hfi_start_native_result *out)
+{return ceph_hfi_native_start_stage(1,out);}
 #endif

@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 05:36：不停工。471e223的CI42900020339完整成功并archived-source
+独立验收PASS，101core/35memory/无unresolved，17492488B，kernel SHA98b66afd...，
+receipt SHA079cbecb...；actual linked RPMh/idle也PASS。该核含OOB/query/pin，
+不含后续native DB/fuse config及same-session HFI boot/DCVS/OOB-held START。
+后续批focused final-v2 135checks PASS SHA346a6447...，完整preflight final-v2
+四步/82host PASS SHA3228c619...；结束后两source hash sets未改变。显式原厂
+固件actual pool同进程24 modes/ASanUBSan无report，log SHAc0601d76...；硬件、
+owner、IOKit模拟，不是真GPU。native config 1925 PROT_NONE points全PASS。
+本批准备提交/一次完整link。bin1 fixture QMP在query后，须继续补ACD-before-CM3
+顺序证明及full bin1 START，不以此批旧receipt追认后续。详见hfi-native-backend。
+TZ权限转换静态证据与TBU ECATS debug-lock语义已记录，PAS13 false未解。
+无phone/打包/启动，USB无手机；不重复已有fastboot问题。真实global owner/
+继承票/TBU/secure PA+crypto/PAS13仍缺；GPU/Metal未执行，目标active。
+
 2026-11-11 04:53：继续不停工。3b0db57已提交推送，以下04:26“待提交”为
 历史。actual pool HFI pin/seal、原生fixed版本查询已实现；focused final-v4
 PASS SHA4b7609a7...，完整production preflight final-v3四步/81host/七分析

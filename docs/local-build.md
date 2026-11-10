@@ -6,6 +6,17 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 05:36: prior OOB/query/pin kernel CI `42900020339 @471e223`
+is independently accepted (101 core/35 memory symbols, no unresolved,
+17492488 bytes, SHA256
+`98b66afd4039e0fc64f208afbb8a88a6ba1a51fc2f9bf76a90a102424b55f545`).
+New native DB/fuse configuration and same-session HFI boot/DCVS/START batch
+passes focused final-v2 (135 checks) and four-step preflight final-v2 (82 host).
+Both completed with unchanged source hashes. Original-firmware actual-pool
+24-mode ASan/UBSan chain passes; hardware/global owner remain emulated.
+See `hfi-native-backend.md` for receipts and the bin1 QMP ordering gap.
+The new batch still needs its own full XNU link; no phone boot or GPU execution.
+
 2026-11-11 04:53: fixed native HFI query and actual six-buffer pool pin/seal
 pass focused final-v4 and production preflight final-v3 (four steps, 81 host,
 seven analyses). Subsequent actual SMMU/upload/CM3/HFI + actual pool nine-case

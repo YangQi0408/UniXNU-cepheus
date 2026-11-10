@@ -174,6 +174,8 @@ class Integration(unittest.TestCase):
                    'cepheus_gpu_smmu_install_native',
                    'cepheus_gmu_upload_native',
                    'cepheus_gmu_hfi_version_native',
+                   'cepheus_gmu_hfi_boot_native','cepheus_gmu_hfi_dcvs_native','cepheus_gmu_hfi_start_native',
+                   'cepheus_gpu_config_build_native',
                    'cepheus_gpu_qmp_acd_native',
                    'cepheus_gpu_gpll0_hold','cepheus_gpu_gpll0_check','ceph_gpll0_hold',
                    'cepheus_gpu_gpll0_measure','ceph_clock_measure_run',

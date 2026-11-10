@@ -6,6 +6,9 @@
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gmu_hfi_link.h"
 #include "../tests/gpll0-scope-fixture.h"
+/* This focused query fixture never admits boot/config continuation. The
+ * separate actual-pool chain runs native config and QMP prerequisites. */
+int cepheus_gpu_config_check_native(const struct ceph_gpu_config *c){(void)c;return -1;}
 static volatile uint8_t *windows[4];
 static const size_t sizes[]={0x90000,0x9000,0x30000,0x10000};
 static uint32_t *table;
@@ -81,6 +84,8 @@ int ceph_memory_hfi_finish(const struct ceph_gpu_publication *p,int result)
     else assert(sealed);
     return 0;
 }
+#include "cepheus_qmp_native_private.h"
+#include "cepheus_gmu_oob_native_private.h"
 #include "cepheus_gmu_hfi_native_private.h"
 static void revoke(void)
 {
