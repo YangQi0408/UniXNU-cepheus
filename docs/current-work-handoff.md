@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 17:11：PAS13内存合同收窄。固定descriptor flags20c=0/20d=1，
+默认mem_setup跳过一般load-region登记，auth不转换权限而检查已有页mask，
+HLOS mask8为subset候选；撤回PAS13必需OEM carveout/无条件hyp_assign推断。
+25 raw/634指令/17分支本机核验普通/-O通过且receipt一致，112条bundle及
+snapshot私有保存。运行TZ/flags/DDR/权限与MDT reader/cache仍未知，不能
+视为lease或PAS准入。详见tz-pas-memory-contract.md。c57c2d2生命周期批
+已推送。无生产后端/新核/构建/手机操作/新GPU测试点，正常配对版保持；
+PAS13=false/supported=false/CP halt不变，GPU/Metal/PAS认证均未执行。
+
 最新2026-11-10 16:48：TZ缓存生命周期离线续查完成。shutdown/cleanup已分析
 本体清state8B/prefix0x1e0，不直接清ID/cache；间接及未展开callee副作用仍
 未知。受限lookup新增cache有效state0/5、空cache state5三假设，均true；

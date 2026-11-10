@@ -1,5 +1,15 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-10：PAS13 内存条件收窄，未取得运行态准入
+
+本机TZ静态PAS13 flags+20c=0/+20d=1、callback+228=0：mem_setup跳过一般
+load-region登记，认证前默认路径不做权限转换而检查已有页访问mask；HLOS
+mask8是一个subset候选。不能无条件要求固定carveout或另加hyp_assign，
+也不能反向当本次XNU pair权限已通过。25段原字节/634指令/17分支核验普通
+及`-O`通过，receipt相同。运行TZ/flags/权限/DDR表与MDT reader/cache仍未知，
+资源acquire/lease/quiesce及PAS13=false仍缺，门禁不变。详见
+[PAS13内存合同](tz-pas-memory-contract.md)。无手机/SMC/内核变更或新测试点。
+
 ## 2026-11-08 20:25：原生PAS生命周期已完整构建，资源后端仍缺
 
 新增 `cepheus_gpu_zap_load/stop/status` 私有内核入口。与现有INFO查询共用同一
