@@ -39,10 +39,16 @@ static inline int ceph_power_mmio_valid(struct ceph_power_mmio *m)
         !ceph_power_window_valid(&m->gmu,0x2c6a000,0x30000) ||
         !m->lease || m->lease(m->owner)?-1:0;
 }
-static inline uint32_t ceph_power_mmio_load(const struct ceph_power_window *w,uint32_t offset)
+static inline int ceph_power_mmio_load(struct ceph_power_mmio *m,
+    const struct ceph_power_window *w,uint32_t offset,uint32_t *out)
 {
+    if(!out || ceph_power_mmio_valid(m) ||
+        (w!=&m->gcc && w!=&m->cc && w!=&m->gmu) ||
+        (offset&3u) || offset>w->bytes-4u)return -1;
     uint32_t value=*(volatile uint32_t *)(w->base+offset);
-    ceph_power_mmio_barrier();return value;
+    ceph_power_mmio_barrier();
+    if(ceph_power_mmio_valid(m) || value==UINT32_MAX)return -1;
+    *out=value;return 0;
 }
 /* Named registers only; offsets are bytes within three fixed apertures. */
 static inline int ceph_power_mmio_register(struct ceph_power_mmio *m,enum ceph_power_reg reg,
@@ -70,16 +76,16 @@ static inline int ceph_power_mmio_register(struct ceph_power_mmio *m,enum ceph_p
 static inline int ceph_power_mmio_gmu_ready(struct ceph_power_mmio *m)
 {
     /* Only GCC/GPUCC are touched until all access clocks and CX are live. */
-    if(!ceph_gpu_branch_active(ceph_power_mmio_load(&m->gcc,CE_GPU_GCC_CFG)))return -1;
     struct ceph_gpu_power_snapshot s={0};
-    s.cfg=ceph_power_mmio_load(&m->gcc,CE_GPU_GCC_CFG);
-    s.cx_gdscr=ceph_power_mmio_load(&m->cc,CE_GPU_CX_GDSCR);
-    s.cx_hw=ceph_power_mmio_load(&m->cc,CE_GPU_CX_HW_CTRL);
-    s.gx_gdscr=ceph_power_mmio_load(&m->cc,CE_GPU_GX_GDSCR);
-    s.ahb=ceph_power_mmio_load(&m->cc,CE_GPU_AHB_CBCR);
-    s.gmu=ceph_power_mmio_load(&m->cc,CE_GPU_GMU_CBCR);
-    s.cxo=ceph_power_mmio_load(&m->cc,CE_GPU_CXO_CBCR);
-    s.rcg=ceph_power_mmio_load(&m->cc,CE_GPU_GMU_CMD);
+    if(ceph_power_mmio_load(m,&m->gcc,CE_GPU_GCC_CFG,&s.cfg) ||
+        !ceph_gpu_branch_active(s.cfg) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_CX_GDSCR,&s.cx_gdscr) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_CX_HW_CTRL,&s.cx_hw) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_GX_GDSCR,&s.gx_gdscr) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_AHB_CBCR,&s.ahb) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_GMU_CBCR,&s.gmu) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_CXO_CBCR,&s.cxo) ||
+        ceph_power_mmio_load(m,&m->cc,CE_GPU_GMU_CMD,&s.rcg))return -1;
     return ceph_gpu_gmu_blockers(&s)?-1:0;
 }
 static inline int ceph_power_mmio_read(void *ctx,enum ceph_power_reg reg,uint32_t *value)
@@ -87,12 +93,12 @@ static inline int ceph_power_mmio_read(void *ctx,enum ceph_power_reg reg,uint32_
     struct ceph_power_mmio *m=ctx;
     const struct ceph_power_window *window;uint32_t offset;
     if(!value || ceph_power_mmio_valid(m) || ceph_power_mmio_register(m,reg,&window,&offset))return -1;
-    if(window!=&m->gcc && !ceph_gpu_branch_active(ceph_power_mmio_load(&m->gcc,CE_GPU_GCC_CFG)))return -1;
+    if(window!=&m->gcc) {
+        uint32_t cfg;
+        if(ceph_power_mmio_load(m,&m->gcc,CE_GPU_GCC_CFG,&cfg) || !ceph_gpu_branch_active(cfg))return -1;
+    }
     if(window==&m->gmu && ceph_power_mmio_gmu_ready(m))return -1;
-    if(m->lease(m->owner))return -1;
-    uint32_t v=ceph_power_mmio_load(window,offset);
-    if(v==UINT32_MAX)return -1;
-    *value=v;return 0;
+    return ceph_power_mmio_load(m,window,offset,value);
 }
 static inline int ceph_power_mmio_write(void *ctx,enum ceph_power_reg reg,uint32_t value)
 {
@@ -124,6 +130,6 @@ static inline int ceph_power_mmio_write(void *ctx,enum ceph_power_reg reg,uint32
     if(ceph_power_mmio_register(m,reg,&window,&offset) || m->lease(m->owner))return -1;
     ceph_power_mmio_barrier();
     *(volatile uint32_t *)(window->base+offset)=value;
-    ceph_power_mmio_barrier();return 0;
+    ceph_power_mmio_barrier();return m->lease(m->owner)?-1:0;
 }
 #endif

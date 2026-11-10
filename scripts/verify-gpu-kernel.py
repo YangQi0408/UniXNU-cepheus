@@ -21,6 +21,7 @@ HEADERS += ('cepheus_qmp_mmio.h',)
 HEADERS += ('cepheus_gmu_retire_mmio.h',)
 HEADERS += ('cepheus_pdc_mmio.h',)
 HEADERS += ('cepheus_gpu_power_mmio.h',)
+HEADERS += ('cepheus_gpu_power_native.h','cepheus_gpu_power_native_private.h')
 HEADERS += ('cepheus_gpll0.h','cepheus_gpll0_private.h')
 HEADERS += ('cepheus_clock_measure.h','cepheus_clock_measure_private.h')
 HEADERS += ('cepheus_arc_active.h','cepheus_arc_active_private.h')
@@ -112,6 +113,7 @@ def main():
     required |= {'_cepheus_gpu_qmp_bind'}
     required |= {'_cepheus_gpu_pdc_mmio_bind'}
     required |= {'_cepheus_gpu_power_mmio_read', '_cepheus_gpu_power_mmio_write'}
+    required |= {'_cepheus_gpu_power_start_native'}
     required |= {'_cepheus_gpu_arc_raise'}
     required |= {'_cepheus_gpu_bcm_raise'}
     required |= {'_cepheus_gpu_gpll0_hold','_cepheus_gpu_gpll0_check'}

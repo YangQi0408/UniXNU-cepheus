@@ -57,6 +57,7 @@ static int ceph_scm_info_context(void *unused)
 }
 #include "cepheus_gpll0_private.h"
 #include "cepheus_clock_measure_private.h"
+#include "cepheus_gpu_power_native_private.h"
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
     if(!r || ceph_scm_info_context(NULL))return -1;

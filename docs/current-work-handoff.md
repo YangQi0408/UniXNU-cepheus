@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+23:32更新：用户明确不停工，继续GPU。新增实际SWEET原生CX/GMU电源入口，
+固定GCC/GPUCC/GMU ml_io_map、原生delay及同GPLL0锁，复制owner/boot单次
+终止；逐map/read/store/delay前后validate，GMU每项前置读也逐访问检查，
+UINT32_MAX错误读仍做post guard。实际owner仍无实现，无启动调用/reset释放/
+GX写/PAS/SMMU/CP提交。final-v1 local receipt403 native/582 MMIO PROT_NONE
+边界及host/sanitizer/native/staged/analysis PASS，四步preflight final-v1
+全部PASS，70 host/七生产分析。v2夹具off-GPUCC故障、preflight v1同故障及
+v3测试helper空指针分析失败保留，不追认；详见power-native-backend.md。
+本批及新ARC仍待完整XNU构建/链接，无重复CI/手机操作。已验收诊断镜像
+保持CI42835691416 @2bf48ab/SHA b7d88d435...，不含新生产代码，不重包冒充。
+23:25 lsusb仍无手机；等已发手动fastboot确认后仅一次退出尾/GPU只读诊断。
+下一真实资源owner/继承票/foreign writer及deep-idle协调；PAS13=false/
+supported=false/CP halt不绕，GPU scratch/fence与Metal均未执行，目标未完成。
+
 23:15更新：设备仍未检测到，等待之前已发出的手动fastboot确认；无手机
 操作。生产ARC接入补缺：删除guard前rh_map及裸DB读，要求现有映射，DB
 每word前后validate_access及sticky失败，sender保留实际resource验证；固定

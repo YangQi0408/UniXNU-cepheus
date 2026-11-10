@@ -18,6 +18,7 @@ install -m 0644 "$here/cepheus_qmp_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_retire_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_pdc_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_power_mmio.h" bsd/dev/
+install -m 0644 "$here/cepheus_gpu_power_native.h" "$here/cepheus_gpu_power_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpll0.h" "$here/cepheus_gpll0_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_clock_measure.h" "$here/cepheus_clock_measure_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_bcm_active.h" "$here/cepheus_bcm_active_private.h" "$here/cepheus_rpmh_active_private.h" bsd/dev/

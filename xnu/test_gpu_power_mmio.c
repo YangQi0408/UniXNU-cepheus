@@ -14,7 +14,13 @@ static int lease(void *p)
 {
     struct fixture *f=p;
     ++f->checks;
-    return !f->live || (f->expire_at && f->checks>=f->expire_at) ? -1:0;
+    if(f->expire_at && f->checks>=f->expire_at) {
+        assert(!mprotect((void *)f->mmio.gcc.base,f->mmio.gcc.bytes,PROT_NONE));
+        assert(!mprotect((void *)f->mmio.cc.base,f->mmio.cc.bytes,PROT_NONE));
+        assert(!mprotect((void *)f->mmio.gmu.base,f->mmio.gmu.bytes,PROT_NONE));
+        return -1;
+    }
+    return f->live?0:-1;
 }
 static volatile uint32_t *regptr(struct fixture *f,enum ceph_power_reg reg)
 {
@@ -25,6 +31,7 @@ static volatile uint32_t *regptr(struct fixture *f,enum ceph_power_reg reg)
     volatile uint8_t *base=reg==CE_PWR_CM3_RESET?f->mmio.gmu.base:
         reg==CE_PWR_CFG_AHB || reg==CE_PWR_DDR || reg==CE_PWR_MEMNOC ||
         reg==CE_PWR_DVM?f->mmio.gcc.base:f->mmio.cc.base;
+    assert(base);
     return (volatile uint32_t *)(base+offsets[reg]);
 }
 static void protect_gmu(struct fixture *f,int accessible)
@@ -35,6 +42,8 @@ static void protect_gmu(struct fixture *f,int accessible)
 }
 static void reset(struct fixture *f)
 {
+    assert(!mprotect((void *)f->mmio.gcc.base,f->mmio.gcc.bytes,PROT_READ|PROT_WRITE));
+    assert(!mprotect((void *)f->mmio.cc.base,f->mmio.cc.bytes,PROT_READ|PROT_WRITE));
     protect_gmu(f,1);
     memset((void *)f->mmio.gcc.base,0,f->mmio.gcc.bytes);
     memset((void *)f->mmio.cc.base,0,f->mmio.cc.bytes);
@@ -197,6 +206,11 @@ int main(void)
     bad=f.mmio;bad.gmu.base=(volatile uint8_t *)(UINTPTR_MAX-3u);
     assert(ceph_power_mmio_read(&bad,CE_PWR_CX,&v)<0);
     bad=f.mmio;bad.lease=NULL;assert(ceph_power_mmio_read(&bad,CE_PWR_CX,&v)<0);
+    /* Even an invalid bus value must pass through the post-load guard. */
+    reset(&f);*regptr(&f,CE_PWR_CFG_AHB)=UINT32_MAX;v=0x12345678;
+    unsigned before_checks=f.checks;
+    assert(ceph_power_mmio_read(&f.mmio,CE_PWR_CFG_AHB,&v)<0);
+    assert(f.checks-before_checks==3 && v==0x12345678);
     destroy(&f);
-    printf("Power MMIO: protected off-domain apertures, actual volatile transactions, %u lease failures, write restrictions PASS (host model)\n",checks);
+    printf("Power MMIO: off-domain gates, %u PROT_NONE revocations, before/after volatile access guards, write restrictions PASS (host model)\n",checks);
 }

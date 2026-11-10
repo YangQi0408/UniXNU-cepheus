@@ -39,7 +39,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h cepheus_zap_cache.h \
     cepheus_zap_pas.h cepheus_zap_memory_private.h \
     cepheus_scm_handoff.h \
-    cepheus_gpu_power_mmio.h \
+    cepheus_gpu_power_mmio.h cepheus_gpu_power_native.h cepheus_gpu_power_native_private.h \
     cepheus_gpll0.h cepheus_gpll0_private.h \
     cepheus_clock_measure.h cepheus_clock_measure_private.h \
     cepheus_gmu_upload_mmio.h \

@@ -54,6 +54,8 @@ class Integration(unittest.TestCase):
             subprocess.run(['bash', str(ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh')], cwd=tree, check=True)
             for where, name in [('bsd/dev', 'cepheus_gpu_compile.c'), ('bsd/dev', 'cepheus_hfi_boot.h'),
                                 ('bsd/dev', 'cepheus_gpu_power_mmio.h'),
+                                ('bsd/dev', 'cepheus_gpu_power_native.h'),
+                                ('bsd/dev', 'cepheus_gpu_power_native_private.h'),
                                 ('bsd/dev', 'cepheus_gpll0.h'),
                                 ('bsd/dev', 'cepheus_gpll0_private.h'),
                                 ('bsd/dev', 'cepheus_clock_measure.h'),
@@ -140,6 +142,7 @@ class Integration(unittest.TestCase):
         # A build can accidentally retain all symbols AND introduce a startup
         # call. Keep this separate check on actual boot-facing source bodies.
         dangerous=('cepheus_gpu_arc_raise','cepheus_gpu_bcm_raise','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
+                   'cepheus_gpu_power_start_native',
                    'cepheus_gpu_gpll0_hold','cepheus_gpu_gpll0_check','ceph_gpll0_hold',
                    'cepheus_gpu_gpll0_measure','ceph_clock_measure_run',
                    'ceph_qmp_connect_cold','ceph_qmp_send_acd','ceph_gx_core_configure',

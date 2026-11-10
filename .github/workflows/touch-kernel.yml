@@ -48,7 +48,7 @@ jobs:
             cepheus_zap_pas.h cepheus_zap_memory_private.h \
             cepheus_scm_handoff.h \
             cepheus_gmu_upload_mmio.h \
-            cepheus_gpu_power_mmio.h \
+            cepheus_gpu_power_mmio.h cepheus_gpu_power_native.h cepheus_gpu_power_native_private.h \
             cepheus_gpll0.h cepheus_gpll0_private.h \
             cepheus_clock_measure.h cepheus_clock_measure_private.h \
             cepheus_qmp_connect.h \

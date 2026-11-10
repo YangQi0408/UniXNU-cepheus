@@ -6,6 +6,15 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-10 native power continuation:
+`out/power-native-preflight-20261110-final-v1/receipt.json` passes all four
+local prerequisites, 70 host programs and seven production-unit analyses.
+`out/power-native-local-20261110-final-v1/receipt.json` additionally accepts
+the actual SWEET native adapter and staged-only AArch64 compilation. These
+are not a complete XNU link or device execution. The new native power and ARC
+access batch still needs full artifact acceptance before integrated use; the
+already accepted exit-tail diagnostic below stays pinned and unchanged.
+
 Run from `gpu-work` with the pinned source inputs already present:
 
 ```sh
