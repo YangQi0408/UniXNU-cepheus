@@ -4,6 +4,7 @@
 Platform declarations stand in for XNU headers. No firmware, MMIO or SMC runs.
 """
 import argparse
+import contextlib
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('patches', type=Path, nargs='?', default=ROOT.parent/'inputs/ios-sweet-ordered-touch/xnu/patches')
 parser.add_argument('--headers', type=Path, default=ROOT/'xnu')
+parser.add_argument('--output', type=Path, help='preserve actual transformed native source/object/assembly')
 args = parser.parse_args()
 PINNED = args.patches.resolve()
 if not PINNED.is_dir():
@@ -42,7 +44,13 @@ extern int ml_get_interrupts_enabled(void);
 extern int ml_at_interrupt_context(void);
 '''
 
-with tempfile.TemporaryDirectory() as directory:
+if args.output:
+    args.output = args.output.resolve()
+    args.output.mkdir(parents=True, exist_ok=False)
+    workspace = contextlib.nullcontext(str(args.output))
+else:
+    workspace = tempfile.TemporaryDirectory()
+with workspace as directory:
     tree = Path(directory)
     subprocess.run(['git', 'init', '-q', str(tree)], check=True)
     for patch in sorted(PINNED.glob('*.patch')):

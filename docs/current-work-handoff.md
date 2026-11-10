@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11更新：CI42874717231 @091c7ff于02:55:48全成功，本机archived
+source独立核验PASS，17473184B/SHA677de398...，97core/30memory/无unresolved。
+receipt SHA2c31a939...；actual linked RPMh普通与-O同receipt SHA0a1ff59f...，
+旧idle-only核双模式拒绝不出receipt；idle linked SHA552cdf4d...也PASS。
+GPLL0 scope实际接入已790e0e4提交推送/focused和preflight final-v2 PASS，
+不在091核中/待后续完整link。当前新增linked verifier及回归/文档收尾，
+无phone boot/打包，GPU/Metal未执行。继续真owner/继承/父时钟绑定，
+不制造票/ACK，不绕PAS13=false/supported=false/CP halt；目标active。
+
 2026-11-11 02:33续：091c7ff已推送，02:23:33只派发一次完整XNU
 CI42874717231，当前前置回归进行中，未link/验收。勿重复派发。
 后续GPLL0 real copied rpmh token/map前后及逐读检查/写前永久保留scope与

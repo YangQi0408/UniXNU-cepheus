@@ -57,5 +57,7 @@ PASS, four prerequisites/77 host/seven production analyses, SHA256
 `5af17ec7ea7d7e3bc0b6daf632b7764eab79da0eb506c77adba0ecaeec423de2`.
 Production source did not change during this final preflight. Complete XNU
 link has a separate gate, not inferred from local PASS.
-CI42874717231 @091c7ff does not contain this GPLL0
-follow-on and cannot accept it. GPU and Metal have not executed.
+GPLL0 integration was committed and pushed as `790e0e4`. CI42874717231
+@091c7ff completed and passed independent kernel/RPMh/idle linked checks,
+but does not contain this GPLL0 follow-on and cannot accept it. A subsequent
+complete XNU build is required. GPU and Metal have not executed.

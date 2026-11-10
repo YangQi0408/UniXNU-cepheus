@@ -104,6 +104,7 @@ jobs:
           python3 cepheus/scripts/test-tree.py
           python3 cepheus/scripts/test-gpu-fdt.py
           python3 cepheus/scripts/test-rpmh-scope.py --patches ios-sweet/xnu/patches
+          python3 cepheus/scripts/test-rpmh-scope-linked.py
           python3 cepheus/scripts/test-gpu-diagnostic-log.py
           python3 cepheus/scripts/test-gx-probe.py
           python3 cepheus/scripts/test-zap-layout.py
