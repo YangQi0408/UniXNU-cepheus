@@ -3,6 +3,7 @@
 #define CEPHEUS_RPMH_TAIL_CORE_H
 #include "cepheus_rpmh_pool.h"
 #include "cepheus_rpmh_tail.h"
+#include "CepheusRpmhTailProtocol.h"
 #include "CepheusRpmhSnapshotIdentity.h"
 
 typedef struct {
@@ -361,13 +362,8 @@ CeTailCopy (struct ceph_rpmh_tail *Output)
   CopyMem (Output, &mCeTailRecord, sizeof (*Output)); return EFI_SUCCESS;
 }
 
-typedef struct {
-  UINT32 Version, Bytes;
-  EFI_STATUS (EFIAPI *Bind)(CONST UINT64 [3]);
-  EFI_STATUS (EFIAPI *Copy)(struct ceph_rpmh_tail *);
-} CE_TAIL_PROTOCOL;
 STATIC CE_TAIL_PROTOCOL mCeTailProtocol = {1, sizeof (CE_TAIL_PROTOCOL), CeTailBind, CeTailCopy};
-STATIC EFI_GUID mCeTailGuid = {0x2401bd96,0x43d7,0x4349,{0x9e,0x0a,0xca,0x00,0xce,0x30,0x04,0x01}};
+STATIC EFI_GUID mCeTailGuid = CE_RPMH_TAIL_PROTOCOL_GUID;
 VOID
 CoreCepheusTailInstall (VOID)
 {

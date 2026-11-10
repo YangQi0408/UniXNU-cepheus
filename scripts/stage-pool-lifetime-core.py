@@ -194,7 +194,7 @@ def stage(repository, output, rpmh_tail=False):
         pool.write_text(integrate_tail_pool(pool.read_text()))
         page.write_text(integrate_tail_page(page.read_text()))
         main.write_text(integrate_tail_main(main.read_text()))
-        tailfiles = ('CepheusRpmhTailCore.h', 'CepheusRpmhTailMap.h', 'cepheus_rpmh_tail.h',
+        tailfiles = ('CepheusRpmhTailCore.h', 'CepheusRpmhTailMap.h', 'CepheusRpmhTailProtocol.h', 'cepheus_rpmh_tail.h',
                      'cepheus_rpmh_snapshot.h', 'cepheus_rpmh_snapshot_reader.h', 'cepheus_rpmh_pool.h')
         for name in tailfiles:
             shutil.copyfile(ROOT/'firmware'/name, output/CORE/'Mem'/name)

@@ -66,6 +66,29 @@ Its `receipt.json` and independent `boot-verification.json` both pass. No phone
 operations occurred. See [scm-pair-preflight.md](scm-pair-preflight.md) for scope
 and the next hardware point; this is not a GPU execution image.
 
+## Exit-Tail Candidate
+
+The isolated exit-tail profile reuses two complete local firmware builds,
+revalidates their exact staged sources and artifacts, then packages both
+DarwinBoot and DXE Core. It requires a newly compiled tail-aware XNU kernel,
+not the previously accepted BCM kernel. Verify that new CI kernel with
+`verify-ci-scm-pair.py --rpmh-tail`, then run:
+
+```sh
+python3 scripts/build-scm-pair-local.py \
+  --kernel ../inputs/ci-RUN/kernel.macho \
+  --kernel-receipt out/kernel-verification-NEW.json \
+  --output out/rpmh-tail-NEW --rpmh-tail \
+  --firmware-build out/rpmh-tail-loader-20261110-v3 \
+  --core-build out/rpmh-tail-core-protocol-20261110-v1 \
+  --container cepheus-build:latest
+```
+
+The 1128-byte zero slot and `cephrpmhtail=1` are isolated from SCM/snapshot
+profiles. Independent packaging verification checks both embedded EFI binaries
+and unchanged shim/DTB/FAT/touch settings. This remains diagnostic only;
+neither packaging nor offline fixtures prove hardware GPU execution.
+
 ## Full Linux XNU
 
 On 2026-11-09 the host dependency check reported missing `tcsh`, `unifdef`,

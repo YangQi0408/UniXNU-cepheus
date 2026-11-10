@@ -5,6 +5,49 @@ inside the **actual `CoreExitBootServices` tail**. This is locally accepted
 source and firmware, not a phone-tested collector or a GPU execution candidate.
 Default core staging, DarwinBoot, XNU and the running phone are unchanged.
 
+## Integration Update
+
+2026-11-10: the opt-in DarwinBoot adapter, shared core protocol and isolated
+XNU receiver are now integrated in source. This supersedes the earlier
+no-consumer statement below; the running phone still has not changed.
+
+DarwinBoot prepares/binds before its final map and copies only the core-owned
+record after successful EBS. A separate 1128-byte transport envelope preserves
+bind/copy failures and the EBS attempt count, exports no firmware pointers,
+and uses a zero `/chosen/cepheus-rpmh-tail` slot with `cephrpmhtail=1` only.
+The receiver waits 90 seconds, validates an aligned copy, prints 18 raw chunks
+and runs the existing read-only, aperture-gated GPU power/clock probe. It
+performs no new SCM query, resource vote, PAS operation or CP submission.
+
+Full local loader build `out/rpmh-tail-loader-20261110-v3/` is accepted by
+`out/rpmh-tail-loader-test-20261110-v7.json`: 29696 bytes, SHA256
+`e0563bc54f783e857191d2a594855c08fee8ed38475b8d206e223ce90fdea7fd`.
+Tail-only checks reject missing successful file-read output and null/out-of-range
+ADT inputs. Native loader analysis retains one existing map-descriptor warning,
+compared with two baseline warnings; this is not a zero-warning claim.
+The shared-protocol core build retains the accepted 422400-byte binary hash.
+`out/rpmh-tail-loader-core-test-20261110-v2.json` accepts the actual
+loader -> Core Bind -> actual EBS -> Core Copy chain at O0/O2 with sanitizers.
+
+`out/rpmh-tail-fv-20261110-v2/verification.json` accepts a 3145728-byte FD,
+SHA256 `51f56f1eedbf69be8b5e33d6621cba91c84b38a88e3d6c2398bcc2853b2f3f37`.
+Only DarwinBoot and DXE Core change among 197 inner files; the baseline
+reproduces and non-PE sections are unchanged. End-to-end packaging with a
+synthetic kernel, independent nested-FV verification and rejection cases pass;
+that fixture is never a boot candidate. Default pair packaging also passes.
+
+The actual XNU helper and independent Python raw-envelope analyzer pass O0/O2
+ASan/UBSan fixtures for unaligned/missing DT, every corrupted byte, collection
+and transport errors, missing/duplicate/reordered chunks, final padding and
+contradictory summaries. `out/rpmh-tail-preflight-20261110-v1/receipt.json`
+passes all four local prerequisites, 69 host programs and seven production-unit
+host analyses. A new complete XNU compile/link and its independent artifact
+acceptance are still required before a real candidate can be packaged.
+
+No phone operation has occurred. The next hardware point is one consolidated
+exit-tail diagnostic boot, not a GPU execution test. Missing global resource
+ownership, PAS13/authentication and SMMU admission are not solved by this ABI.
+
 ## Boundary
 
 The hook runs after successful memory-map termination, all EBS notifications,

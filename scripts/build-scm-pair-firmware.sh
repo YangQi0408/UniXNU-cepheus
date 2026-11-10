@@ -2,13 +2,13 @@
 # Isolated driver build; no sibling source edits or device access.
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-DEST=${1:?usage: build-scm-pair-firmware.sh NEW_OUTPUT_DIR [--rpmh-snapshot]}
+DEST=${1:?usage: build-scm-pair-firmware.sh NEW_OUTPUT_DIR [--rpmh-snapshot|--rpmh-tail]}
 test ! -e "$DEST"
 mkdir -p "$DEST"
 DEST=$(cd "$DEST" && pwd)
 STAGE_OPTIONS=()
-if [[ ${2:-} == --rpmh-snapshot ]]; then
-    STAGE_OPTIONS+=(--rpmh-snapshot)
+if [[ ${2:-} == --rpmh-snapshot || ${2:-} == --rpmh-tail ]]; then
+    STAGE_OPTIONS+=("$2")
 elif [[ -n ${2:-} ]]; then
     printf 'unknown build option: %s\n' "$2" >&2
     exit 2

@@ -53,18 +53,25 @@ def integrate(source):
     return source
 
 
-def integrate_snapshot(source):
+def integrate_snapshot(source, rpmh_tail=False):
     def replace(old, new):
         nonlocal source
         if source.count(old) != 1:
             raise ValueError('unexpected RPMh snapshot anchor: ' + old)
         source = source.replace(old, new)
-    replace('#include "CepheusScmPair.h"', '#include "CepheusScmPair.h"\n#include "CepheusRpmhSnapshot.h"')
+    header = 'CepheusRpmhTailHandoff.h' if rpmh_tail else 'CepheusRpmhSnapshot.h'
+    property_name = 'CE_RPMH_TAIL_HANDOFF_PROPERTY' if rpmh_tail else 'CE_RPMH_SNAPSHOT_PROPERTY'
+    slot_bytes = 'CE_RPMH_TAIL_HANDOFF_BYTES' if rpmh_tail else 'CE_RPMH_SNAPSHOT_BYTES'
+    profile = 'ceph_rpmh_tail_profile' if rpmh_tail else 'ceph_rpmh_snapshot_profile'
+    attempted = 'mCepheusRpmhTailAttempted' if rpmh_tail else 'mCepheusRpmhAttempted'
+    prepare = 'CepheusRpmhTailPrepare' if rpmh_tail else 'CepheusRpmhPrepare'
+    handoff = 'CepheusRpmhTailHandoff' if rpmh_tail else 'CepheusRpmhHandoff'
+    replace('#include "CepheusScmPair.h"', '#include "CepheusScmPair.h"\n#include "'+header+'"')
     replace('UINTN *ScmOffset)', 'UINTN *ScmOffset, UINTN *RpmhOffset)')
     replace('  UINTN  ScmCandidate;', '  UINTN  ScmCandidate;\n  UINTN  RpmhCandidate;')
     replace('  ScmCandidate = MAX_UINTN;', '  ScmCandidate = MAX_UINTN;\n  RpmhCandidate = MAX_UINTN;')
-    replace('    *Offset += Length;', '''    if (AsciiStrCmp ((CONST CHAR8 *)(Data + *Offset - 36), CE_RPMH_SNAPSHOT_PROPERTY) == 0) {
-      if ((RpmhCandidate != MAX_UINTN) || (Length != CE_RPMH_SNAPSHOT_BYTES)) { return FALSE; }
+    replace('    *Offset += Length;', '''    if (AsciiStrCmp ((CONST CHAR8 *)(Data + *Offset - 36), '''+property_name+''') == 0) {
+      if ((RpmhCandidate != MAX_UINTN) || (Length != '''+slot_bytes+''')) { return FALSE; }
       for (UINTN Byte = 0; Byte < Length; Byte++) { if (Data[*Offset + Byte] != 0) { return FALSE; } }
       RpmhCandidate = *Offset;
     }
@@ -76,26 +83,39 @@ def integrate_snapshot(source):
   if (Children > (Size - *Offset) / 8)''')
     replace('WindowSize, KeepPacked, ScmOffset))', 'WindowSize, KeepPacked, ScmOffset, RpmhOffset))')
     replace('  int                             ScmProfile;', '  int                             ScmProfile;\n  int                             RpmhProfile;\n  UINTN                           RpmhOffset;')
-    replace('  ScmProfile = ceph_scm_pair_profile (CommandLine);', '''  RpmhProfile = ceph_rpmh_snapshot_profile (CommandLine);
+    replace('  ScmProfile = ceph_scm_pair_profile (CommandLine);', '''  RpmhProfile = '''+profile+''' (CommandLine);
   if (RpmhProfile < 0) { return EFI_INVALID_PARAMETER; }
-  if ((RpmhProfile == 1) && mCepheusRpmhAttempted) { return EFI_ALREADY_STARTED; }
+  if ((RpmhProfile == 1) && '''+attempted+''') { return EFI_ALREADY_STARTED; }
   ScmProfile = ceph_scm_pair_profile (CommandLine);''')
     replace('  ScmOffset = MAX_UINTN;', '  ScmOffset = MAX_UINTN;\n  RpmhOffset = MAX_UINTN;')
     replace('&WindowSize, &KeepPacked, &ScmOffset)', '&WindowSize, &KeepPacked, &ScmOffset, &RpmhOffset)')
     replace('  if (KeepPacked &&', '''  if ((RpmhProfile == 1) != (RpmhOffset != MAX_UINTN)) { Status = EFI_COMPROMISED_DATA; goto Fail; }
   if (KeepPacked &&''')
-    replace('  Status = GetMap (&Map, &Capacity, &MapSize, &Key, &Stride);', '''  if (RpmhProfile == 1) { CepheusRpmhPrepare (); }
+    replace('  Status = GetMap (&Map, &Capacity, &MapSize, &Key, &Stride);', '''  if (RpmhProfile == 1) { '''+prepare+''' (); }
   Status = GetMap (&Map, &Capacity, &MapSize, &Key, &Stride);''')
-    replace('  if (ScmProfile == 1) { CepheusScmCapture (); }', '''  if (RpmhProfile == 1) { CepheusRpmhBind (Map, MapSize, Stride); }
+    if not rpmh_tail:
+        replace('  if (ScmProfile == 1) { CepheusScmCapture (); }', '''  if (RpmhProfile == 1) { CepheusRpmhBind (Map, MapSize, Stride); }
   if (ScmProfile == 1) { CepheusScmCapture (); }''')
-    replace('    Status = gBS->ExitBootServices (mImage, Key);', '''    if (RpmhProfile == 1) { CepheusRpmhCapture (Map, MapSize, Stride); }
+        replace('    Status = gBS->ExitBootServices (mImage, Key);', '''    if (RpmhProfile == 1) { CepheusRpmhCapture (Map, MapSize, Stride); }
     Status = gBS->ExitBootServices (mImage, Key);''')
-    replace('      DarwinEnter (ArgsAddress', '''      if (RpmhProfile == 1) { CepheusRpmhHandoff (TreeAddress + RpmhOffset, Attempt); }
+    replace('      DarwinEnter (ArgsAddress', '''      if (RpmhProfile == 1) { '''+handoff+''' (TreeAddress + RpmhOffset, Attempt); }
       DarwinEnter (ArgsAddress''')
+    if rpmh_tail:
+        replace('  if ((Depth > 64) || (Size - *Offset < 8)) { return FALSE; }',
+                '  if (!Data || !Offset || *Offset > Size || (Depth > 64) || (Size - *Offset < 8)) { return FALSE; }')
+        # ReadFile can return success without data if GetInfo unexpectedly
+        # succeeds on its zero-capacity query. Reject that before parsing/copy.
+        for pointer, size in (('Image', 'ImageSize'), ('Tree', 'TreeSize')):
+            anchor = ('  Status = ReadFile (Root, '+('Request->KernelPath, SIZE_128MB' if pointer == 'Image'
+                       else 'TreePath, SIZE_16MB')+', &'+pointer+', &'+size+');\n'
+                      '  if (EFI_ERROR (Status)) { goto Fail; }')
+            replace(anchor, anchor+'\n  if (!'+pointer+' || !'+size+') { Status = EFI_COMPROMISED_DATA; goto Fail; }')
     return source
 
 
-def stage(repository, output, rpmh_snapshot=False):
+def stage(repository, output, rpmh_snapshot=False, rpmh_tail=False):
+    if rpmh_snapshot and rpmh_tail:
+        raise ValueError('RPMh profiles must be isolated')
     if output.exists():
         raise ValueError('output already exists')
     archive = subprocess.check_output(['git', '-C', str(repository), 'archive', BASE])
@@ -119,6 +139,11 @@ def stage(repository, output, rpmh_snapshot=False):
             shutil.copyfile(ROOT/'firmware'/file, driver/file)
         subprocess.run(['python3', str(ROOT/'scripts/generate-rpmh-snapshot-identity.py'),
                         str(ROOT.parent), str(driver/'CepheusRpmhSnapshotIdentity.h')], check=True)
+    if rpmh_tail:
+        source.write_text(integrate_snapshot(source.read_text(), rpmh_tail=True))
+        for file in ('CepheusRpmhTailHandoff.h', 'CepheusRpmhTailProtocol.h',
+                     'cepheus_rpmh_tail_handoff.h', 'cepheus_rpmh_tail.h', 'cepheus_rpmh_snapshot.h'):
+            shutil.copyfile(ROOT/'firmware'/file, driver/file)
     manifest = {'base_commit': BASE, 'aligned_sha256': ALIGNED_SHA, 'files': {}}
     for file in sorted(driver.iterdir()):
         if file.is_file():
@@ -132,5 +157,6 @@ if __name__ == '__main__':
     parser.add_argument('repository', type=Path)
     parser.add_argument('output', type=Path)
     parser.add_argument('--rpmh-snapshot', action='store_true')
+    parser.add_argument('--rpmh-tail', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(stage(args.repository.resolve(), args.output.resolve(), args.rpmh_snapshot), indent=2))
+    print(json.dumps(stage(args.repository.resolve(), args.output.resolve(), args.rpmh_snapshot, args.rpmh_tail), indent=2))

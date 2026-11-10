@@ -19,6 +19,7 @@ def main():
     p.add_argument('--run',required=True,type=int);p.add_argument('--commit',required=True)
     p.add_argument('--input',required=True,type=Path);p.add_argument('--log',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path)
+    p.add_argument('--rpmh-tail',action='store_true',help='also verify this commit\'s tail ABI, native helper and linked caller')
     a=p.parse_args();assert not a.output.exists()
     pin=run(['git','rev-parse',a.commit]).strip()
     ci=json.loads(run(['gh','run','view',str(a.run),'--repo','YangQi0408/UniXNU-cepheus',
@@ -49,6 +50,13 @@ def main():
             recorded=subprocess.check_output(['git','show',pin+':xnu/'+path.name],cwd=ROOT)
             assert recorded==path.read_bytes(),path.name
             source_identity[path.name]=hashlib.sha256(recorded).hexdigest()
+    if a.rpmh_tail:
+        for name in ('cepheus_rpmh_snapshot.h','cepheus_rpmh_tail.h','cepheus_rpmh_tail_handoff.h'):
+            recorded=subprocess.check_output(['git','show',pin+':firmware/'+name],cwd=ROOT)
+            assert recorded==(ROOT/'firmware'/name).read_bytes(),name
+            source_identity['firmware/'+name]=hashlib.sha256(recorded).hexdigest()
+        for marker in (b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail'):
+            assert marker in data,marker
     for marker in (b'CEPHEUS SCM PAIR: UEFI',b'CEPHEUS SCM PAIR: XNU begin',b'CEPHEUS SCM PAIR: end',
         b'cepheus-scm-handoff',b'CEPHEUS SCM %s CPU:',b'CEPHEUS SCM INFO REGS: in=',
         b'CEPHEUS SCM INFO REGS: out=',b'CEPHEUS SCM PAS REGS: in=',b'CEPHEUS SCM PAS REGS: out='):
@@ -61,6 +69,13 @@ def main():
     for line,register in zip(instructions[index-3:index],('CurrentEL','MPIDR_EL1','CNTPCT_EL0')):
         assert line.startswith('mrs\t') and register in line
     assert '_disable_preemption' in callback and '_enable_preemption' in callback
+    if a.rpmh_tail:
+        tail=assembly.split('<_soc_rpmh_tail>:',1)[1].split('\n\n',1)[0]
+        thread=assembly.split('<_soc_thread>:',1)[1].split('\n\n',1)[0]
+        assert '_soc_rpmh_tail' in thread
+        assert '_SecureDTLookupEntry' in tail and '_SecureDTGetProperty' in tail
+        assert '_gpu_probe' in tail or '_ml_io_map' in tail
+        assert 'smc\t' not in tail and '_cepheus_gpu_submit' not in tail and '_cepheus_gpu_arc_raise' not in tail
     checks={}
     for script,flags in (('verify-touch-kernel.py',['--ordered-contacts']),('verify-pmap-cache-kernel.py',[])):
         checks[script]=run(['python3',str(ROOT/'scripts'/script),str(kernel),*flags]).strip()
@@ -74,6 +89,7 @@ def main():
         'ci_staged_source_comparisons_passed':True,'source_sha256':source_identity,
         'build_log_sha256':hashlib.sha256(a.log.read_bytes()).hexdigest(),
         'phone_operations':False,'gpu_execution':False,'run_state':ci}
+    if a.rpmh_tail:result.update(tail_abi_source_verified=True,native_tail_hook_and_caller_verified=True)
     a.output.parent.mkdir(parents=True,exist_ok=True)
     a.output.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k not in ('run_state','source_sha256')},indent=2))

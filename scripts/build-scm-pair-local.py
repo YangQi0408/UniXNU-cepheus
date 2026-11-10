@@ -28,6 +28,9 @@ def main():
     p.add_argument('--output',required=True,type=Path)
     p.add_argument('--baseline',type=Path,default=ROOT.parent/'dist/boot-cepheus-zapmem-b5006b5.img')
     p.add_argument('--container',help='local image providing Python and mtools; packaging runs network-disabled')
+    p.add_argument('--rpmh-tail',action='store_true',help='isolated diagnostic, reuse the complete local loader/core builds')
+    p.add_argument('--firmware-build',type=Path,help='complete tail loader build to verify and reuse')
+    p.add_argument('--core-build',type=Path,help='complete tail core build to verify and reuse')
     a=p.parse_args();out=a.output.resolve();kernel=a.kernel.resolve();baseline=a.baseline.resolve()
     if out.exists():p.error('output exists; preserve earlier build results')
     if not kernel.is_file() or not baseline.is_file():p.error('missing kernel or baseline')
@@ -36,6 +39,11 @@ def main():
         p.error('kernel verification receipt does not match a passed artifact')
     if verification.get('native_cpu_capture_and_smc_verified') is not True:
         p.error('compiled CPU/SMC callback verification is required')
+    if a.rpmh_tail:
+        if not a.firmware_build or not a.core_build:p.error('tail requires both complete local firmware builds')
+        if verification.get('native_tail_hook_and_caller_verified') is not True or verification.get('tail_abi_source_verified') is not True:
+            p.error('compiled tail caller/helper and source ABI verification required')
+    elif a.firmware_build or a.core_build:p.error('build reuse options require --rpmh-tail')
     data=kernel.read_bytes()
     if data[:8]!=bytes.fromhex('cffaedfe0c000001') or len(data)<2000000:
         p.error('kernel must be substantial ARM64 Mach-O')
@@ -45,6 +53,12 @@ def main():
     out.mkdir(parents=True)
     efi=out/'firmware/build/DarwinBoot/RELEASE_CLANGPDB/AARCH64/DarwinBoot.efi'
     fd=out/'fv/scm-pair.fd';fv_receipt=out/'fv/verification.json';image=out/'boot-scm-pair.img'
+    core=None
+    if a.rpmh_tail:
+        efi=a.firmware_build.resolve()/'build/DarwinBoot/RELEASE_CLANGPDB/AARCH64/DarwinBoot.efi'
+        core=a.core_build.resolve()/'build/PoolLifetimeCore/RELEASE_CLANGPDB/AARCH64/DxeCore.efi'
+        image=out/'boot-rpmh-tail.img'
+        if not efi.is_file() or not core.is_file():p.error('missing compiled EFI artifact')
     receipt={'time_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
              'kernel':identity(kernel),'kernel_verification':identity(a.kernel_receipt.resolve()),
              'baseline':identity(baseline),
@@ -59,8 +73,19 @@ def main():
         ['python3',str(ROOT/'scripts/verify-scm-pair-boot.py'),str(image),str(baseline),str(kernel),
          str(fd),str(efi),str(fv_receipt),str(out/'boot-verification.json')],
     ]
+    if a.rpmh_tail:
+        steps=[
+            ['python3',str(ROOT/'scripts/test-rpmh-tail-loader.py'),'--firmware-build',str(a.firmware_build.resolve()),
+             '--output',str(out/'loader-verification.json')],
+            ['python3',str(ROOT/'scripts/test-rpmh-tail-core.py'),'--firmware-build',str(a.core_build.resolve()),
+             '--output',str(out/'core-verification.json')],
+            steps[1]+['--core',str(core)],
+            steps[2]+['--rpmh-tail'],
+            steps[3]+['--core',str(core)],
+        ]
+        receipt.update(profile='rpmh-exit-tail',core=identity(core),gpu_execution=False)
     for index,command in enumerate(steps):
-        if a.container and index>=2:
+        if a.container and index>=len(steps)-2:
             command=['docker','run','--rm','--network','none','--user',
                      subprocess.check_output(['id','-u'],text=True).strip()+':'+
                      subprocess.check_output(['id','-g'],text=True).strip(),
@@ -73,7 +98,7 @@ def main():
         receipt['steps'].append({'command':command,'exit_code':code,'log':log.name})
         receipt['result']='FAIL' if code else 'RUNNING'
         (out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
-        print(f'{index+1}/4 {"FAIL" if code else "PASS"}: {log}',flush=True)
+        print(f'{index+1}/{len(steps)} {"FAIL" if code else "PASS"}: {log}',flush=True)
         if code:
             print(log.read_text(errors='replace')[-5000:]);return code
     receipt.update(result='PASS',image=identity(image),efi=identity(efi),fd=identity(fd))

@@ -21,6 +21,7 @@
 #include "cepheus_gpu_bin.h"
 #include "cepheus_scm_discovery.h"
 #include "cepheus_scm_handoff.h"
+#include "cepheus_rpmh_tail_handoff.h"
 extern void cepheus_gmu_workspace_selftest(void);
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
@@ -323,6 +324,53 @@ static void gpu_gx_probe(void)
 	    sr(gx, 0xe0d * 4), sr(gx, 0xe0e * 4));
 	printf("CEPHEUS GPU GX: probe only; no GX write, no unhalt, no submission\n");
 }
+__attribute__((noinline))
+static bool soc_rpmh_tail(void)
+{
+	int profile=ceph_rpmh_tail_profile(PE_boot_args());
+	if (!profile) { return false; }
+	if (profile!=1) { printf("CEPHEUS RPMH TAIL: refused profile\n");return true; }
+	printf("CEPHEUS RPMH TAIL: scheduled delay_s=90\n");
+	swait(90000);
+	DTEntry chosen;
+	const void *property=NULL;
+	unsigned bytes=0;
+	static struct ceph_rpmh_tail_handoff handoff;
+	if (SecureDTLookupEntry(NULL,"/chosen",&chosen)!=kSuccess ||
+	    SecureDTGetProperty(chosen,CE_RPMH_TAIL_HANDOFF_PROPERTY,&property,&bytes)!=kSuccess ||
+	    !property || bytes!=sizeof(handoff)) {
+		printf("CEPHEUS RPMH TAIL: missing handoff; no resource writes\n");return true;
+	}
+	memcpy(&handoff,property,sizeof(handoff));
+	if (ceph_rpmh_tail_handoff_valid(&handoff)) {
+		printf("CEPHEUS RPMH TAIL: invalid handoff; no resource writes\n");return true;
+	}
+	printf("CEPHEUS RPMH TAIL: begin flags=%#x bind=%#llx copy=%#llx ebs=%u checksum=%#llx\n",
+	    handoff.flags,(unsigned long long)handoff.bind_status,(unsigned long long)handoff.copy_status,
+	    handoff.ebs_attempts,(unsigned long long)handoff.checksum);
+	/* Raw aligned-copy words let the host reconstruct and independently check
+	 * the whole diagnostic, not just trust a printed success summary. */
+	for (unsigned offset=0;offset<sizeof(handoff);offset+=64) {
+		uint64_t words[8]={0};
+		unsigned count=sizeof(handoff)-offset;
+		if (count>sizeof(words)) {count=sizeof(words);}
+		memcpy(words,(const uint8_t *)&handoff+offset,count);
+		printf("CEPHEUS RPMH TAIL: raw=%u words=%016llx:%016llx:%016llx:%016llx:%016llx:%016llx:%016llx:%016llx\n",offset,
+		    (unsigned long long)words[0],(unsigned long long)words[1],(unsigned long long)words[2],(unsigned long long)words[3],
+		    (unsigned long long)words[4],(unsigned long long)words[5],(unsigned long long)words[6],(unsigned long long)words[7]);
+	}
+	if (handoff.flags&CE_TAIL_COPIED) {
+		const struct ceph_rpmh_tail *t=&handoff.record;
+		printf("CEPHEUS RPMH TAIL: core error=%d boundaries=%#x reads=%u identity=%#x resources=%u serial=%#llx ticks=%#llx/%#llx\n",
+		    t->error,t->boundaries,t->reads,t->requests.identity_mask,t->requests.resource_count,
+		    (unsigned long long)t->allocation_serial,(unsigned long long)t->begin_ticks,(unsigned long long)t->end_ticks);
+	}
+	/* The existing read-only power/clock probe skips unavailable apertures.
+	 * No ARC/BCM sender, SCM query, PAS mutation or CP submission is called. */
+	gpu_probe();
+	printf("CEPHEUS RPMH TAIL: end; diagnostic only, no ACK/ownership or GPU execution\n");
+	return true;
+}
 static bool soc_scm_pair(void)
 {
 	int profile=ceph_scm_pair_profile(PE_boot_args());
@@ -443,6 +491,9 @@ static void soc_scm_probe(void)
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
+	if (soc_rpmh_tail()) {
+		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
+	}
 	if (soc_scm_pair()) {
 		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
 	}
@@ -513,7 +564,8 @@ void cepheus_soc_init(void)
 	int zap=0;
 	bool zap_present=PE_parse_boot_argn("cephzapmem", &zap, sizeof(zap));
 	int pair=ceph_scm_pair_profile(PE_boot_args());
-	if ((!enabled && !zap_present && !pair) || started) { return; }
+	int tail=ceph_rpmh_tail_profile(PE_boot_args());
+	if ((!enabled && !zap_present && !pair && !tail) || started) { return; }
 	started = true;
 	if (kernel_thread_start(soc_thread, NULL, &thread) == KERN_SUCCESS) { thread_deallocate(thread); }
 }

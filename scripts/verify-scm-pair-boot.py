@@ -60,35 +60,41 @@ def inner_files(fd):
     return outer,fv.files(sections[1][1])
 
 
-def validate_config(old,new):
+def validate_config(old,new,rpmh_tail=False):
     old=tomllib.loads(old.decode());new=tomllib.loads(new.decode())
     assert len(old['entry'])==len(new['entry'])==1
     before=old['entry'][0]['args'].split();after=new['entry'][0]['args'].split()
     assert [t for t in before if t.startswith('ceph')]==['cephzapmem=1']
-    assert [t for t in after if t.startswith('ceph')]==['cephscmpair=1']
+    profile='cephrpmhtail=1' if rpmh_tail else 'cephscmpair=1'
+    assert [t for t in after if t.startswith('ceph')]==[profile]
     assert len(after)==len({t.split('=',1)[0] for t in after})
-    assert [t if t!='cephscmpair=1' else 'cephzapmem=1' for t in after]==before
+    assert [t if t!=profile else 'cephzapmem=1' for t in after]==before
     line=new['entry'][0]['args'];assert len(line)<1000
     new['entry'][0]['args']=old['entry'][0]['args'];assert new==old
     return line
 
 
-def validate_adt(old,new):
+def validate_adt(old,new,rpmh_tail=False):
+    slot='cepheus-rpmh-tail' if rpmh_tail else SLOT
+    size=1128 if rpmh_tail else 2656
     tree,end=adt.parse(new);assert end==len(new) and adt.serialize(tree)==new
     slots=[]
     def scan(node,path):
         for name,flags,data in node.props:
-            if name==SLOT:slots.append((node,path,flags,data))
+            if name in (SLOT,'cepheus-rpmh-tail','cepheus-rpmh-snapshot'):
+                assert name==slot
+                slots.append((node,path,flags,data))
         for child in node.children:scan(child,path+'/'+child.name)
     scan(tree,'')
     assert len(slots)==1
     node,path,flags,data=slots[0]
-    assert path=='/chosen' and flags==0 and data==bytes(2656)
-    node.props=[p for p in node.props if p[0]!=SLOT]
+    assert path=='/chosen' and flags==0 and data==bytes(size)
+    node.props=[p for p in node.props if p[0]!=slot]
     assert adt.serialize(tree)==old
 
 
-def verify(image,reference,kernel,fd,efi,receipt):
+def verify(image,reference,kernel,fd,efi,receipt,core=None):
+    rpmh_tail=core is not None
     before=reference.read_bytes();after=image.read_bytes();assert sha(before)==BASE_SHA
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
@@ -104,10 +110,13 @@ def verify(image,reference,kernel,fd,efi,receipt):
     for name in old.keys()-mutable:assert old[name]==new[name],name
     data=kernel.read_bytes();assert data==new[KERNEL]
     assert data[:8]==bytes.fromhex('cffaedfe0c000001') and len(data)>2000000
-    for marker in (b'CEPHEUS SCM PAIR: UEFI',b'CEPHEUS SCM PAIR: XNU begin',
-                   b'CEPHEUS SCM PAIR: end',b'cepheus-scm-handoff',b'CEPHEUS SCM %s CPU:'):
+    markers=(b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail') if rpmh_tail else (
+             b'CEPHEUS SCM PAIR: UEFI',b'CEPHEUS SCM PAIR: XNU begin',
+             b'CEPHEUS SCM PAIR: end',b'cepheus-scm-handoff',b'CEPHEUS SCM %s CPU:')
+    for marker in markers:
         assert marker in data,marker
-    line=validate_config(old[CONFIG],new[CONFIG]);validate_adt(old[KERNEL+'.adt'],new[KERNEL+'.adt'])
+    line=validate_config(old[CONFIG],new[CONFIG],rpmh_tail)
+    validate_adt(old[KERNEL+'.adt'],new[KERNEL+'.adt'],rpmh_tail)
     report=json.loads(receipt.read_text())
     assert report['baseline_fd_sha256']==sha(oldfd) and report['baseline_reproduced'] is True
     assert report['fd_sha256']==sha(newfd) and report['fd_bytes']==len(newfd)
@@ -119,20 +128,37 @@ def verify(image,reference,kernel,fd,efi,receipt):
     oldouter,oldinner=inner_files(oldfd);outer,inner=inner_files(newfd)
     assert oldouter.keys()==outer.keys() and oldinner.keys()==inner.keys()
     assert [k for k in outer if oldouter[k]!=outer[k]]==[fv.WRAPPER.upper()]
-    assert [k for k in inner if oldinner[k]!=inner[k]]==[fv.DRIVER]
+    changed={k for k in inner if oldinner[k]!=inner[k]}
+    assert changed==({fv.DRIVER,fv.CORE} if rpmh_tail else {fv.DRIVER})
     actual=[body for kind,body in fv.sections(inner[fv.DRIVER][24:]) if kind==0x10]
     assert actual==[pe] and len(inner)==report['main_files']==197
-    return {'status':'PASS','image':str(image),'bytes':len(after),'sha256':sha(after),
+    for guid in changed:
+        previous=fv.sections(oldinner[guid][24:]);current=fv.sections(inner[guid][24:])
+        assert [kind for kind,_ in previous]==[kind for kind,_ in current]
+        assert [(k,v) for k,v in previous if k!=0x10]==[(k,v) for k,v in current if k!=0x10]
+    if rpmh_tail:
+        core_data=core.read_bytes()
+        assert report['main_files_changed']==sorted(changed) and report['core_sha256']==sha(core_data)
+        assert report['core_filetype_verified'] is True and report['other_sections_unchanged'] is True
+        assert inner[fv.CORE][18]==5
+        assert [body for kind,body in fv.sections(inner[fv.CORE][24:]) if kind==0x10]==[core_data]
+        assert core_data[:2]==b'MZ'
+        offset=struct.unpack_from('<I',core_data,0x3c)[0]
+        assert core_data[offset:offset+4]==b'PE\0\0' and struct.unpack_from('<H',core_data,offset+4)[0]==0xaa64
+    result={'status':'PASS','image':str(image),'bytes':len(after),'sha256':sha(after),
         'baseline_sha256':BASE_SHA,'kernel_sha256':sha(data),'fd_sha256':sha(newfd),
-        'efi_sha256':sha(pe),'args':line,'zero_handoff_bytes':2656,
+        'efi_sha256':sha(pe),'args':line,'zero_handoff_bytes':1128 if rpmh_tail else 2656,
         'nested_files_checked':len(inner),'shim_dtb_unchanged':True,
         'other_fat_files_unchanged':True,'actual_embedded_efi_equal':True,
         'phone_operations':False,'gpu_execution':False}
+    if rpmh_tail:result.update(profile='rpmh-exit-tail',core_sha256=sha(core_data),actual_embedded_core_equal=True)
+    return result
 
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('image','reference','kernel','fd','efi','receipt','output'):p.add_argument(name,type=Path)
+    p.add_argument('--core',type=Path,help='verify the isolated exit-tail profile and exact embedded core')
     a=p.parse_args();assert not a.output.exists()
-    result=verify(*(getattr(a,n) for n in ('image','reference','kernel','fd','efi','receipt')))
+    result=verify(*(getattr(a,n) for n in ('image','reference','kernel','fd','efi','receipt')),core=a.core)
     a.output.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))

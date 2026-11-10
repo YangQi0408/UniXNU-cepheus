@@ -7,7 +7,7 @@ cd "$ROOT"
 python3 scripts/test-performance.py
 python3 scripts/test-touch-power.py "$PATCHES"
 for name in touch-fifo touch-replay touch-soc-log touch-sysinfo ready-boot-args \
-    scm-hook scm-pair-hook scm-pair-log scm-query-log soc-delay soc-delay-packaging \
+    scm-hook scm-pair-hook scm-pair-log scm-query-log rpmh-tail-hook soc-delay soc-delay-packaging \
     gpu-integration pmap-cache-pa pmap-cache-verifier tree gpu-fdt \
     gpu-diagnostic-log gx-probe zap-layout zap-preflight-packaging \
     zap-cache-codegen zap-memory-log scm-codegen; do

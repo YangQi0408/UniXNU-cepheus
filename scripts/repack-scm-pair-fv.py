@@ -13,6 +13,7 @@ import subprocess
 import uuid
 
 DRIVER = '1B64AF87-8415-4B57-9B16-680D70913B9F'
+CORE = 'D6A2CB7F-6A18-4E2F-B43B-9920A733700A'
 WRAPPER = '9E21FD93-9C72-4c15-8C4B-E77F1DB2D792'
 LZMA_GUID = 'EE4E5898-3914-4259-9D6E-DC7BD79403CF'
 FD_SHA = '511323ca7115e5c9f2d78e32d56c632775450738641ad75e189185959a74bcc4'
@@ -61,7 +62,7 @@ def sections(data):
     return result
 
 
-def repack(source,efi,tools,output):
+def repack(source,efi,tools,output,core=None):
     assert not output.exists()
     baseline=(source/'SM8150_EFI.fd').read_bytes()
     assert digest(baseline)==FD_SHA
@@ -91,14 +92,30 @@ def repack(source,efi,tools,output):
     run('GenSec','-s','EFI_SECTION_PE32','-o',pe,efi)
     run('GenFfs','-t','EFI_FV_FILETYPE_DRIVER','-g',DRIVER,'-o',driver,
         '-oi',pe,'-oi',driver_dir/f'{DRIVER}SEC3.ui')
-    candidate_inf=recipe('FVMAIN',{driver_dir/f'{DRIVER}.ffs':driver})
+    changes={driver_dir/f'{DRIVER}.ffs':driver}
+    changed={DRIVER}
+    if core:
+        core_dir=source/'Ffs'/'D6A2CB7F-6A18-4e2f-B43B-9920A733700ADxeCore'
+        core_guid='D6A2CB7F-6A18-4e2f-B43B-9920A733700A'
+        core_pe=output/'DxeCore.pe32';core_ffs=output/'DxeCore.ffs'
+        run('GenSec','-s','EFI_SECTION_PE32','-o',core_pe,core)
+        run('GenFfs','-t','EFI_FV_FILETYPE_DXE_CORE','-g',core_guid,'-o',core_ffs,
+            '-oi',core_pe,'-oi',core_dir/f'{core_guid}SEC2.ui')
+        changes[core_dir/f'{core_guid}.ffs']=core_ffs;changed.add(CORE)
+    candidate_inf=recipe('FVMAIN',changes)
     main=output/'candidate-main.fv'
     run('GenFv','-i',candidate_inf,'-o',main)
     old_files=files(control_main.read_bytes());new_files=files(main.read_bytes())
     assert old_files.keys()==new_files.keys()
-    assert [k for k in old_files if old_files[k]!=new_files[k]]==[DRIVER]
+    assert {k for k in old_files if old_files[k]!=new_files[k]}==changed
     image_sections=sections(new_files[DRIVER][24:])
     assert [v for t,v in image_sections if t==0x10]==[efi.read_bytes()]
+    if core:
+        assert new_files[CORE][18]==5
+        assert [v for t,v in sections(new_files[CORE][24:]) if t==0x10]==[core.read_bytes()]
+        for guid in changed:
+            assert [v for t,v in sections(old_files[guid][24:]) if t!=0x10]==[
+                v for t,v in sections(new_files[guid][24:]) if t!=0x10]
     fvsec=output/'fv.sec';aligned=output/'fv.aligned';compressed=output/'fv.lzma'
     guided=output/'fv.guided';wrapper=output/'wrapper.ffs'
     run('GenSec','-s','EFI_SECTION_FIRMWARE_VOLUME_IMAGE','-o',fvsec,main)
@@ -126,6 +143,10 @@ def repack(source,efi,tools,output):
         'driver_sha256':digest(efi.read_bytes()),'main_files':len(new_files),
         'only_main_file_changed':DRIVER,'only_outer_file_changed':WRAPPER,
         'actual_pe_extracted_and_equal':True,'phone_operations':False}
+    if core:
+        report.pop('only_main_file_changed')
+        report.update(main_files_changed=sorted(changed),core_sha256=digest(core.read_bytes()),
+                      core_filetype_verified=True,other_sections_unchanged=True,gpu_execution=False)
     (output/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
     return report
 
@@ -133,5 +154,7 @@ def repack(source,efi,tools,output):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for arg in ('source','efi','tools','output'):p.add_argument(arg,type=Path)
+    p.add_argument('--core',type=Path,help='opt-in diagnostic core; replace its FFS as well')
     a=p.parse_args()
-    print(json.dumps(repack(*(getattr(a,k).resolve() for k in ('source','efi','tools','output'))),indent=2))
+    print(json.dumps(repack(*(getattr(a,k).resolve() for k in ('source','efi','tools','output')),
+                           core=a.core.resolve() if a.core else None),indent=2))

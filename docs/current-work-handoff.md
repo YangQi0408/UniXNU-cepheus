@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10：退出尾诊断已接入DarwinBoot/1128B独立ADT/XNU/raw日志和
+双FFS打包。完整本地loader29696B/SHAe0563bc54f783e85...、shared core
+422400B/SHAb7a97cd5239d8cbc...；实际loader/Core Bind/EBS/Copy及O0/O2
+sanitizer通过，loader native保留基线一map warning，无新增warning。
+FD3145728B/SHA51f56f1eedbf69be...，197 inner中仅DarwinBoot/Core变，UI/
+其余sections/shim/DTB/FAT/touch参数保留；合成kernel打包及独立拒绝测试
+通过，非启动候选。实际XNU helper/独立raw analyzer及四步preflight通过。
+新XNU完整编译/链接待派发，旧CI42819762105无tail hook，不得混用。详见
+rpmh-exit-tail.md及local-build.md。正常手机保持，无boot/重启/刷写。
+下一个真机点为一次集中退出尾/只读GPU诊断，不再重复触摸/SCM/memory轮；
+PAS13=false/supported=false/CP halt不绕，GPU scratch/fence/Metal仍未执行。
+
 最新2026-11-10 21:35：BCM/ARC完整XNU CI42819762105 @02f4077成功，内核/
 日志已下载并独立验收PASS：17451096B/SHA a0170217a28daa09a639185135a74bfb
 5315d87560fa9c822289e99ce6d56611，86 core/22 memory、无unresolved及source/

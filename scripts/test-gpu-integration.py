@@ -2,6 +2,7 @@
 """Portable GPU source/staging integration checks, not XNU ABI or runtime tests."""
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -10,6 +11,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Integration(unittest.TestCase):
+    def test_soc_canonical_tail_headers_staged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);patches=root/'patches';patches.mkdir()
+            tree=root/'tree';(tree/'bsd/conf').mkdir(parents=True)
+            (tree/'bsd/dev').mkdir();(tree/'bsd/conf/files').write_text('base\n')
+            names=('cepheus_rpmh_snapshot.h','cepheus_rpmh_tail.h','cepheus_rpmh_tail_handoff.h')
+            for name in ('0085-stage-cepheus-soc.sh','cepheus_soc.c','cepheus_soc.h',
+                         'cepheus_cpu_policy.h','cepheus_gpu_power.h'):
+                shutil.copyfile(ROOT/'xnu'/name,patches/name)
+            for name in names:shutil.copyfile(ROOT/'firmware'/name,patches/name)
+            subprocess.run(['bash',str(patches/'0085-stage-cepheus-soc.sh')],cwd=tree,check=True)
+            for name in names:
+                self.assertEqual((tree/'bsd/dev'/name).read_bytes(),(ROOT/'firmware'/name).read_bytes())
+
     def test_real_config_sources_when_supplied(self):
         # Optional explicit reference; synthetic coverage is not presented as
         # real source application. CI verifies the actual applied build tree.

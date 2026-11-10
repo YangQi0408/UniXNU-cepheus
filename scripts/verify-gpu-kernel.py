@@ -74,11 +74,16 @@ def main():
             raise ValueError(f'header declared in HEADERS but never staged: {name}')
         if staged.read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged BSD source mismatch: {name}')
+    for name in ('cepheus_rpmh_snapshot.h','cepheus_rpmh_tail.h','cepheus_rpmh_tail_handoff.h'):
+        if (args.xnu/'bsd/dev'/name).read_bytes() != (ROOT/'firmware'/name).read_bytes():
+            raise ValueError(f'staged firmware diagnostic ABI mismatch: {name}')
     for name in ('cepheus_gpu_memory.cpp', 'cepheus_gpu_memory.h', 'cepheus_gpu_memory_state.h','cepheus_gpu_firmware.h',
                  'cepheus_gpu_retire.h','cepheus_gpu_memory_private.h','cepheus_zap_image.h','cepheus_zap_memory.h','cepheus_zap_cache.h','cepheus_zap_memory_private.h'):
         if (args.xnu / 'iokit/Kernel/arm' / name).read_bytes() != (ROOT / 'xnu' / name).read_bytes():
             raise ValueError(f'staged IOKit source mismatch: {name}')
     data = args.kernel.read_bytes()
+    for marker in (b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail'):
+        if marker not in data:raise ValueError('missing RPMh exit-tail diagnostic '+repr(marker))
     if data[:8] != bytes.fromhex('cffaedfe0c000001') or b'CEPHEUS GPU MEM:' not in data:
         raise ValueError('not the expected arm64 GPU kernel')
     if b'SWEET FASTBOOT:' in data or b'sweetfastboot' in data:

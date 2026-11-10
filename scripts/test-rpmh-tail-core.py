@@ -103,8 +103,8 @@ static void *gBS;
         fixture = fixture.replace('static UINTN mMapDepth;', 'static UINTN mMapDepth;\nstatic LIST_ENTRY mFreeMemoryMapEntryList;')
         fixture = fixture.replace('p==&mCepheusPoolQuery', '(p==&mCepheusPoolQuery||p==&mCeTailProtocol)', 1)
         fixture = fixture.replace('assert(installs==1&&mCepheusPoolQuery.Version==1)', 'assert(installs==2&&mCepheusPoolQuery.Version==1)', 1)
-        fixture = fixture.replace('int main(void)', '#include "test_rpmh_tail_core.c"\n#include "test_rpmh_tail_exit.c"\nint main(void)', 1)
-        fixture = fixture.replace('actual_page_conversion();', 'actual_page_conversion();tail_tests();tail_exit_tests();', 1)
+        fixture = fixture.replace('int main(void)', '#include "test_rpmh_tail_core.c"\n#include "test_rpmh_tail_exit.c"\n#include "test_rpmh_tail_loader.c"\nint main(void)', 1)
+        fixture = fixture.replace('actual_page_conversion();', 'actual_page_conversion();tail_tests();tail_exit_tests();tail_loader_tests();', 1)
         src = temp/'fixture.c'
         src.write_text(fixture)
         for optimize in ('-O0', '-O2'):
@@ -173,7 +173,8 @@ static void *gBS;
         receipt['steps'].append({'native_assembly':'real DXE main calls attempt, installed protocol and exit-tail',
             'sha256':hashlib.sha256(asm.encode()).hexdigest()})
         for name in ('firmware/test_pool_lifetime_core.c','firmware/test_rpmh_tail_core.c',
-                     'firmware/test_rpmh_tail_exit.c','scripts/test-rpmh-tail-core.py',
+                     'firmware/test_rpmh_tail_exit.c','firmware/test_rpmh_tail_loader.c','scripts/test-rpmh-tail-core.py',
+                     'firmware/CepheusRpmhTailHandoff.h','firmware/cepheus_rpmh_tail_handoff.h','firmware/CepheusRpmhTailProtocol.h',
                      'scripts/stage-pool-lifetime-core.py','scripts/build-pool-lifetime-core.sh',
                      'scripts/generate-rpmh-snapshot-identity.py','firmware/PoolLifetimeCore.dsc'):
             receipt['files'][name]=hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
