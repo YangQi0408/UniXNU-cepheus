@@ -44,6 +44,11 @@ for mode in 0 1 2 3 4 5 6 7; do "$tmp/smmu-pin" "$mode"; done
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_upload_memory_pin.cpp" "$tmp/workspace.o" "$tmp/retire.o" \
     -o "$tmp/upload-pin" "${libs[@]}"
 for mode in 0 1 2 3 4 5 6 7; do "$tmp/upload-pin" "$mode"; done
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_hfi_memory_pin.cpp" "$tmp/workspace.o" "$tmp/retire.o" \
+    -o "$tmp/hfi-pin" "${libs[@]}"
+for mode in 0 1 2 3 4 5 6; do "$tmp/hfi-pin" "$mode"; done
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
     -DCEPHEUS_SMMU_NATIVE_POOL_TEST=1 -c "$root/xnu/test_smmu_native.c" -o "$tmp/smmu-native-pool.o"
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
@@ -100,6 +105,14 @@ done
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_upload_native_pool.cpp" "$tmp/upload-native-pool.o" \
     "$tmp/cepheus_gpu_compile.c.o" "$tmp/workspace.o" "$tmp/retire.o" -o "$tmp/upload-native-pool" "${libs[@]}"
 if [[ $# -ge 1 ]]; then for mode in 0 1 2 3 4 5; do "$tmp/upload-native-pool" "$1" "$mode"; done; else "$tmp/upload-native-pool"; fi
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
+    -c "$root/xnu/test_gmu_hfi_native_pool.c" -o "$tmp/hfi-native-pool.o"
+"${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
+    -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
+    "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_hfi_native_pool.cpp" "$tmp/hfi-native-pool.o" \
+    "$tmp/cepheus_gpu_compile.c.o" "$tmp/cepheus_gmu_hfi_link.c.o" "$tmp/workspace.o" "$tmp/retire.o" \
+    -o "$tmp/hfi-native-pool" "${libs[@]}"
+if [[ $# -ge 1 ]]; then for mode in 0 1 2 3 4 5 6 7 8; do "$tmp/hfi-native-pool" "$1" "$mode"; done; else "$tmp/hfi-native-pool"; fi
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gmu_bringup_main.cpp" \

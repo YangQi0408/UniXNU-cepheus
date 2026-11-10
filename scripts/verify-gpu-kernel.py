@@ -38,6 +38,7 @@ HEADERS += ('cepheus_gmu_oob_native.h','cepheus_gmu_oob_native_private.h')
 HEADERS += ('cepheus_gpu_pdc_native.h','cepheus_gpu_pdc_native_private.h')
 HEADERS += ('cepheus_smmu_native.h','cepheus_smmu_native_private.h')
 HEADERS += ('cepheus_gmu_upload_native.h','cepheus_gmu_upload_native_private.h')
+HEADERS += ('cepheus_gmu_hfi_native.h','cepheus_gmu_hfi_native_private.h')
 HEADERS += ('cepheus_cp_ring_config.h',)
 HEADERS += ('cepheus_cp_protection.h',)
 HEADERS += ('cepheus_cp_snapshot_mmio.h',)
@@ -159,6 +160,7 @@ def main():
     required |= {'_cepheus_cp_workspace_restore'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
+    required |= {'_cepheus_gmu_hfi_version_native'}
     required |= {'_cepheus_gpu_park_read','_cepheus_gpu_park_write','_cepheus_gpu_slumber_read','_cepheus_gpu_slumber_write'}
     if required - symbols:
         raise ValueError(f'missing linked GPU symbols: {sorted(required - symbols)}')
@@ -170,6 +172,7 @@ def main():
     memory_api |= {'_cepheus_gpu_memory_abandon_workspace'}
     memory_api |= {'_ceph_memory_smmu_acquire','_ceph_memory_smmu_publish','_ceph_memory_smmu_validate','_ceph_memory_smmu_finish'}
     memory_api |= {'_ceph_memory_upload_acquire','_ceph_memory_upload_publish','_ceph_memory_upload_validate','_ceph_memory_upload_finish'}
+    memory_api |= {'_ceph_memory_hfi_acquire','_ceph_memory_hfi_validate','_ceph_memory_hfi_publish','_ceph_memory_hfi_seal','_ceph_memory_hfi_finish'}
     memory_api |= {'_cepheus_zap_memory_prepare','_cepheus_zap_memory_get',
                    '_cepheus_zap_memory_put','_cepheus_zap_memory_release_cpu','_cepheus_zap_memory_selftest'}
     memory_api |= {'_ceph_zap_memory_claim','_ceph_zap_memory_expose',

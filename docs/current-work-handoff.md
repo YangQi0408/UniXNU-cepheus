@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 04:53：继续不停工。3b0db57已提交推送，以下04:26“待提交”为
+历史。actual pool HFI pin/seal、原生fixed版本查询已实现；focused final-v4
+PASS SHA4b7609a7...，完整production preflight final-v3四步/81host/七分析
+PASS SHA8120f3a8...，完成时source hashes全匹配。随后仅加测试：同进程
+actual SMMU/upload/CM3/HFI与actual pool，九场景ASanUBSan全PASS、无report，
+log SHAbbb51ccb...；旧receipt不追认新增测试。详见hfi-native-backend.md。
+本批待提交/唯一组合完整XNU link；CI42886831693不含OOB/HFI/pin/native。
+无phone操作/新boot镜像，USB无手机；等已有fastboot确认，不重复请求。
+真owner/继承票/TBU/PAS13/auth/crypto仍缺，GPU/Metal未执行，active。
+
 2026-11-11 04:26：HFI逐word/实际link full identity与view/layout/pre-post
 guard、alias/bounds/输出原子/sticky loss本地focused final-v3 PASS，receipt
 SHA13379064...，显式real GMU/SQE actual C/C++ ASanUBSan整链PASS，log

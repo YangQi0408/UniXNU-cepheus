@@ -38,6 +38,16 @@ int ceph_memory_upload_validate(const struct ceph_gpu_publication *);
 int ceph_memory_upload_publish(const struct ceph_gpu_publication *);
 enum ceph_memory_upload_result {CE_MEMORY_UPLOAD_REFUSED,CE_MEMORY_UPLOAD_COPIED,CE_MEMORY_UPLOAD_UNCERTAIN};
 int ceph_memory_upload_finish(const struct ceph_gpu_publication *,int result);
+/* Native HFI only. Derive actual queue backing/config under the pool mutex.
+ * A cold temporary pin excludes install/upload/retire/abandon. Seal it BEFORE
+ * any queue access: the diagnostic transport then retains it for the boot.
+ * No stop/unmap proof or arbitrary release of a live queue is exposed. */
+int ceph_memory_hfi_acquire(const struct ceph_gpu_publication *,struct ceph_gpu_memory_view *,struct ceph_gmu_start_config *);
+int ceph_memory_hfi_validate(const struct ceph_gpu_publication *);
+int ceph_memory_hfi_publish(const struct ceph_gpu_publication *);
+int ceph_memory_hfi_seal(const struct ceph_gpu_publication *);
+enum ceph_memory_hfi_result {CE_MEMORY_HFI_REFUSED,CE_MEMORY_HFI_RETAINED,CE_MEMORY_HFI_UNCERTAIN};
+int ceph_memory_hfi_finish(const struct ceph_gpu_publication *,int result);
 #ifdef __cplusplus
 }
 #endif

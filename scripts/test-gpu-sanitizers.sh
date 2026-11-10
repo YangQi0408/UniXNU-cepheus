@@ -11,6 +11,9 @@ for name in gmu_firmware zap_image gmu_upload hfi hfi_access hfi_messages hfi_se
         "$root/xnu/test_${name}.c" -o "$tmp/$name"
     "$tmp/$name"
 done
+"${CC:-clang}" -std=c11 -Wall -Wextra -Werror -I"$root/xnu" -fsanitize=address,undefined \
+    -fno-omit-frame-pointer "$root/xnu/test_gmu_hfi_native.c" "$root/xnu/cepheus_gmu_hfi_link.c" -o "$tmp/gmu-hfi-native"
+"$tmp/gmu-hfi-native"
 for name in gpu_idle gpu_idle_native; do
     "${CC:-clang}" -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
         -fno-omit-frame-pointer "$root/xnu/test_${name}.c" -o "$tmp/$name"

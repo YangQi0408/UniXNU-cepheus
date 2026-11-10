@@ -61,6 +61,11 @@ def main():
     names += ('xnu/cepheus_hfi.h','xnu/cepheus_hfi_session.h','xnu/cepheus_gmu_hfi_link.c',
               'xnu/cepheus_gmu_hfi_link.h','xnu/test_hfi_access.c','tests/test_hfi_link_access.c',
               'xnu/cepheus_gmu_workspace.h','xnu/cepheus_gpu_memory.h','xnu/cepheus_gpu_retire.h')
+    names += ('xnu/cepheus_gmu_hfi_native.h','xnu/cepheus_gmu_hfi_native_private.h',
+              'xnu/test_gmu_hfi_native.c','tests/test_hfi_memory_pin.cpp',
+              'xnu/test_gmu_hfi_native_pool.c','tests/test_hfi_native_pool.cpp',
+              'scripts/verify-gpu-kernel.py','scripts/build-kernel-patches.sh',
+              'xnu/0087-stage-cepheus-gpu-memory.sh','.github/workflows/touch-kernel.yml')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -160,6 +165,8 @@ def main():
                                       env=env, timeout=timeout).returncode
             except subprocess.TimeoutExpired:
                 code = 124
+            except KeyboardInterrupt:
+                code = 130
         body = log.read_text()
         if 'warning:' in body or 'error:' in body or 'runtime error:' in body:
             code = code or 1
@@ -200,6 +207,10 @@ def main():
         run(name+'-hfi-link-access-compile',[compiler,*common,*flags,
             str(ROOT/'tests/test_hfi_link_access.c'),str(ROOT/'xnu/cepheus_gmu_hfi_link.c'),'-o',str(exe)])
         run(name+'-hfi-link-access-run',[str(exe)],env)
+        exe=out/(name+'-hfi-native')
+        run(name+'-hfi-native-compile',[compiler,*common,*flags,
+            str(ROOT/'xnu/test_gmu_hfi_native.c'),str(ROOT/'xnu/cepheus_gmu_hfi_link.c'),'-o',str(exe)])
+        run(name+'-hfi-native-run',[str(exe)],env)
     # Compile the actual native branch of the production translation unit.
     source = (ROOT/'xnu/cepheus_gpu_compile.c').read_text()
     native = source.split('static LCK_GRP_DECLARE', 1)[1].split('\n#endif', 1)[0]
@@ -251,6 +262,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gmu_upload_native:',
                    'cepheus_gpu_qmp_acd_native:',
                    'cepheus_gpu_oob_acquire_native:', 'cepheus_gpu_oob_release_native:',
+                   'cepheus_gmu_hfi_version_native:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)
@@ -265,6 +277,10 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                                    str(ROOT/'xnu'/('test_'+name+'.c')), '-o', os.devnull])
     run('hfi-link-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
         str(ROOT/'tests/test_hfi_link_access.c'), '-o', os.devnull])
+    run('hfi-native-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
+        str(ROOT/'xnu/test_gmu_hfi_native.c'),'-o',os.devnull])
+    run('hfi-native-pool-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
+        str(ROOT/'xnu/test_gmu_hfi_native_pool.c'),'-o',os.devnull])
     # Stage exactly as the existing local/CI copy manifests do, then compile
     # only from that tree. This catches missing transitive header copies.
     module_spec = importlib.util.spec_from_file_location('verification', ROOT/'scripts/verify-gpu-kernel.py')
@@ -304,7 +320,8 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
     run('staged-native-compile', ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding',
                                  '-std=c11', '-Wall', '-Wextra', '-Werror',
                                  '-I', str(tree/'bsd/dev'), '-c', str(file), '-o', str(out/'staged-native.o')])
-    for name in ('cepheus_hfi.h','cepheus_hfi_session.h','cepheus_gmu_hfi_link.c','cepheus_gmu_hfi_link.h'):
+    for name in ('cepheus_hfi.h','cepheus_hfi_session.h','cepheus_gmu_hfi_link.c','cepheus_gmu_hfi_link.h',
+                 'cepheus_gmu_hfi_native.h','cepheus_gmu_hfi_native_private.h'):
         if (tree/'bsd/dev'/name).read_bytes()!=(ROOT/'xnu'/name).read_bytes():
             raise SystemExit('Staged HFI source mismatch: '+name)
     run('staged-hfi-link-native-compile', ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding',

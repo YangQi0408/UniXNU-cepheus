@@ -6,6 +6,15 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 04:53: fixed native HFI query and actual six-buffer pool pin/seal
+pass focused final-v4 and production preflight final-v3 (four steps, 81 host,
+seven analyses). Subsequent actual SMMU/upload/CM3/HFI + actual pool nine-case
+ASan/UBSan integration passes using explicit local original GMU/SQE files.
+See `hfi-native-backend.md` for hashes and exact mock/runtime limitations.
+Only test additions followed those production receipts; complete XNU link is
+next. HFI access `3b0db57` is already committed/pushed, not pending as below.
+No phone operation, packaged replacement or GPU/Metal execution.
+
 2026-11-11 04:26: HFI word/link checks accepted locally, focused final-v3
 SHA256 `13379064a48a2a15c9a9a0c8dbd9a3089df648822ae60d8225ce7f49b3f8f340`;
 full preflight final-v2 SHA256

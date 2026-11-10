@@ -65,6 +65,11 @@ does not contain OOB or these HFI changes.
 
 ## Remaining Binding
 
+2026-11-11 continuation: `hfi-native-backend.md` records the implemented fixed
+native query, actual pool pin/seal and real SMMU/upload/CM3 integration tests.
+It supersedes the next-implementation items below, not their owner/runtime
+requirements. This HFI access batch was committed/pushed as `3b0db57`.
+
 This generic link is not the actual global resource owner. Its address and
 workspace still require external serialization and lifetime ownership.
 Next bind fixed native HFI MMIO/time to the retained actual CM3 record,

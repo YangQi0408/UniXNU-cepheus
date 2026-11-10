@@ -53,6 +53,7 @@
 #include "cepheus_gpu_pdc_native.h"
 #include "cepheus_smmu_native.h"
 #include "cepheus_gmu_upload_native.h"
+#include "cepheus_gmu_hfi_native.h"
 #include "cepheus_gpu_memory_private.h"
 #include "cepheus_cp_ring_config.h"
 #include "cepheus_cp_protection.h"
