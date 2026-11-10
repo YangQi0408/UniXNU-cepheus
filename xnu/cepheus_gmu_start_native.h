@@ -2,6 +2,7 @@
 #ifndef CEPHEUS_GMU_START_NATIVE_H
 #define CEPHEUS_GMU_START_NATIVE_H
 #include "cepheus_gmu_start.h"
+#include "cepheus_gpu_config_native.h"
 struct ceph_gmu_start_native_owner {
     void *ctx;
     /* Acquire actual cold power/PDC/SMMU/image-publication prerequisites and
@@ -16,8 +17,10 @@ struct ceph_gmu_start_native_owner {
      * after attempted stores, including uncertain release; never reset/free. */
     void (*finish)(void *,int keep);
 };
-/* Boot-lifetime one-shot. Fixed GCC/GPUCC/GMU maps and actual time/delay.
+/* Boot-lifetime one-shot. Requires an exact native retained config copy;
+ * bin1 requires QMP ACD consumption before admission, not after release.
+ * Fixed GCC/GPUCC/GMU maps and actual time/delay.
  * No startup caller. A result is CM3/HFI readiness only, never GPU execution. */
 int cepheus_gmu_start_cold_native(const struct ceph_gmu_start_native_owner *,
-    const struct ceph_gmu_start_config *,struct ceph_gmu_start *);
+    const struct ceph_gmu_start_config *,const struct ceph_gpu_config *,struct ceph_gmu_start *);
 #endif

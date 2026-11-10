@@ -1,5 +1,22 @@
 # Native CM3 Cold Start
 
+## Config-Required Follow-On
+
+The private cold-start signature now takes owner, GMU start configuration,
+native GPU configuration and output. Exact retained DB/fuse config, typed
+bin policy, chipid, initial frequency1/BW3 are required before admission.
+Bin1 requires actual native QMP consumption with a retained RPMh token before
+CM3; token/config lifetime is checked around every owner validation. Successful
+final owner callback is followed by a readiness check; loss changes the actual
+CM3 transaction to QUARANTINED before returning an error.
+Focused CM3 fixtures use labeled synthetic bin0 identity, not an actual DB/fuse.
+3424 immediate/5464 delayed owner PROT_NONE boundaries and exhaustive config
+loss cases pass. The actual C/C++ pool fixture instead builds real native
+configuration before CM3 and supplies native QMP first for bin1. Acceptance
+and explicit hardware/global-owner limitations are recorded in
+`hfi-native-backend.md` under Config And Pre-Cold ACD Follow-On.
+Older evidence below does not cover this API/lifetime change.
+
 2026-11-11: `cepheus_gmu_start_cold_native` binds the existing A640 cold-start
 engine to fixed SWEET mappings, real kernel time and `delay(1)`. It has no
 startup caller and implements no resource owner. CM3/HFI readiness is not GPU

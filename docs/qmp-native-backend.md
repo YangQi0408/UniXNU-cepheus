@@ -1,5 +1,17 @@
 # Native AOP QMP Transport
 
+## Retained Completion Follow-On
+
+Native completion is no longer a historical consumed bit. The private cold
+record requires actual attempted/acquired/finished/connected/consumed and no
+uncertainty, and revalidates its real RPMh token and copied owner. Late loss
+is sticky, clears consumed and marks uncertainty. Owner finish is followed by
+validation before result publication. The current fixture covers 3787 owner
+and 7576 scope PROT_NONE boundaries (not the older counts below). CM3/HFI
+consume this record, not a caller-supplied ready flag. Final focused/full
+source-bound receipts are listed in `hfi-native-backend.md`; actual AOP ACK,
+global ownership and before-power ordering remain unproved.
+
 2026-11-11: `cepheus_gpu_qmp_acd_native` binds the existing cold QMP handshake
 and fixed GPU ACD=1 message to actual SWEET mappings, barriers, kernel time and
 delay. It is a private unhooked entry, not a mailbox owner or GMU startup.

@@ -14,6 +14,15 @@ static unsigned frozen,reverse,late,cm3_delay,hfi_delay,cm3_ticks,hfi_ticks;
 static uint64_t ticks;
 static struct ceph_gmu_start_native_owner owner;
 static struct ceph_gmu_start_config config;
+static struct ceph_gpu_config gpu;
+static unsigned config_lost;
+static unsigned final_config_loss,final_owner_loss,config_expire,config_checks;
+/* Focused CM3 test models config identity only; actual DB/fuse validation is
+ * executed in the mixed native/pool chain. No synthetic successful bin1. */
+int cepheus_gpu_config_check_native(const struct ceph_gpu_config *c)
+{++config_checks;if(config_expire && config_checks>=config_expire)config_lost=1;
+ return config_lost || !c || c->policy.bin || !ceph_gpu_bin_policy_valid(&c->policy) ||
+    c->pdc.chipid!=0x06040001 || c->initial_freq!=1 || c->initial_bw!=3?-1:0;}
 static int ceph_scm_info_context(void *unused){(void)unused;return context?-1:0;}
 static volatile uint32_t *word(unsigned w,unsigned offset)
 {assert(w<3 && windows[w] && offset<sizes[w]);return (volatile uint32_t *)(windows[w]+offset);}
@@ -30,6 +39,7 @@ static void model(void)
 static int validate(void *ctx)
 {
     assert(ctx==windows);++checks;
+    if(final_owner_loss && finished)return -1;
     if(checks==expire) {
         for(unsigned i=0;i<3;++i)assert(!mprotect((void *)windows[i],sizes[i],PROT_NONE));
         return -1;
@@ -37,7 +47,7 @@ static int validate(void *ctx)
     if(mutate){mutate=0;owner.begin=NULL;owner.validate=NULL;owner.finish=NULL;config.chipid=0;}
     if(reenter) {
         reenter=0;struct ceph_gmu_start out={CE_GS_NEW,123,456,789};
-        assert(cepheus_gmu_start_cold_native(&owner,&config,&out)<0);
+        assert(cepheus_gmu_start_cold_native(&owner,&config,&gpu,&out)<0);
         assert(out.effects==123 && out.error==456 && ceph_gpll0_lock);
     }
     model();return 0;
@@ -62,6 +72,9 @@ static void delay(unsigned us)
     if(*reg(CE_GMU_HFI_INIT) && !*reg(CE_GMU_HFI_STATUS))++hfi_ticks;
     model();
 }
+/* This focused CM3 fixture has no QMP transaction; bin1 admission is tested
+ * by the actual native/pool chain, not a synthetic successful record here. */
+static int ceph_qmp_native_cold_record(uint64_t *token){(void)token;return -1;}
 #include "cepheus_gmu_start_native_private.h"
 static int begin(void *ctx,const struct ceph_gmu_start_config *c)
 {
@@ -72,6 +85,7 @@ static void finish(void *ctx,int keep)
 {
     assert(ctx==windows && ceph_gpll0_lock && ceph_cm3_native.finished);
     ++finished;kept=(unsigned)keep;
+    if(final_config_loss)config_lost=1;
 }
 static void reset(void)
 {
@@ -83,6 +97,8 @@ static void reset(void)
     ceph_gpll0_lock=checks=expire=maps=fail_map=begins=finished=kept=context=0;
     begin_error=mutate=reenter=gmu_off=timeout=fail_fault=delays=0;
     frozen=reverse=late=cm3_delay=hfi_delay=cm3_ticks=hfi_ticks=0;ticks=0;
+    config_lost=final_config_loss=final_owner_loss=config_expire=config_checks=0;
+    gpu=(struct ceph_gpu_config){.policy={0,8,0,0,0x80},.pdc={.chipid=0x06040001},.initial_freq=1,.initial_bw=3};
     owner=(struct ceph_gmu_start_native_owner){windows,begin,validate,finish};
     config=(struct ceph_gmu_start_config){0x06040001,0x60100000,20480,0x60200000,4096};
     *word(0,0x71004)=1;
@@ -92,7 +108,7 @@ static void reset(void)
     *reg(CE_GMU_HFI_VERSION)=0x20000001;
 }
 static int run(struct ceph_gmu_start *out)
-{return cepheus_gmu_start_cold_native(&owner,&config,out);}
+{return cepheus_gmu_start_cold_native(&owner,&config,&gpu,out);}
 int main(void)
 {
     for(unsigned i=0;i<3;++i) {
@@ -104,6 +120,7 @@ int main(void)
     assert(maps==3 && finished==1 && kept && !ceph_gpll0_lock && out.effects==18);
     assert(*reg(CE_GMU_SYSRESET)==0 && *reg(CE_GMU_QTBL_ADDR)==0x60100000);
     unsigned boundaries=checks;
+    unsigned config_boundaries=config_checks;
     out=(struct ceph_gmu_start){CE_GS_NEW,123,456,789};unsigned before=checks;
     assert(run(&out)<0 && checks==before && out.effects==123 && out.error==456 && finished==1);
     for(unsigned n=1;n<=boundaries;++n) {
@@ -111,6 +128,15 @@ int main(void)
         assert(kept==(out.effects!=0) && (out.state==CE_GS_QUARANTINED)==(out.effects!=0));
         before=checks;assert(run(&out)<0 && checks==before && finished==1);
     }
+    for(unsigned n=1;n<=config_boundaries;++n) {
+        reset();config_expire=n;out=(struct ceph_gmu_start){CE_GS_NEW,123,456,789};
+        assert(run(&out)<0 && config_checks==n && !ceph_gpll0_lock);
+        if(n==1)assert(!maps && !ceph_cm3_native.attempted && out.error==456);
+        else assert(finished==1 && kept==(out.effects!=0) &&
+            (out.state==CE_GS_QUARANTINED)==(out.effects!=0));
+    }
+    reset();final_config_loss=1;assert(run(&out)<0 && kept && finished==1 && out.state==CE_GS_QUARANTINED);
+    reset();final_owner_loss=1;assert(run(&out)<0 && kept && finished==1 && out.state==CE_GS_QUARANTINED);
     reset();cm3_delay=3;hfi_delay=5;
     assert(!run(&out) && out.state==CE_GS_HFI_READY && out.effects==18);
     assert(delays==8 && cm3_ticks==3 && hfi_ticks==5 && finished==1 && kept);
@@ -135,9 +161,11 @@ int main(void)
     reset();context=1;assert(run(&out)<0 && !begins && !ceph_cm3_native.attempted);
     reset();ceph_gpll0_lock=1;assert(run(&out)<0 && !begins && ceph_gpll0_lock);
     reset();owner.finish=NULL;assert(run(&out)<0 && !begins);
-    reset();assert(cepheus_gmu_start_cold_native(NULL,&config,&out)<0);
-    assert(cepheus_gmu_start_cold_native(&owner,NULL,&out)<0);
-    assert(cepheus_gmu_start_cold_native(&owner,&config,NULL)<0);
+    reset();assert(cepheus_gmu_start_cold_native(NULL,&config,&gpu,&out)<0);
+    assert(cepheus_gmu_start_cold_native(&owner,NULL,&gpu,&out)<0);
+    assert(cepheus_gmu_start_cold_native(&owner,&config,NULL,&out)<0);
+    assert(cepheus_gmu_start_cold_native(&owner,&config,&gpu,NULL)<0);
+    reset();config_lost=1;assert(run(&out)<0 && !ceph_cm3_native.attempted && !maps);
     reset();config.chipid++;assert(run(&out)<0 && !begins);
     reset();mutate=1;assert(!run(&out) && finished==1 && !owner.finish && !config.chipid);
     reset();reenter=1;assert(!run(&out) && finished==1);

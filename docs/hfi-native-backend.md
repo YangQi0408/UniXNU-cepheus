@@ -1,5 +1,35 @@
 # Native HFI Session
 
+## 2026-11-11 Config And Pre-Cold ACD Follow-On
+
+The continuation above was committed/pushed as `31215d3`. Its single full
+XNU CI `42907357305` is building; it does not cover this later batch.
+Native CM3 now requires the exact retained native GPU configuration. Bin1
+requires a successfully consumed native QMP ACD record with the same RPMh
+token BEFORE the first CM3 attempt/map/effect. Refusal leaves output intact
+and permits completing the missing prerequisite. This proves ordering before
+CM3, not before the earlier power stage as in the pinned vendor sequence.
+QMP completion and CM3 readiness revalidate after their final owner callbacks.
+The QMP token/config are checked throughout CM3 and subsequent HFI leases;
+late CM3 owner/config loss quarantines its transaction. HFI cannot retroactively
+accept ACD after CM3. No startup caller or real resource owner is supplied.
+
+Fresh focused acceptance, 135 checks PASS:
+`out/hfi-config-cold-local-20261111-final-v2/receipt.json`, SHA256
+`262ca43202c50364570bb4a7279eb320561b445341ac5b4d64d99995bdafed29`.
+Fresh full preflight, four steps/82 host programs PASS:
+`out/hfi-config-cold-preflight-20261111-final-v2/receipt.json`, SHA256
+`544b656ba1a9e5103a631f726904faf993f92d5d33fb6500be81933a86c262b4`.
+Both source hash sets match after completion. The original-firmware actual
+C/C++ pool chain now passes modes0..30, including full bin1 START, missing
+ACD/retry, QMP owner/token loss, CM3 final config loss and copied-config mismatch.
+Whole log SHA256
+`180839b7d3e3a1f660f557bcd7c6279cfb2d1dd7a6187f1d96fd3a9c729c7543`.
+No sanitizer reports. Hardware, firmware ACKs, global owner, idle and IOKit are
+emulated. Modes27..30 stop before HFI sealing: CM3 quarantine is not itself
+whole-pool quarantine; the fixture's later retirement attempt quarantines it.
+These receipts do not cover any subsequent GX backend edits or runtime success.
+
 ## 2026-11-11 Accepted Continuation
 
 The next batch adds native configuration from the actual retained RPMh DB and

@@ -15,6 +15,10 @@ static unsigned begin_error,busy,mutate,reenter,stage,silent,delays,time_fault,a
 static unsigned late_record,live_version,powered_off;
 static uint64_t ticks;
 static struct ceph_oob_native_owner owner;
+/* Synthetic bin0 identity for this focused OOB fixture, not native DB/fuse. */
+int cepheus_gpu_config_check_native(const struct ceph_gpu_config *c)
+{return !c || c->policy.bin || !ceph_gpu_bin_policy_valid(&c->policy) ||
+    c->pdc.chipid!=0x06040001 || c->initial_freq!=1 || c->initial_bw!=3?-1:0;}
 static int ceph_scm_info_context(void *unused){(void)unused;return context?-1:0;}
 static volatile uint32_t *word(unsigned n,uint32_t off)
 {assert(n<3 && off<sizes[n]);return (volatile uint32_t *)(windows[n]+off);}
@@ -40,6 +44,7 @@ static int cm3_validate(void *ctx)
     return 0;
 }
 static void cm3_finish(void *ctx,int keep){assert(ctx==windows && keep);}
+static int ceph_qmp_native_cold_record(uint64_t *token){(void)token;return -1;}
 #include "cepheus_gmu_start_native_private.h"
 #include "cepheus_gmu_oob_native_private.h"
 static void revoke(void)
@@ -85,7 +90,8 @@ static void reset(void)
     *reg(CE_GMU_HFI_VERSION)=live_version?live_version:0x20000001;
     struct ceph_gmu_start_native_owner cm3={windows,cm3_begin,cm3_validate,cm3_finish};
     struct ceph_gmu_start_config config={0x06040001,0x60100000,20480,0x60200000,4096};
-    struct ceph_gmu_start out;assert(!cepheus_gmu_start_cold_native(&cm3,&config,&out));
+    struct ceph_gpu_config gpu={.policy={0,8,0,0,0x80},.pdc={.chipid=0x06040001},.initial_freq=1,.initial_bw=3};
+    struct ceph_gmu_start out;assert(!cepheus_gmu_start_cold_native(&cm3,&config,&gpu,&out));
     assert(out.state==CE_GS_HFI_READY && maps==3);scope_checks=0;delays=0;
     owner=(struct ceph_oob_native_owner){windows,begin,validate,drained,finish,1};
 }

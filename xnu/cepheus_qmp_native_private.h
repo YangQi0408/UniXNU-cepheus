@@ -9,6 +9,24 @@ static struct {
     unsigned attempted,acquired,finished,failed,keep_attempted,clock_seen;
     uint64_t last_ns;
 } ceph_qmp_native;
+static int ceph_qmp_native_completed(void)
+{
+    return !ceph_qmp_native.attempted || !ceph_qmp_native.acquired || !ceph_qmp_native.finished ||
+        ceph_qmp_native.failed || ceph_qmp_native.result.error ||
+        !ceph_qmp_native.result.connection.connected || !ceph_qmp_native.result.acd.consumed ||
+        ceph_qmp_native.result.acd.uncertain?-1:0;
+}
+static int ceph_qmp_native_cold_record(uint64_t *token)
+{
+    if(!token || ceph_qmp_native_completed())return -1;
+    if(ceph_scm_info_context(NULL) || cepheus_gpu_rpmh_check(ceph_qmp_native.owner.rpmh_token) ||
+        ceph_qmp_native.owner.validate(ceph_qmp_native.owner.ctx) || ceph_qmp_native_completed() ||
+        cepheus_gpu_rpmh_check(ceph_qmp_native.owner.rpmh_token)) {
+        ceph_qmp_native.failed=1;ceph_qmp_native.result.acd.consumed=0;
+        ceph_qmp_native.result.acd.uncertain=1;return -1;
+    }
+    *token=ceph_qmp_native.owner.rpmh_token;return 0;
+}
 static int ceph_qmp_native_lease(void *unused)
 {
     (void)unused;
@@ -91,6 +109,9 @@ int cepheus_gpu_qmp_acd_native(const struct ceph_qmp_native_owner *owner,struct 
 failed:
     ceph_qmp_native.result.error=e;
     if(ceph_qmp_native.acquired && !ceph_qmp_native.finished)ceph_qmp_native_release(NULL,e!=0);
+    uint64_t token;
+    if(!e && ceph_qmp_native_cold_record(&token))e=-1;
+    ceph_qmp_native.result.error=e;
     *out=ceph_qmp_native.result;
 done:
     __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);return e;

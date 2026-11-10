@@ -1241,3 +1241,11 @@ TZ verifier需显式原件／证据／新output；不在公共CI下载私有材�
 `README.md`、`../dist/README.md`及上述历史章节可能有“尚未／当前推荐／已可用”
 等当时措辞；**以本文、最新gpu-acceptance和对应真机result为当前解释**。
 不要照搬历史flash/recovery/失败镜像命令。本文是交接摘要，不声称全部缺口已解决。
+# 2026-11-11 Config-Cold Follow-On
+
+`31215d3` pushed; single CI42907357305 building, no redispatch. Later
+config-required CM3/pre-cold ACD and final-callback checks pass fresh 135-check
+focused and four-step/82-host preflight, source hashes unchanged. Exact
+receipts, 31-mode original-firmware actual-pool tests and limitations:
+`hfi-native-backend.md`. Next fixed native GX core backend, still no startup
+caller/global owner/CP release. No phone operations, GPU/Metal never executed.

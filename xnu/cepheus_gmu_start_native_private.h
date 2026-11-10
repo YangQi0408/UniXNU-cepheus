@@ -1,22 +1,33 @@
 /* Included after GPLL0 native state inside the SWEET translation unit. */
 #ifndef CEPHEUS_GMU_START_NATIVE_PRIVATE_H
 #define CEPHEUS_GMU_START_NATIVE_PRIVATE_H
+static int ceph_qmp_native_cold_record(uint64_t *);
 static struct {
     struct ceph_gmu_start_native_owner owner;
     struct ceph_gmu_mmio mmio;
     struct ceph_power_mmio power;
     struct ceph_gmu_start txn;
-    uint64_t last_ns;
+    struct ceph_gpu_config config;
+    uint64_t last_ns,acd_before_cold;
     unsigned attempted,acquired,finished,failed,clock_seen;
 } ceph_cm3_native;
-static int ceph_cm3_native_lease(void *unused)
+static int ceph_cm3_native_owner_check(void)
 {
-    (void)unused;
-    if(!ceph_cm3_native.acquired || ceph_cm3_native.finished || ceph_cm3_native.failed)return -1;
-    if(ceph_scm_info_context(NULL) || ceph_cm3_native.owner.validate(ceph_cm3_native.owner.ctx)) {
+    if(!ceph_cm3_native.acquired || ceph_cm3_native.failed)return -1;
+    uint64_t token;
+    if(ceph_scm_info_context(NULL) || cepheus_gpu_config_check_native(&ceph_cm3_native.config) ||
+        ceph_cm3_native.owner.validate(ceph_cm3_native.owner.ctx) ||
+        cepheus_gpu_config_check_native(&ceph_cm3_native.config) ||
+        (ceph_cm3_native.acd_before_cold &&
+          (ceph_qmp_native_cold_record(&token) || token!=ceph_cm3_native.acd_before_cold))) {
         ceph_cm3_native.failed=1;return -1;
     }
     return 0;
+}
+static int ceph_cm3_native_lease(void *unused)
+{
+    (void)unused;
+    return ceph_cm3_native.finished?-1:ceph_cm3_native_owner_check();
 }
 static int ceph_cm3_native_access(void *unused)
 {
@@ -32,6 +43,9 @@ static void ceph_cm3_native_finish(void *unused,int keep)
     (void)unused;
     ceph_cm3_native.finished=1;
     ceph_cm3_native.owner.finish(ceph_cm3_native.owner.ctx,keep);
+    if(ceph_cm3_native.txn.state==CE_GS_HFI_READY && ceph_cm3_native_owner_check()) {
+        ceph_cm3_native.txn.state=CE_GS_QUARANTINED;ceph_cm3_native.txn.error=-1;
+    }
 }
 static int ceph_cm3_native_begin(void *unused,const struct ceph_gmu_start_config *config)
 {
@@ -92,19 +106,29 @@ static int ceph_cm3_native_pause(void *unused)
     return 0;
 }
 int cepheus_gmu_start_cold_native(const struct ceph_gmu_start_native_owner *owner,
-    const struct ceph_gmu_start_config *config,struct ceph_gmu_start *out)
+    const struct ceph_gmu_start_config *config,const struct ceph_gpu_config *gpu,struct ceph_gmu_start *out)
 {
     struct ceph_gmu_start_plan plan;
     if(!owner || !owner->begin || !owner->validate || !owner->finish || !out ||
-        ceph_gmu_start_plan(config,&plan) || ceph_scm_info_context(NULL))return -1;
+        ceph_gmu_start_plan(config,&plan) || !gpu || !ceph_gpu_bin_policy_valid(&gpu->policy) ||
+        gpu->pdc.chipid!=config->chipid || gpu->initial_freq!=1 || gpu->initial_bw!=3 ||
+        ceph_scm_info_context(NULL))return -1;
     if(__atomic_exchange_n(&ceph_gpll0_lock,1,__ATOMIC_ACQUIRE))return -1;
     int e=-1;
     if(ceph_cm3_native.attempted)goto done;
+    if(cepheus_gpu_config_check_native(gpu))goto done;
+    uint64_t acd_token=0;
+    if(gpu->policy.acd && ceph_qmp_native_cold_record(&acd_token))goto done;
     ceph_cm3_native.attempted=1;ceph_cm3_native.owner=*owner;ceph_cm3_native.mmio.config=*config;
+    ceph_cm3_native.config=*gpu;
+    /* Snapshot only an actual completed QMP transaction before this cold
+     * attempt. A later ACD ACK cannot retroactively satisfy bin1 ordering. */
+    ceph_cm3_native.acd_before_cold=acd_token;
     struct ceph_gmu_start_ops ops={NULL,ceph_cm3_native_begin,ceph_cm3_native_access,
         ceph_cm3_native_read,ceph_cm3_native_write,ceph_cm3_native_barrier,
         ceph_cm3_native_now,ceph_cm3_native_pause,ceph_cm3_native_finish};
     e=ceph_gmu_start_cold(&ceph_cm3_native.txn,&ops,&ceph_cm3_native.mmio.config);
+    if(!e && ceph_cm3_native.txn.error)e=ceph_cm3_native.txn.error;
     *out=ceph_cm3_native.txn;
 done:
     __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);return e;

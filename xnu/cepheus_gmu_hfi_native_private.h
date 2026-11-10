@@ -64,6 +64,13 @@ static int ceph_hfi_native_record(void)
         ceph_hfi_native.smmu.plan.slot!=ceph_hfi_native.publication.slot ||
         ceph_hfi_native.smmu.plan.asid!=ceph_hfi_native.publication.asid?-1:0;
 }
+static int ceph_hfi_native_acd(void)
+{
+    if(!ceph_hfi_native.boot_attempted || !ceph_hfi_native.config.policy.acd)return 0;
+    uint64_t token;
+    return ceph_cm3_native.acd_before_cold!=ceph_hfi_native.owner.rpmh_token ||
+        ceph_qmp_native_cold_record(&token) || token!=ceph_cm3_native.acd_before_cold?-1:0;
+}
 static int ceph_hfi_native_lease(void *unused)
 {
     (void)unused;
@@ -73,10 +80,8 @@ static int ceph_hfi_native_lease(void *unused)
         (ceph_hfi_native.pinned && ceph_memory_hfi_validate(&ceph_hfi_native.publication)) ||
         ceph_hfi_native.owner.validate(ceph_hfi_native.owner.ctx) || ceph_hfi_native_record() ||
         (ceph_hfi_native.boot_attempted && cepheus_gpu_config_check_native(&ceph_hfi_native.config)) ||
-        (ceph_hfi_native.boot_attempted && ceph_hfi_native.config.policy.acd &&
-          (!ceph_qmp_native.attempted || !ceph_qmp_native.acquired || !ceph_qmp_native.finished ||
-           ceph_qmp_native.failed || ceph_qmp_native.result.error || !ceph_qmp_native.result.acd.consumed ||
-           ceph_qmp_native.result.acd.uncertain || ceph_qmp_native.owner.rpmh_token!=ceph_hfi_native.owner.rpmh_token)) ||
+        cepheus_gpu_config_check_native(&ceph_cm3_native.config) ||
+        ceph_hfi_native_acd() ||
         (ceph_hfi_native.start_attempted &&
           (!ceph_oob_native.acquired || ceph_oob_native.failed || ceph_oob_native.release_attempted ||
            ceph_oob_native.txn.state!=CE_OOB_HELD || ceph_oob_native.txn.error ||
@@ -252,10 +257,7 @@ int cepheus_gmu_hfi_boot_native(const struct ceph_gpu_config *config,struct ceph
     struct ceph_hfi_boot_config c;
     if(ceph_gpu_config_hfi(&ceph_hfi_native.config,ceph_hfi_native.result.hfi_version,&c) ||
         ceph_hfi_native_access(NULL))goto finish;
-    if(c.acd && (!ceph_qmp_native.attempted || !ceph_qmp_native.acquired || !ceph_qmp_native.finished ||
-        ceph_qmp_native.failed || ceph_qmp_native.result.error || !ceph_qmp_native.result.acd.consumed ||
-        ceph_qmp_native.result.acd.uncertain ||
-        ceph_qmp_native.owner.rpmh_token!=ceph_hfi_native.owner.rpmh_token))goto finish;
+    if(ceph_hfi_native_acd())goto finish;
     uint32_t *packet=ceph_hfi_native.boot_packet;
     if(ceph_hfi_perf(packet,160,c.gx,c.ng,c.cx,c.nc,c.gfx,c.cxl,c.mx)!=59)goto finish;
     e=ceph_hfi_native_boot_send(59,&ceph_hfi_native.boot.acked);if(e)goto finish;

@@ -30,7 +30,8 @@ struct ceph_hfi_boot_native_result {
 };
 /* Continue the SAME successfully queried native session with fixed tables,
  * features and CORE_FW_START. Requires the private native config record;
- * bin1 also requires actual QMP ACD consumption. No DCVS/GX/CP/START yet. */
+ * bin1 also requires actual QMP ACD consumption before native CM3 startup.
+ * This entry does not send DCVS or START and does not access GX/CP. */
 int cepheus_gmu_hfi_boot_native(const struct ceph_gpu_config *,struct ceph_hfi_boot_native_result *);
 struct ceph_hfi_start_native_result {
     unsigned dcvs_acked,start_acked,doorbells;

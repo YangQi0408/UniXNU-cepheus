@@ -6,9 +6,11 @@
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gmu_hfi_link.h"
 #include "../tests/gpll0-scope-fixture.h"
-/* This focused query fixture never admits boot/config continuation. The
- * separate actual-pool chain runs native config and QMP prerequisites. */
-int cepheus_gpu_config_check_native(const struct ceph_gpu_config *c){(void)c;return -1;}
+/* Synthetic bin0 identity for focused query/CM3. The separate mixed native/
+ * pool chain executes real config parsing and QMP; this is not DB evidence. */
+int cepheus_gpu_config_check_native(const struct ceph_gpu_config *c)
+{return !c || c->policy.bin || !ceph_gpu_bin_policy_valid(&c->policy) ||
+    c->pdc.chipid!=0x06040001 || c->initial_freq!=1 || c->initial_bw!=3?-1:0;}
 static volatile uint8_t *windows[4];
 static const size_t sizes[]={0x90000,0x9000,0x30000,0x10000};
 static uint32_t *table;
@@ -133,7 +135,8 @@ static void reset(void)
     *reg(CE_GMU_SYSRESET)=1;*reg(CE_GMU_TCM_RETENTION)=1;*reg(CE_GMU_HFI_VERSION)=0x20000001;
     struct ceph_gmu_start_native_owner cm3={windows,cm3_begin,cm3_validate,cm3_finish};
     struct ceph_gmu_start_config config={0x06040001,0x60100000,20480,0x60200000,4096};
-    struct ceph_gmu_start started;assert(!cepheus_gmu_start_cold_native(&cm3,&config,&started));
+    struct ceph_gpu_config gpu={.policy={0,8,0,0,0x80},.pdc={.chipid=0x06040001},.initial_freq=1,.initial_bw=3};
+    struct ceph_gmu_start started;assert(!cepheus_gmu_start_cold_native(&cm3,&config,&gpu,&started));
     struct ceph_smmu_stream streams[8]={0};for(unsigned i=0;i<8;++i)streams[i].s2cr=2u<<16;
     struct ceph_smmu_plan plan;assert(!ceph_smmu_gmu_plan(streams,8,2,3,8,5,4,0x120094000,0,&plan));
     publication=(struct ceph_gpu_publication){.group=1,.ttbr0=plan.ttbr0,.ttbr1=plan.ttbr1,
