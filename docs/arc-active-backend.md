@@ -64,3 +64,9 @@ remains running; GPU scratch/fence, Metal and PAS authentication remain unrun.
 Next: a genuine post-EBS inherited-vote ledger and exclusive owner must bind
 this transport to power `prepare/vote/finish`; a synthetic callback is not an
 admission path. Do not schedule another touch/SCM/memory test for this module.
+
+At 17:37 CST, implementation commit `7c80907` was pushed and full XNU job
+`42792076835` started at that exact commit. Source staging passed; compilation,
+linking and compiled-artifact acceptance remain **PENDING**, not PASS. Local
+tracking: `out/arc-active-ci-42792076835.json`. No boot is planned for this
+unhooked transport by itself.

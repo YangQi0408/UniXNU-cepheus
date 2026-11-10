@@ -9,6 +9,8 @@ kernel符号核验已接通，详见arc-active-backend.md。真实owner/继承�
 不是电源后端完成；完整XNU构建/链接尚未跑，无启动hook/镜像/手机操作或新
 真机点。正常配对版保持，PAS13=false/supported=false/CP halt不变，GPU
 scratch/fence、Metal和PAS认证未执行。下一真实资源交接/owner绑定。
+17:37代码7c80907已提交推送；完整XNU CI42792076835同commit已启动，source
+stage PASS，构建/链接PENDING。gpu-work干净，自有exec已关闭；手机不动。
 
 最新2026-11-10 17:11：PAS13内存合同收窄。固定descriptor flags20c=0/20d=1，
 默认mem_setup跳过一般load-region登记，auth不转换权限而检查已有页mask，
