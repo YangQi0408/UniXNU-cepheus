@@ -31,6 +31,7 @@ HEADERS += ('cepheus_gmu_upload_mmio.h',)
 HEADERS += ('cepheus_qmp_connect.h',)
 HEADERS += ('cepheus_gpu_tsens.h',)
 HEADERS += ('cepheus_gpu_tsens_native.h','cepheus_gpu_tsens_native_private.h')
+HEADERS += ('cepheus_gmu_start_native.h','cepheus_gmu_start_native_private.h')
 HEADERS += ('cepheus_cp_ring_config.h',)
 HEADERS += ('cepheus_cp_protection.h',)
 HEADERS += ('cepheus_cp_snapshot_mmio.h',)
@@ -116,6 +117,7 @@ def main():
     required |= {'_cepheus_gpu_power_mmio_read', '_cepheus_gpu_power_mmio_write'}
     required |= {'_cepheus_gpu_power_start_native'}
     required |= {'_cepheus_gpu_tsens_bind_native','_cepheus_gpu_temperature_sample_native','_cepheus_gpu_thermal_now_native'}
+    required |= {'_cepheus_gmu_start_cold_native'}
     required |= {'_cepheus_gpu_arc_raise'}
     required |= {'_cepheus_gpu_bcm_raise'}
     required |= {'_cepheus_gpu_gpll0_hold','_cepheus_gpu_gpll0_check'}

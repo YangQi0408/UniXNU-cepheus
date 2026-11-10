@@ -1,5 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11更新：继续工作，原生CM3 cold-start接固定GCC/GPUCC/GMU映射和
+真实时间/delay，共享GPLL0锁、复制owner/config，逐map及GMU前置读前后
+guard/sticky失效；要求既有TCM retention，不暗含upload/资源配置。无启动
+caller或实际owner；18 attempted effects后保留资源，含不确定reset释放。
+共享GMU MMIO补post load/store、UINT32_MAX后guard、失败输出不改和VA溢出。
+final-v1 local receipt PASS：3423 immediate/5463 delayed PROT_NONE边界、
+3/5 pause与9999成功/10000拒绝、ASanUBSan/native/staged/analysis。四步
+cm3-native-preflight-20261111-final-v1全PASS，72 host/七生产分析；真实GMU/
+SQE mixed ASanUBSan模式0..22主机模拟链退出0，log SHA da5a1e045...，不是
+真机执行，ZAP optional未提供。详见cm3-native-backend.md；16KiB GMU/
+GPUCC physical footprint重叠已明确。全批仍待完整XNU link，无新CI/手机操作，
+USB未识别手机；原未boot诊断保持CI42835691416 @2bf48ab/SHA b7d88d435...。
+下一原生PDC/RSC、SMMU/upload及真实owner/继承/idle协调。PAS13=false/
+supported=false/CP halt保持，GPU/Metal未执行，目标继续active未完成。
+
 23:57更新：新增原生TSENS bind/sample/now，固定四TM/SROT请求、真实内核
 时间、独立锁及copied owner；所有map/status/sample/time前后guard，失效
 立即锁存、无retry。通用sampler补每enable/ready/fault读guard、logical VA

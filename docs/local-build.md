@@ -6,6 +6,15 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 native CM3 continuation:
+`out/cm3-native-preflight-20261111-final-v1/receipt.json` passes all four
+local prerequisites, 72 host programs and seven production-unit analyses.
+`out/cm3-native-local-20261111-final-v1/receipt.json` accepts the actual native
+CM3 branch, delayed ACK/PROT_NONE cases and staged AArch64 compilation.
+See `cm3-native-backend.md` for shared MMIO regression evidence and limits.
+Full XNU link/artifact acceptance remains pending for the combined native batch;
+the accepted exit-tail kernel and diagnostic remain pinned and unchanged.
+
 2026-11-10 native thermal continuation:
 `out/tsens-native-preflight-20261110-final-v1/receipt.json` passes all four
 local prerequisites, 71 host programs and seven production-unit analyses.

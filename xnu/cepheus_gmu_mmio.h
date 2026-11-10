@@ -30,6 +30,7 @@ static inline int ceph_gmu_mmio_ready(struct ceph_gmu_mmio *m)
 {
     struct ceph_gmu_start_plan p;
     return !m || !m->base || ((uintptr_t)m->base&3u) || m->bytes!=0x30000 ||
+        (uintptr_t)m->base>UINTPTR_MAX-m->bytes ||
         !m->lease || ceph_gmu_start_plan(&m->config,&p) || m->lease(m->owner)?-1:0;
 }
 /* Internal helper, not exported as a general kernel/user register service. */
@@ -38,14 +39,17 @@ static inline int ceph_gmu_mmio_load(struct ceph_gmu_mmio *m,uint32_t word,uint3
     if(!v || word<0x1a800 || word>0x267ff || ceph_gmu_mmio_ready(m))return -1;
     uint32_t offset=word*4-0x6a000;
     if(offset>m->bytes-4)return -1;
-    *v=*(volatile uint32_t *)(m->base+offset);ceph_gmu_mmio_barrier();return 0;
+    uint32_t value=*(volatile uint32_t *)(m->base+offset);ceph_gmu_mmio_barrier();
+    if(ceph_gmu_mmio_ready(m) || value==UINT32_MAX)return -1;
+    *v=value;return 0;
 }
 static inline int ceph_gmu_mmio_store(struct ceph_gmu_mmio *m,uint32_t word,uint32_t v)
 {
     if(word<0x1a800 || word>0x267ff || ceph_gmu_mmio_ready(m))return -1;
     uint32_t offset=word*4-0x6a000;
     if(offset>m->bytes-4)return -1;
-    ceph_gmu_mmio_barrier();*(volatile uint32_t *)(m->base+offset)=v;ceph_gmu_mmio_barrier();return 0;
+    ceph_gmu_mmio_barrier();*(volatile uint32_t *)(m->base+offset)=v;ceph_gmu_mmio_barrier();
+    return ceph_gmu_mmio_ready(m);
 }
 static inline int ceph_gmu_mmio_start_read(void *ctx,enum ceph_gmu_reg reg,uint32_t *v)
 {
