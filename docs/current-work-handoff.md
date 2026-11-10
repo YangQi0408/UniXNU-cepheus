@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 02:33续：091c7ff已推送，02:23:33只派发一次完整XNU
+CI42874717231，当前前置回归进行中，未link/验收。勿重复派发。
+后续GPLL0 real copied rpmh token/map前后及逐读检查/写前永久保留scope与
+idle/无写adoption发布前保留，保留请求不确定也通知owner，sticky failure。
+focused final-v1 PASS，receipt out/gpll0-scope-local-20261111-final-v1/
+receipt.json SHA e8e4ec4b...；actual scope+PROT_NONE/host/ASanUBSan/native/
+staged/analysis/原厂对照，非真owner。完整local preflight进行中；本批不在
+091c7ff中，待独立link。详见gpll0-scope-coordination.md。
+USB无手机/无操作，旧tail未boot镜像不变；GPU/Metal未执行，目标active。
+02:40 final-v2 focused SHA88f25722...及完整preflight SHA5af17ec7...均PASS，
+四步/77host/七生产分析；final-v1 preflight include路径FAIL保留/修正重验。
+actual counter也覆盖scope全失效点PROT_NONE。CI42874717231 @091c7ff已完成
+全部前置/进入Build XNU，仍非link验收；后续GPLL0独立批待commit/link。
+
 2026-11-11 02:15：idle完整XNU CI42867280759 @91a5ec1全成功并本机独立
 验收PASS，kernel17472904B/SHA3a77999f46e307ed4b2353989dd2c1ae339cc9c643
 a2178c42a7c9bf2e8e59f1，94core/30memory/touch/PA64/SCM/tail/无unresolved。

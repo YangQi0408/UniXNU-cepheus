@@ -6,6 +6,18 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 02:33: exactly one complete RPMh-scope run `42874717231 @091c7ff`
+is in progress (dispatched 02:23:33); not linked/artifact-accepted yet.
+Subsequent GPLL0 token/lifecycle integration passes focused local acceptance
+`out/gpll0-scope-local-20261111-final-v1/receipt.json`, SHA256
+`e8e4ec4bd59a9f14527be3dc4ed69a975d397416837137573e1c6f059dd7a7fb`.
+Full preflight is running. This later batch is not in that CI kernel; see
+`gpll0-scope-coordination.md`. No phone operation or GPU execution.
+02:40 update: focused final-v2 PASS (SHA256 `88f257228b5db0e6e83035ec6ec08d71fb9b9de163efbb3a6098598615054d90`)
+and full preflight final-v2 PASS (SHA256 `5af17ec7ea7d7e3bc0b6daf632b7764eab79da0eb506c77adba0ecaeec423de2`),
+four prerequisites/77 host/seven analyses. Prior preflight include failure
+is archived. CI42874717231 has entered Build XNU, not artifact acceptance.
+
 2026-11-11 02:15 update: complete idle CI `42867280759 @91a5ec1` succeeded
 and independently passes archived-source/touch/PA64/SCM/tail plus actual linked
 idle control-flow checks. Kernel 17472904 bytes, SHA256

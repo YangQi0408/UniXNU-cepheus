@@ -5,6 +5,7 @@
 #define CEPHEUS_GPLL0_H
 #include <stddef.h>
 #include <stdint.h>
+#include "cepheus_rpmh_scope.h"
 
 #define CE_GPLL0_PA UINT64_C(0x100000)
 #define CE_GPLL0_BYTES 0x90000u
@@ -24,6 +25,8 @@ struct ceph_gpll0_owner {
      * on successful adoption or any attempted store; no release API exists.
      */
     void (*retained)(void *,unsigned attempted_stores,int ready);
+    /* Real participating-writer reservation, not a resource ownership grant. */
+    uint64_t rpmh_token;
 };
 struct ceph_gpll0_snapshot {
     uint32_t mode,l,alpha,user,status,opmode,pll_vote,gate_vote;
@@ -39,6 +42,7 @@ struct ceph_gpll0 {
     int (*delay_us)(void *,unsigned);
     enum ceph_gpll0_phase phase;
     unsigned attempted_stores;
+    unsigned scope_failed,scope_retained,scope_keep_attempted;
     struct ceph_gpll0_snapshot held;
 };
 static inline void ceph_gpll0_barrier(void)
@@ -51,11 +55,32 @@ static inline void ceph_gpll0_barrier(void)
 #error "GPLL0 MMIO requires arm64"
 #endif
 }
+static inline int ceph_gpll0_scope(struct ceph_gpll0 *s)
+{
+    if(!s || s->scope_failed)return -1;
+    if(cepheus_gpu_rpmh_check(s->owner.rpmh_token)){
+        s->scope_failed=1;return -1;
+    }
+    return 0;
+}
+/* GPLL0 lock -> RPMh lock -> idle lock. No callback may recurse into them. */
+static inline int ceph_gpll0_retain(struct ceph_gpll0 *s)
+{
+    if(ceph_gpll0_scope(s))return -1;
+    if(!s->scope_retained){
+        s->scope_keep_attempted=1;
+        if(cepheus_gpu_rpmh_finish(s->owner.rpmh_token,1)){
+            s->scope_failed=1;return -1;
+        }
+        s->scope_retained=1;
+    }
+    return ceph_gpll0_scope(s);
+}
 static inline int ceph_gpll0_lease(struct ceph_gpll0 *s)
 {
     return !s || !s->gcc || ((uintptr_t)s->gcc&3u) || s->pa!=CE_GPLL0_PA ||
         s->bytes!=CE_GPLL0_BYTES || (uintptr_t)s->gcc>UINTPTR_MAX-s->bytes ||
-        !s->owner.validate || !s->owner.retained || !s->delay_us ||
+        !s->owner.validate || !s->owner.retained || !s->delay_us || ceph_gpll0_scope(s) ||
         s->owner.validate(s->owner.ctx)?-1:0;
 }
 static inline int ceph_gpll0_read(struct ceph_gpll0 *s,uint32_t off,uint32_t *v)
@@ -117,6 +142,7 @@ static inline int ceph_gpll0_vote_set(struct ceph_gpll0 *s,uint32_t off)
     if(ceph_gpll0_read(s,off,&before))return -1;
     if(before&bit)return 0;
     if(ceph_gpll0_lease(s))return -1;
+    if(ceph_gpll0_retain(s) || ceph_gpll0_lease(s))return -1;
     s->phase=CE_GP_POISONED;++s->attempted_stores;
     ceph_gpll0_barrier();
     *(volatile uint32_t *)(s->gcc+off)=before|bit;
@@ -148,9 +174,13 @@ static inline int ceph_gpll0_hold(struct ceph_gpll0 *s,struct ceph_gpll0_snapsho
         after.pll_vote!=again.pll_vote || after.gate_vote!=again.gate_vote ||
         after.pll_vote!=(before.pll_vote|1u) ||
         after.gate_vote!=(before.gate_vote|CE_GPLL0_DIV_BIT))goto done;
+    /* An effect-free adoption also keeps the reservation before publication. */
+    if(ceph_gpll0_retain(s) || ceph_gpll0_lease(s))goto done;
     s->held=after;s->phase=CE_GP_HELD;*out=after;e=0;
 done:
-    if(s->attempted_stores || !e)s->owner.retained(s->owner.ctx,s->attempted_stores,!e);
+    if(e && (s->scope_keep_attempted || s->attempted_stores))s->phase=CE_GP_POISONED;
+    if(s->scope_keep_attempted || s->attempted_stores || !e)
+        s->owner.retained(s->owner.ctx,s->attempted_stores,!e);
     return e;
 }
 static inline int ceph_gpll0_check(struct ceph_gpll0 *s,struct ceph_gpll0_snapshot *out)

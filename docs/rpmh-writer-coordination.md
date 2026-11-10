@@ -74,3 +74,9 @@ four prerequisites, 77 host programs and seven production analyses. SHA256
 `f31e8502e85a410a1c3d2c55d404df8d77fe43b33c61dcb8d21781a8f373ed02`.
 The earlier v1 also passed but a comment/startup-negative assertion changed
 while it ran; final-v2 verifies the final source without those concurrent edits.
+
+`091c7ff275f7694737479a23e3465970527e11f7` was pushed and exactly one full
+XNU run `42874717231` dispatched at 2026-11-11 02:23:33 Asia/Shanghai.
+Complete link/artifact acceptance is pending. Subsequent GPLL0 integration
+is documented separately in `gpll0-scope-coordination.md`; this run cannot
+accept those later source changes.

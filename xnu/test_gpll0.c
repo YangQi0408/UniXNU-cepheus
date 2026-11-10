@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include "cepheus_gpll0.h"
+#include "../tests/gpll0-scope-fixture.h"
 
 static uint32_t *regs;
 static unsigned checks,expire,maps,kept,kept_writes,delayed,delay_calls;
@@ -17,10 +18,13 @@ static void delay(unsigned us);
 static int owner(void *p)
 {
     assert(p==regs);++checks;
+    if(ceph_gpll0_native.attempted_stores)
+        assert(scope_idle_retained && ceph_rpmh_scope_legacy()==EBUSY);
     if(expire && checks>=expire) {
         assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_NONE));return -1;
     }
     if(mutation && ceph_gpll0_native.attempted_stores && !applied) {
+        assert(scope_idle_retained && ceph_rpmh_scope_legacy()==EBUSY);
         applied=1;
         if(mutation==2)regs[0x52000/4]^=1u<<4;
         if(mutation==3)regs[0]^=1u<<31;
@@ -39,11 +43,14 @@ static void delay(unsigned us)
     if(mutation==7 && us==500)regs[0x52004/4]^=1u<<5;
 }
 static int failing_delay(void *p,unsigned us){(void)p;(void)us;return delay_error;}
+static void revoke_scope(void)
+{assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_NONE));}
 static void reset(void)
 {
     assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_READ|PROT_WRITE));
     memset(regs,0,CE_GPLL0_BYTES);
     ceph_gpll0_native=(struct ceph_gpll0){0};ceph_gpll0_lock=0;
+    gpll0_scope_reset();
     checks=expire=maps=kept=kept_writes=delayed=delay_calls=0;
     ready=context_bad=mutation=applied=delay_error=0;
     regs[0]=(1u<<20)|(1u<<30)|(1u<<31)|7u;
@@ -52,7 +59,7 @@ static void reset(void)
     regs[0x52000/4]=0x400;regs[0x52004/4]=0x8080;
 }
 static struct ceph_gpll0_owner ops(void)
-{return (struct ceph_gpll0_owner){regs,owner,retained};}
+{return (struct ceph_gpll0_owner){regs,owner,retained,1};}
 static int run(struct ceph_gpll0_snapshot *out)
 {struct ceph_gpll0_owner o=ops();return cepheus_gpu_gpll0_hold(&o,out);}
 int main(void)
@@ -78,7 +85,7 @@ int main(void)
         reset();expire=n;memset(&out,0xa5,sizeof(out));
         assert(run(&out)<0);
         assert(out.mode==0xa5a5a5a5 && out.configured_div_hz==UINT64_C(0xa5a5a5a5a5a5a5a5));
-        assert(kept==(ceph_gpll0_native.attempted_stores!=0) && !ready);
+        assert(kept==(ceph_gpll0_native.scope_keep_attempted!=0 || ceph_gpll0_native.attempted_stores!=0) && !ready);
         if(kept)assert(ceph_gpll0_native.phase==CE_GP_POISONED);
         assert(run(&out)<0);
     }
@@ -109,6 +116,8 @@ int main(void)
     }
     reset();regs[0x52000/4]|=1;regs[0x52004/4]|=1u<<16;
     assert(!run(&out) && kept==1 && !kept_writes && delayed==500);
+    assert(scope_idle_retained && scope_retains==1 && ceph_rpmh_scope_legacy()==EBUSY);
+    assert(cepheus_gpu_rpmh_finish(1,0)==EBUSY && cepheus_gpu_idle_finish(1,0)!=0);
     reset();regs[0x52000/4]|=1;assert(!run(&out) && kept_writes==1);
     reset();regs[0x52004/4]|=1u<<16;assert(!run(&out) && kept_writes==1);
     reset();regs[4/4]=15;regs[0x40/4]=0xa000;regs[0xc/4]=7;
@@ -138,6 +147,20 @@ int main(void)
     assert(ceph_gpll0_read(&bad,0,&v)<0);
     assert(ceph_gpll0_read(&ceph_gpll0_native,0x52008,&v)<0);
     assert(ceph_gpll0_vote_set(&ceph_gpll0_native,0xc)<0);
+    reset();assert(!cepheus_gpu_rpmh_finish(1,0));
+    assert(run(&out)<0 && !maps && !checks && ceph_gpll0_native.scope_failed);
+    reset();o=ops();o.rpmh_token=0;
+    assert(cepheus_gpu_gpll0_hold(&o,&out)<0 && !maps && !checks);
+    reset();assert(!run(&out));unsigned scope_total=scope_checks;
+    for(unsigned n=1;n<=scope_total;++n){
+        reset();scope_expire=n;scope_revoke=revoke_scope;memset(&out,0xa5,sizeof(out));
+        assert(run(&out)<0 && out.mode==0xa5a5a5a5 && ceph_gpll0_native.scope_failed);
+        assert(!maps || ceph_gpll0_native.phase!=CE_GP_HELD);
+        assert(kept==(ceph_gpll0_native.scope_keep_attempted!=0 || ceph_gpll0_native.attempted_stores!=0));
+        scope_expire=0;scope_revoke=NULL;
+        assert(run(&out)<0 && ceph_gpll0_native.scope_failed);
+        if(scope_idle_retained)assert(cepheus_gpu_idle_finish(1,0)!=0);
+    }
     assert(!munmap(regs,CE_GPLL0_BYTES));
     printf("GPLL0 native adapter: actual volatile stores, %u hold/%u check lease faults with protected aperture, retention/retry gates PASS (host model; not measured)\n",total,check_count);
 }

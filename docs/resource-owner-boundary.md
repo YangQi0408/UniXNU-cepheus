@@ -130,6 +130,12 @@ to satisfy a boolean gate. A scoped, proven platform policy and the associated
 resource lifetime are needed before adding a startup caller. Authentication,
 secure PA/crypto, SMMU and CP halt remain separate conditions.
 
+2026-11-11 follow-on: `gpll0-scope-coordination.md` describes actual parent
+token checks and permanent RPMh/idle retention before a parent vote store or
+zero-store successful adoption. Local focused acceptance passes; complete
+link/runtime remain separate. This adds cross-domain lifecycle coordination,
+not a complete source writer census or a global hardware writer lease.
+
 ## Inspected Inputs
 
 The existing `../kernel-test/xnu` tree is a read-only, older source reference,

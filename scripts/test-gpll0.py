@@ -48,6 +48,7 @@ def main():
              'xnu/test_gmu_upload.c','xnu/test_gmu_upload_mmio.c',
              'tests/test_upload_memory_pin.cpp','tests/test_upload_native_pool.cpp',
              'xnu/cepheus_gpu_compile.c', 'xnu/cepheus_gpu_compile.h', 'scripts/test-gpll0.py')
+    names += ('tests/gpll0-scope-fixture.h','xnu/cepheus_rpmh_scope.h','xnu/cepheus_rpmh_scope_private.h')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()

@@ -19,8 +19,9 @@ int cepheus_gpu_gpll0_hold(const struct ceph_gpll0_owner *owner,struct ceph_gpll
     if(s->phase!=CE_GP_NEW)goto done;
     /* Validate before mapping; this does not acquire the shared GCC owner. */
     s->phase=CE_GP_REJECTED;s->owner=*owner;
-    if(s->owner.validate(s->owner.ctx))goto done;
+    if(ceph_gpll0_scope(s) || s->owner.validate(s->owner.ctx))goto done;
     s->gcc=(volatile uint8_t *)ml_io_map(CE_GPLL0_PA,CE_GPLL0_BYTES);
+    if(ceph_gpll0_scope(s) || s->owner.validate(s->owner.ctx) || !s->gcc)goto done;
     s->pa=CE_GPLL0_PA;s->bytes=CE_GPLL0_BYTES;
     s->delay_us=ceph_gpll0_native_delay;
     s->phase=CE_GP_NEW;e=ceph_gpll0_hold(s,out);

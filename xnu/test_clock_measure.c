@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include "cepheus_clock_measure.h"
+#include "../tests/gpll0-scope-fixture.h"
 
 static uint32_t *regs;
 static unsigned checks,expire,finished,kept,effects,model_stores,counters,context_bad;
@@ -80,24 +81,28 @@ static void parent_retained(void *p,unsigned n,int ready)
 static int measure_owner(void *p)
 {
     assert(p==regs);++checks;
+    assert(scope_idle_retained && ceph_rpmh_scope_legacy()==EBUSY);
     if(expire && checks>=expire){assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_NONE));return -1;}
     hardware();return 0;
 }
 static void finish(void *p,unsigned n,int keep)
 {assert(p==regs);++finished;effects=n;kept=(unsigned)keep;}
+static void revoke_scope(void)
+{assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_NONE));}
 static void reset(void)
 {
     assert(!mprotect(regs,CE_GPLL0_BYTES,PROT_READ|PROT_WRITE));
     memset(regs,0,CE_GPLL0_BYTES);
     ceph_gpll0_native=(struct ceph_gpll0){0};ceph_measure_native=(struct ceph_clock_measure){0};
     ceph_gpll0_lock=0;
+    gpll0_scope_reset();
     checks=expire=finished=kept=effects=model_stores=counters=context_bad=inject_store=0;
     fault=applied=timer_fault=0;early_ticks=0;now=1000000;due=now_calls=time_expire=0;
     regs[0]=(1u<<20)|(1u<<30)|(1u<<31)|7;
     regs[1]=31;regs[0x40/4]=0x4000;regs[0xc/4]=0x107;
     regs[0x30/4]=1u<<26;regs[0x38/4]=1;
     regs[0x52000/4]=0x401;regs[0x52004/4]=0x18080;
-    struct ceph_gpll0_owner o={regs,parent_owner,parent_retained};struct ceph_gpll0_snapshot out;
+    struct ceph_gpll0_owner o={regs,parent_owner,parent_retained,1};struct ceph_gpll0_snapshot out;
     assert(!cepheus_gpu_gpll0_hold(&o,&out));
     *reg(CE_ME_MUX)=0x1045;*reg(CE_ME_DIV)=0x103;
     *reg(CE_ME_DEBUG)=0x80000020;*reg(CE_ME_XO)=0x80000040;
@@ -207,6 +212,17 @@ int main(void)
     struct ceph_clock_sample r={.short_count=0,.full_count=1};assert(ceph_measure_counts(&r));
     r=(struct ceph_clock_sample){.short_count=10,.full_count=10};assert(ceph_measure_counts(&r));
     r=(struct ceph_clock_sample){.short_count=CE_ME_COUNT_MASK,.full_count=1};assert(ceph_measure_counts(&r));
+    reset();scope_checks=0;assert(!run(&out));unsigned scope_total=scope_checks;
+    assert(scope_idle_retained && ceph_rpmh_scope_legacy()==EBUSY);
+    assert(cepheus_gpu_rpmh_finish(1,0)==EBUSY && cepheus_gpu_idle_finish(1,0)!=0);
+    for(unsigned n=1;n<=scope_total;++n){
+        reset();scope_checks=0;scope_expire=n;scope_revoke=revoke_scope;
+        memset(&out,0xa5,sizeof(out));
+        assert(run(&out)<0 && out.short_count==0xa5a5a5a5 && ceph_gpll0_native.scope_failed);
+        if(finished)assert(kept);
+        scope_expire=0;scope_revoke=NULL;
+        assert(run(&out)<0 && scope_idle_retained && cepheus_gpu_idle_finish(1,0)!=0);
+    }
     assert(!munmap(regs,CE_GPLL0_BYTES));
     printf("Clock counter native adapter: %u protected-aperture lease faults/%u store mutations, independent offsets/fixed counts, fresh DONE, bounded deadlines, restoration/retention PASS (host hardware model, not phone measurement)\n",total,stores);
 }
