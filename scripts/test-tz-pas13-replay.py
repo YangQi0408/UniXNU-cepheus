@@ -118,6 +118,13 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'verdict'):
             REPLAY.check_case(case, 1)
 
+    def test_descriptor_lifecycle_state_recorded_without_inference(self):
+        case = REPLAY.replay(fixture(), 'synthetic', 0,
+                            ((REPLAY.PAS13 + 0x230, struct.pack('<I', 5)),))
+        self.assertEqual(case['descriptor_state13_before'], 5)
+        self.assertEqual(case['descriptor_state13_after'], 5)
+        self.assertEqual(case['descriptor_id13'], 0)
+
 
 if __name__ == '__main__':
     unittest.main()

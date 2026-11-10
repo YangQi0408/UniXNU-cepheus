@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新2026-11-10 16:48：TZ缓存生命周期离线续查完成。shutdown/cleanup已分析
+本体清state8B/prefix0x1e0，不直接清ID/cache；间接及未展开callee副作用仍
+未知。受限lookup新增cache有效state0/5、空cache state5三假设，均true；
+11场景两模式通过，17守卫及14映射测试普通/-O通过。两replay-v4 case一致，
+LLVM listing临时路径导致完整receipt不一致，不冒称相同。23条REA bundle/
+snapshot保存私有logs，详见PAS后续文档。无新核/构建/手机操作或测试点，
+正常配对版保持，PAS13=false、supported=false/CP halt不变；GPU/Metal/认证
+未执行。下一转PAS内存准入/XPU范围与实际资源接管，不重复查询/触摸轮。
+
 最新2026-11-10 15:35：Clock两层client/BCM聚合与accepted DxeCore EBS
 派发顺序离线原件核验。节点两桶type0x1400/其他各max IB+sum AB，BCM各
 max归一节点而非再sum路径；active/vector及sorted clock_id队列已留证。

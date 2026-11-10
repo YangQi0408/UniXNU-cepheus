@@ -187,6 +187,8 @@ def replay(loaded, name, mpidr, mutations=(), repeat=False):
     return {'case': name, 'input_mpidr': hex(mpidr), 'calls': calls,
             'cache13': hex(struct.unpack('<Q', bytes(uc.mem_read(CACHE + 13 * 8, 8)))[0]),
             'descriptor_id13': struct.unpack('<I', after[5 * 0x238 + 0x1f8:5 * 0x238 + 0x1fc])[0],
+            'descriptor_state13_before': struct.unpack_from('<I', before, 5 * 0x238 + 0x230)[0],
+            'descriptor_state13_after': struct.unpack_from('<I', after, 5 * 0x238 + 0x230)[0],
             'descriptor_changed_byte_offsets': [hex(i) for i, (a, b) in enumerate(zip(before, after)) if a != b],
             'code_entries_seen': [hex(a) for a, _, _ in CODE if a in executed],
             'memory_accesses': accesses, 'memory_access_counts': access_counts,
@@ -231,11 +233,25 @@ def main():
          ((COUNT, struct.pack('<I', 0)), (CACHE + 13 * 8, struct.pack('<Q', PAS13))), False, 1),
         ('nonzero-cache-with-changed-id', 0x81000000,
          ((PAS13 + 0x1f8, struct.pack('<I', 0)), (CACHE + 13 * 8, struct.pack('<Q', PAS13))), False, 1),
+        ('cached-stopped-state', 0x81000000,
+         ((CACHE + 13 * 8, struct.pack('<Q', PAS13)),
+          (PAS13 + 0x230, struct.pack('<I', 0))), False, 1),
+        ('cached-state-five', 0x81000000,
+         ((CACHE + 13 * 8, struct.pack('<Q', PAS13)),
+          (PAS13 + 0x230, struct.pack('<I', 5))), False, 1),
+        ('uncached-state-five', 0x81000000,
+         ((PAS13 + 0x230, struct.pack('<I', 5)),), False, 1),
         ('held-lock-does-not-return-false', 0x81000000,
          ((LOCKS + 13 * 0x80, struct.pack('<Q', 1)),), False, None),
     ):
         case = replay(loaded, name, cpu, mutations, again)
         check_case(case, verdict)
+        if name in ('cached-stopped-state', 'cached-state-five', 'uncached-state-five'):
+            expected = 5 if name == 'cached-state-five' else 0
+            if case['descriptor_state13_after'] != expected or case['descriptor_id13'] != 13:
+                raise ValueError('unexpected lifecycle-state/ID change: ' + name)
+            if name.startswith('cached-') and case['descriptor_changed_byte_offsets']:
+                raise ValueError('cached lookup unexpectedly changed descriptor: ' + name)
         cases.append(case)
     import unicorn
     report = {'status': 'PASS', 'scope': 'Bounded host instruction replay with hypothetical RAM state only',
@@ -256,7 +272,7 @@ def main():
     with args.output.open('x') as output:
         json.dump(report, output, indent=2)
         output.write('\n')
-    print('PASS: eight bounded actual-instruction RAM scenarios; no SMC/device execution')
+    print(f'PASS: {len(cases)} bounded actual-instruction RAM scenarios; no SMC/device execution')
 
 
 if __name__ == '__main__':

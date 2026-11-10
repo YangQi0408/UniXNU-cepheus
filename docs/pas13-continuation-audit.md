@@ -24,11 +24,45 @@ dispatcher、EL2/EL3、认证、MMIO或手机命令，原件未修改。
 修改的证据。运行TZ身份、其他初始化/写入者、EL2/dispatch与启动历史仍未知。
 保持supported=false及CP halt门禁，不尝试PAS认证。
 
-16项不含私有材料的合成回放测试通过，包含越界/代码写/异常指令/无返回/
-错误wrapper/空调用拒绝及访问日志上限。原件回放8场景通过。v1/v2保留，
-最终receipt为`../logs/pas13-instruction-replay-20261110/replay-v3.json`，
+17项不含私有材料的合成回放测试通过，包含越界/代码写/异常指令/无返回/
+错误wrapper/空调用拒绝及访问日志上限。最初原件回放8场景通过。v1/v2保留，
+最初8场景receipt为`../logs/pas13-instruction-replay-20261110/replay-v3.json`，
 SHA256 `7982a916f81387f83ae3cc48ccdaeb0795779304e6e9bd5e93751a6dccf326b1`。
 逐访存日志最多2048项，完整read/write/omitted计数另存，边界检查不因截断关闭。
+
+### 2026-11-10：缓存生命周期续查
+
+固定原件的有界已分析引用中，count仅见`0x1c04d36c`；descriptor表起点见
+`0x1c04d380/0x1c04d3a4`；PAS13 ID槽`0x1c13fb08`没有已分析直接引用。
+cache引用落在lookup、init、mem_setup、auth及shutdown中，lazy指针写入在
+`0x1c04db34`。这些不是完整间接写入者搜索，也不是运行RAM观察。
+
+shutdown helper `0x1c04de54`按state走条件清理，直接清descriptor+`0x230`
+的8B，再尾调`0x1c04d70c`。后者释放部分descriptor内容并清prefix `0x1e0`；
+两个已解码本体没有直接清cache或+`0x1f8` ID。`0x1c0d6dc4`间接回调及
+其他cleanup callee全部副作用仍未建立，不能宣布停机路径无其他写入。
+原始dossier/raw证据保存在私有
+`../logs/pas13-instruction-replay-20261110/tz-cache-lifecycle-v2-evidence.json`
+（23 records）及匹配snapshot，v1保留。关键Evidence：
+shutdown `ev_976acfae73a1defba7654d8b95a82c92e85333eb9cccc249f7312f698090141a`，
+cleanup `ev_c893114d153d0a4ccd2fed73a06d230c914b6310c7ee3e295c22285fbf039e57`。
+
+回放仍仅执行前述12段lookup代码，**未执行实际shutdown或任何PAS操作**。
+新增三个假设RAM输入：
+
+| 合成RAM状态 | lookup结果及state |
+|---|---|
+| cache13有效、state0 | true，89条；state保持0，descriptor无写入 |
+| cache13有效、state5 | true，89条；state保持5，descriptor无写入 |
+| 空cache、state5 | true，363条；lazy初始化将state清0，ID保持13 |
+
+在固定代码/表条件下，state字段本身也不能解释false。实际11场景普通及`-O`
+通过；17守卫测试两模式通过。新增receipt为`replay-v4.json`及
+`replay-v4-opt.json`，普通版SHA256
+`bfce0da0e0b542b5c9984978328bb4ac0e7e3cffceedfa7418da4a39c5b633b3`。
+两份case数据一致，但LLVM listing包含临时路径，listing哈希及完整receipt
+字节不一致；不声称两份receipt完全相同。UEFI/XNU实测false仍未解，
+supported=false及CP halt保持；手机无新操作或测试要求。
 
 ```sh
 python3 scripts/test-tz-pas13-replay.py
