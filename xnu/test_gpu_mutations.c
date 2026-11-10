@@ -32,7 +32,7 @@ int main(void)
         (void)ceph_bcm_lookup(&db,"SH0",&bcm);
         uint32_t words[16],r=next()%20,w=next()%20,out[16];unsigned n;
         for(unsigned i=0;i<16;++i)words[i]=next();
-        struct ceph_hfi_queue q={words,&r,&w,16,2,{NULL,okay,okay,okay,okay},0};
+        struct ceph_hfi_queue q={words,&r,&w,16,2,{NULL,okay,okay,okay,okay,okay},0};
         e=ceph_hfi_read(&q,out,16,&n);if(e)assert(!n);else assert(n<=16 && r<16);
     }
     struct ceph_gpu_backing backing[]={{0x120000000ULL,0x3c000},{0x120040000ULL,0x3c000},

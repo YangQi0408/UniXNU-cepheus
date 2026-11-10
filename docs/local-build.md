@@ -6,6 +6,30 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 04:26: HFI word/link checks accepted locally, focused final-v3
+SHA256 `13379064a48a2a15c9a9a0c8dbd9a3089df648822ae60d8225ce7f49b3f8f340`;
+full preflight final-v2 SHA256
+`01f9d66734f3d429744d296eaa6b6f2693c65671d1913ba57e8593d587370482`,
+four prerequisites/80 host/seven analyses, unchanged source hashes. Explicit
+real GMU/SQE mixed C/C++ ASan/UBSan chain passes clean. Older whole-chain
+exit-zero logs contain invalid-enum reports and are not sanitizer-clean
+acceptance; raw integer admission and terminal UBSan checks fix that bridge.
+See `hfi-access-lifetime.md`. Still no full XNU link for HFI/OOB or phone GPU.
+
+2026-11-11 04:10: combined parent/QMP CI `42886831693 @8c539ca` completed
+SUCCESS at 04:03:13 local time. Independent archived-source acceptance PASS:
+17473904-byte kernel SHA256
+`b150954326355d39ab71da0461521103a44cdd53d013a8b996985dbf34aecdfa`,
+98 core/30 memory entries, no unresolved symbols, touch/PA64/SCM/tail PASS.
+Receipt SHA256 `345c2f2b8dc6fbd79a8b5f963ef98b84007d1f1b0e9889439fde4f67f1dcf313`;
+actual linked RPMh and idle receipts PASS, respectively SHA256
+`2516428bd9c5b64c5e9250746d5d46584e206abe088f4008d687ef32402b6e39` and
+`5009b78d65faed23d5976f6433ac350335b6e2cb0e437ce208d160265b67f841`.
+No runtime or packaged image. OOB follow-on `ee105f6` is committed/pushed but
+not in that kernel. HFI word/identity/lifetime checks are undergoing focused
+acceptance with explicit real GMU/SQE mixed C/C++ ASan/UBSan and full local
+preflight. No production resource owner, GPU/Metal execution or phone boot.
+
 2026-11-11 03:54: native OOB0 uses the actual private CM3 HFI_READY record,
 retained mappings/config/version, real RPMh/idle scope and fixed OOB bits.
 Focused final-v3 PASS SHA256 `afdeff4a251699ca592f712d9b4373e15414fb72a431ec24eb66078db3d2b065`;

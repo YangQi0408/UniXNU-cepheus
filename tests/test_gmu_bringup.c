@@ -95,7 +95,7 @@ static int notify(void *p){struct hw *h=p;assert(h->s->cm3.state==CE_GS_HFI_READ
     if(!h->retiring)assert(h->s->cm3.state==CE_GS_HFI_READY);
     assert(!ceph_gmu_mmio_hfi_notify(&h->gmu_mmio));
     h->fw_rx=h->s->link.tx;h->fw_tx=h->s->link.rx;
-    h->fw_rx.io=(struct ceph_hfi_ops){h,guard,guard,guard,guard};h->fw_tx.io=h->fw_rx.io;
+    h->fw_rx.io=(struct ceph_hfi_ops){h,guard,guard,guard,guard,guard};h->fw_tx.io=h->fw_rx.io;
     assert(!ceph_hfi_read(&h->fw_rx,cmd,255,&count));
     if(h->retiring || h->s->stopping) {
         assert(count==3 && (cmd[0]&255)==33 && cmd[1]==3 && cmd[2]==1);

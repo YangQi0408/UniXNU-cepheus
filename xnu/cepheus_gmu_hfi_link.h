@@ -19,6 +19,8 @@ struct ceph_gmu_hfi_transport {
 struct ceph_gmu_hfi_link {
     struct ceph_gmu_workspace *workspace;
     struct ceph_gpu_publication identity;
+    struct ceph_gpu_memory_view hfi_view;
+    uint64_t hfi_va;
     struct ceph_gmu_hfi_transport transport;
     struct ceph_hfi_queue tx,rx,debug;
     struct ceph_hfi_session session;
@@ -26,6 +28,7 @@ struct ceph_gmu_hfi_link {
     unsigned debug_messages,error_words;
     int debug_error;
     int bound;
+    int lease_failed;
 };
 #ifdef __cplusplus
 extern "C" {

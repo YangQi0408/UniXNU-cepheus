@@ -18,8 +18,8 @@ static int simple(void *p){return step(p);}
 static int rd(void *p,enum ceph_slumber_reg r,uint32_t *v){struct mock *m=p;*v=r==CE_SL_RPMH_POWER_STATE?m->state:r==CE_SL_GX_STATUS?m->gx:m->fault;return step(m);}
 static int wr(void *p,enum ceph_slumber_reg r,uint32_t v){struct mock *m=p;assert(r==CE_SL_POWER_COUNTER_ENABLE && !v);m->counter_off=1;return step(m);}
 static void finish(void *p,int okay){struct mock *m=p;m->finish++;m->success=(unsigned)okay;}
-static void init(struct mock *m){memset(m,0,sizeof(*m));m->qtx=(struct ceph_hfi_queue){m->tx,&m->tr,&m->tw,64,2,{m,okay,okay,okay,notify},0};
-    m->qrx=(struct ceph_hfi_queue){m->rx,&m->rr,&m->rw,64,2,{m,okay,okay,okay,okay},0};m->fw_rx=m->qtx;m->fw_rx.io.notify=okay;m->fw_tx=m->qrx;
+static void init(struct mock *m){memset(m,0,sizeof(*m));m->qtx=(struct ceph_hfi_queue){m->tx,&m->tr,&m->tw,64,2,{m,okay,okay,okay,notify,okay},0};
+    m->qrx=(struct ceph_hfi_queue){m->rx,&m->rr,&m->rw,64,2,{m,okay,okay,okay,okay,okay},0};m->fw_rx=m->qtx;m->fw_rx.io.notify=okay;m->fw_tx=m->qrx;
     m->session=(struct ceph_hfi_session){&m->qtx,&m->qrx,m,now,okay,okay,8,0,0,0};}
 int main(void){struct mock m;init(&m);struct ceph_gmu_slumber_ops b={&m,simple,simple,rd,wr,simple,now,simple,finish};struct ceph_gmu_slumber s={0};
     assert(!ceph_gmu_slumber_request(&s,&b,&m.session,3,1,12,8) && s.slumbered && m.success);

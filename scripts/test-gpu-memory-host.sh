@@ -10,6 +10,7 @@ if [[ ${CEPHEUS_GPU_HOST_ASAN:-0} == 1 ]]; then
     export CEPHEUS_GPU_SANITIZERS=address,undefined
 fi
 sanitizers=${CEPHEUS_GPU_SANITIZERS:-undefined}
+export UBSAN_OPTIONS="${UBSAN_OPTIONS:+$UBSAN_OPTIONS:}halt_on_error=1:print_stacktrace=1"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 libs=()
@@ -18,6 +19,9 @@ if [[ $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
     -c "$root/xnu/cepheus_gpu_retire.c" -o "$tmp/retire.o"
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
     -c "$root/xnu/cepheus_gmu_hfi_link.c" -o "$tmp/cepheus_gmu_hfi_link.c.o"
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize="$sanitizers" -I"$root/xnu" \
+    "$root/tests/test_hfi_link_access.c" "$tmp/cepheus_gmu_hfi_link.c.o" -o "$tmp/link-access"
+"$tmp/link-access"
 "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -fsanitize="$sanitizers" -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" -I"$root/xnu" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gpu_memory_host.cpp" "$tmp/retire.o" \

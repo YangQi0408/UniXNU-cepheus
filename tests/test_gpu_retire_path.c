@@ -77,7 +77,7 @@ int ceph_test_retire_path(unsigned mode)
     for(unsigned i=0;i<4;++i)f.gmu_ram[tcs[i]-0x1a800]=1;
     struct ceph_gmu_hfi_transport transport={&f,okay,notify,now,okay,okay};
     assert(!cepheus_gmu_hfi_bind(&link,&w,&transport));
-    f.fw_rx=link.tx;f.fw_rx.io=(struct ceph_hfi_ops){&f,okay,okay,okay,okay};
+    f.fw_rx=link.tx;f.fw_rx.io=(struct ceph_hfi_ops){&f,okay,okay,okay,okay,okay};
     f.fw_tx=link.rx;f.fw_tx.io=f.fw_rx.io;
     uint32_t version_cmd[2],version_reply[8];unsigned version_count;
     ceph_hfi_fw_version(version_cmd,2,2,0);

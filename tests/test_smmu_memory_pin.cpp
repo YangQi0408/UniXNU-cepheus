@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
+#include <climits>
 #include <IOKit/IOBufferMemoryDescriptor.h>
 extern "C" {
 #include "cepheus_gmu_workspace.h"
@@ -61,7 +62,8 @@ int main(int argc,char **argv)
     assert(!ceph_memory_smmu_publish(&w.publication));
     auto bad=w.publication;bad.asid++;
     assert(ceph_memory_smmu_finish(&bad,CE_MEMORY_SMMU_UNCERTAIN)<0);
-    assert(ceph_memory_smmu_finish(&w.publication,(ceph_memory_smmu_result)99)<0);
+    for(int code:{99,-1,INT_MIN,INT_MAX})assert(ceph_memory_smmu_finish(&w.publication,code)<0);
+    assert(!ceph_memory_smmu_validate(&w.publication));
     ceph_memory_smmu_result result=mode==4?CE_MEMORY_SMMU_UNCERTAIN:
         mode==5?CE_MEMORY_SMMU_INSTALLED:CE_MEMORY_SMMU_REFUSED;
     assert(!ceph_memory_smmu_finish(&w.publication,result));

@@ -67,7 +67,7 @@ int ceph_memory_smmu_publish(const struct ceph_gpu_publication *p)
 {assert(p->handles[0]==1);++published;return publish_error?-1:0;}
 int ceph_memory_smmu_validate(const struct ceph_gpu_publication *p)
 {assert(p->handles[0]==1);return pin_invalid?-1:0;}
-int ceph_memory_smmu_finish(const struct ceph_gpu_publication *p,enum ceph_memory_smmu_result result)
+int ceph_memory_smmu_finish(const struct ceph_gpu_publication *p,int result)
 {assert(p->handles[0]==1);++unpins;pin_result=(unsigned)result;return finish_error?-1:0;}
 #endif
 #include "cepheus_smmu_native_private.h"

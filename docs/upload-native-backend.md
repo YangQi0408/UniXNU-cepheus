@@ -64,6 +64,13 @@ emulated; real firmware file input is not phone execution. Optional ZAP was
 not supplied. Leak detection is disabled for deliberate quarantine retention,
 not a leak-free claim. Default preflight skips real image cases without inputs.
 
+2026-11-11 correction: that retained log contains UBSan invalid-enum loads in
+the C/C++ SMMU/upload completion bridge despite exit 0. It is historical
+functional-path evidence, NOT sanitizer-clean acceptance. The source-bound
+focused native tests and independent kernel link evidence are separate.
+The bridge is being changed to accept/reject raw integer status codes and
+the whole chain is being rerun with terminal UBSan reports and log checks.
+
 Sources at dirty parent `b5c8f2a`: native-private SHA256
 `e9438c19bded6fad6007309885c1a1768257444aa4b93a1c8d4f876aa73e15c7`,
 memory.cpp SHA256

@@ -20,7 +20,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--android', type=Path)
+    parser.add_argument('--gmu', type=Path)
+    parser.add_argument('--sqe', type=Path)
     args = parser.parse_args()
+    if bool(args.gmu)!=bool(args.sqe):
+        parser.error('--gmu and --sqe must be supplied together')
     temporary = tempfile.TemporaryDirectory() if not args.output else None
     out = args.output.resolve() if args.output else Path(temporary.name)
     if args.output:
@@ -54,6 +58,9 @@ def main():
               'xnu/test_qmp_mmio.c','xnu/test_qmp_connect.c')
     names += ('xnu/cepheus_gmu_oob.h','xnu/cepheus_gmu_oob_native.h',
               'xnu/cepheus_gmu_oob_native_private.h','xnu/test_gmu_oob.c','xnu/test_gmu_oob_native.c')
+    names += ('xnu/cepheus_hfi.h','xnu/cepheus_hfi_session.h','xnu/cepheus_gmu_hfi_link.c',
+              'xnu/cepheus_gmu_hfi_link.h','xnu/test_hfi_access.c','tests/test_hfi_link_access.c',
+              'xnu/cepheus_gmu_workspace.h','xnu/cepheus_gpu_memory.h','xnu/cepheus_gpu_retire.h')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -145,13 +152,16 @@ def main():
         for text,pattern in rules:
             if not re.search(pattern,text,re.S):raise SystemExit('Changed OOB source rule: '+pattern)
 
-    def run(label, command, env=None):
+    def run(label, command, env=None, timeout=120):
         log = out/(label+'.log')
         with log.open('w') as stream:
-            code = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT,
-                                  env=env, timeout=120).returncode
+            try:
+                code = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT,
+                                      env=env, timeout=timeout).returncode
+            except subprocess.TimeoutExpired:
+                code = 124
         body = log.read_text()
-        if 'warning:' in body or 'error:' in body:
+        if 'warning:' in body or 'error:' in body or 'runtime error:' in body:
             code = code or 1
         receipt['steps'].append({'label': label, 'command': command, 'exit_code': code,
                                  'log': log.name, 'sha256': hashlib.sha256(log.read_bytes()).hexdigest()})
@@ -159,7 +169,7 @@ def main():
         (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
         print(label, 'FAIL' if code else 'PASS', flush=True)
         if code:
-            raise SystemExit(body)
+            raise SystemExit(body[-6000:])
 
     common = ['-std=c11', '-Wall', '-Wextra', '-Werror', '-I', str(ROOT/'xnu')]
     for name, compiler, flags in (
@@ -171,6 +181,7 @@ def main():
         env = os.environ.copy()
         # Apple ASan has no LeakSanitizer; keep address/UB checks on both hosts.
         env['ASAN_OPTIONS'] = ('detect_leaks=0' if sys.platform=='darwin' else 'detect_leaks=1')+':halt_on_error=1'
+        env['UBSAN_OPTIONS']='halt_on_error=1:print_stacktrace=1'
         run(name+'-run', [str(exe)], env)
         exe = out/(name+'-measure')
         run(name+'-measure-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_clock_measure.c'), '-o', str(exe)])
@@ -181,10 +192,14 @@ def main():
         exe = out/(name+'-power-mmio')
         run(name+'-power-mmio-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_gpu_power_mmio.c'), '-o', str(exe)])
         run(name+'-power-mmio-run', [str(exe)], env)
-        for sensor in ('gmu_oob','gmu_oob_native','qmp_mmio','qmp_connect','qmp_native','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
+        for sensor in ('hfi_access','gmu_oob','gmu_oob_native','qmp_mmio','qmp_connect','qmp_native','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
             exe=out/(name+'-'+sensor)
             run(name+'-'+sensor+'-compile', [compiler,*common,*flags,str(ROOT/'xnu'/('test_'+sensor+'.c')),'-o',str(exe)])
             run(name+'-'+sensor+'-run',[str(exe)],env)
+        exe=out/(name+'-hfi-link-access')
+        run(name+'-hfi-link-access-compile',[compiler,*common,*flags,
+            str(ROOT/'tests/test_hfi_link_access.c'),str(ROOT/'xnu/cepheus_gmu_hfi_link.c'),'-o',str(exe)])
+        run(name+'-hfi-link-access-run',[str(exe)],env)
     # Compile the actual native branch of the production translation unit.
     source = (ROOT/'xnu/cepheus_gpu_compile.c').read_text()
     native = source.split('static LCK_GRP_DECLARE', 1)[1].split('\n#endif', 1)[0]
@@ -211,6 +226,21 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
     command = ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding', *common]
     run('native-compile', [*command, '-c', str(file), '-o', str(out/'native.o')])
     run('native-assembly', [*command, '-S', str(file), '-o', str(out/'native.s')])
+    run('hfi-link-native-compile', [*command, '-fstack-usage', '-c',
+        str(ROOT/'xnu/cepheus_gmu_hfi_link.c'), '-o', str(out/'hfi-link-native.o')])
+    run('hfi-link-native-assembly', [*command, '-S',
+        str(ROOT/'xnu/cepheus_gmu_hfi_link.c'), '-o', str(out/'hfi-link-native.s')])
+    hfi_assembly=(out/'hfi-link-native.s').read_text()
+    for marker in ('cepheus_gmu_hfi_bind:', 'cepheus_gmu_hfi_poll_debug:', 'dsb\tsy'):
+        if marker not in hfi_assembly:raise SystemExit('Missing HFI native marker: '+marker)
+    stack=(out/'hfi-link-native.su').read_text()
+    receipt['hfi_native_stack_usage']=stack
+    for row in stack.splitlines():
+        fields=row.split('\t')
+        if len(fields)!=3 or fields[2]!='static' or int(fields[1])>4096:
+            raise SystemExit('Unexpected HFI native stack usage: '+row)
+    run('hfi-link-native-analysis', [*command, '--analyze', '-Xanalyzer', '-analyzer-output=text',
+        str(ROOT/'xnu/cepheus_gmu_hfi_link.c'), '-o', os.devnull])
     assembly = (out/'native.s').read_text()
     for marker in ('cepheus_gpu_gpll0_hold:', 'cepheus_gpu_gpll0_check:', 'cepheus_gpu_gpll0_measure:',
                    'cepheus_gpu_power_start_native:',
@@ -230,9 +260,11 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                           str(ROOT/'xnu/test_gpll0.c'), '-o', os.devnull])
     run('measure-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                  str(ROOT/'xnu/test_clock_measure.c'), '-o', os.devnull])
-    for name in ('gmu_oob','gmu_oob_native','qmp_native','qmp_mmio','qmp_connect','gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
+    for name in ('hfi_access','gmu_oob','gmu_oob_native','qmp_native','qmp_mmio','qmp_connect','gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
         run(name+'-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                    str(ROOT/'xnu'/('test_'+name+'.c')), '-o', os.devnull])
+    run('hfi-link-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
+        str(ROOT/'tests/test_hfi_link_access.c'), '-o', os.devnull])
     # Stage exactly as the existing local/CI copy manifests do, then compile
     # only from that tree. This catches missing transitive header copies.
     module_spec = importlib.util.spec_from_file_location('verification', ROOT/'scripts/verify-gpu-kernel.py')
@@ -272,9 +304,31 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
     run('staged-native-compile', ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding',
                                  '-std=c11', '-Wall', '-Wextra', '-Werror',
                                  '-I', str(tree/'bsd/dev'), '-c', str(file), '-o', str(out/'staged-native.o')])
+    for name in ('cepheus_hfi.h','cepheus_hfi_session.h','cepheus_gmu_hfi_link.c','cepheus_gmu_hfi_link.h'):
+        if (tree/'bsd/dev'/name).read_bytes()!=(ROOT/'xnu'/name).read_bytes():
+            raise SystemExit('Staged HFI source mismatch: '+name)
+    run('staged-hfi-link-native-compile', ['clang', '--target=aarch64-none-elf', '-O2', '-ffreestanding',
+        '-std=c11', '-Wall', '-Wextra', '-Werror', '-I', str(tree/'bsd/dev'),
+        '-c',str(tree/'bsd/dev/cepheus_gmu_hfi_link.c'),'-o',str(out/'staged-hfi-link-native.o')])
+    if args.gmu:
+        fixtures={'gmu':args.gmu.resolve(),'sqe':args.sqe.resolve()}
+        receipt['proprietary_fixtures']={name:{'path':str(path),'bytes':path.stat().st_size,
+            'sha256':hashlib.sha256(path.read_bytes()).hexdigest()} for name,path in fixtures.items()}
+        env=os.environ.copy()
+        env['CEPHEUS_GPU_HOST_ASAN']='1'
+        env['ASAN_OPTIONS']='detect_leaks=0:halt_on_error=1'
+        env.pop('CEPHEUS_ZAP_ELF',None)
+        run('real-firmware-memory-chain',['bash','scripts/test-gpu-memory-host.sh',
+            str(fixtures['gmu']),str(fixtures['sqe'])],env,timeout=900)
+        for name,path in fixtures.items():
+            if hashlib.sha256(path.read_bytes()).hexdigest()!=receipt['proprietary_fixtures'][name]['sha256']:
+                raise SystemExit('Firmware fixture changed during acceptance: '+name)
+    current={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
+    if current!=receipt['source_sha256']:raise SystemExit('Source changed during acceptance')
+    receipt['source_unchanged']=True
     receipt['result'] = 'PASS'
     (out/'receipt.json').write_text(json.dumps(receipt, indent=2)+'\n')
-    print('GPLL0/counter/native power/TSENS/CM3/PDC/SMMU/upload/QMP/OOB local acceptance PASS; no phone measurement or GPU execution')
+    print('GPLL0/counter/native power/TSENS/CM3/PDC/SMMU/upload/QMP/OOB/HFI local acceptance PASS; no phone measurement or GPU execution')
     if args.output:
         print(out/'receipt.json')
     if temporary:

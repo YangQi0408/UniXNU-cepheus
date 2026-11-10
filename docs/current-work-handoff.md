@@ -1,5 +1,27 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 04:26：HFI逐word/实际link full identity与view/layout/pre-post
+guard、alias/bounds/输出原子/sticky loss本地focused final-v3 PASS，receipt
+SHA13379064...，显式real GMU/SQE actual C/C++ ASanUBSan整链PASS，log
+SHA1866de98...。final-v2 invalid-enum UBSan虽然exit0仍判FAIL保留；bridge
+改raw int/极值拒绝不消费pin，UBSan终止；旧SMMU/upload日志声明已更正。
+完整preflight final-v2四步/80host/七分析PASS，receipt SHA01f9d667...，两
+验收source hashes仍匹配，待提交。详见hfi-access-lifetime.md，下一actual
+pool HFI pin/原生fixed版本查询。无新CI/phone操作，GPU/Metal未执行，active。
+
+2026-11-11 04:10：CI42886831693 @8c539ca于04:03:13完整成功，archived
+source独立验收PASS，17473904B/SHA b150954326355d39ab71da0461521103a44cdd53d
+013a8b996985dbf34aecdfa，98core/30memory/no unresolved/touch/PA64/SCM/tail。
+receipt out/kernel-verification-ci-42886831693.json SHA345c2f2b...；实际linked
+RPMh SHA2516428b...及idle SHA5009b78d... PASS，非runtime。未打包/boot。
+后续OOB ee105f6已提交推送，不在8c核中。HFI逐word pre/post validate、实际
+link全publication/view/layout及回调后identity复核、alias/bounds拒绝、原子
+输出/sticky loss改动进行final-source focused及完整preflight，尚未验收/提交。
+focused使用显式原厂a640_gmu.bin/a630_sqe.fw运行actual C/C++ ASanUBSan整链。
+109bind/24read/32write PROT_NONE首轮通过，synthetic pool不是GPU。
+下一原生HFI门铃/actual pool lifetime、真owner/继承/PAS13；无phone操作。
+GPU/Metal未执行，PAS13=false/supported=false/CP halt保持，目标active不停工。
+
 2026-11-11 03:54：QMP8c539ca已提交推送，唯一组合CI42886831693于03:35:40
 派发，全部前置已PASS/完整XNU构建中，不是完整link验收，勿重复派发。
 后续native OOB0使用actual CM3/HFI_READY private record及maps/config/version，

@@ -7,6 +7,12 @@ struct firmware {struct ceph_hfi_queue rx,tx,debug;uint64_t now;int fail,error_o
 static int okay(void *p){(void)p;return 0;}
 static int validate(void *p){return ((struct firmware *)p)->fail;}
 static int tick(void *p,uint64_t *t){struct firmware *f=p;f->now+=10000;*t=f->now;return 0;}
+static void copy_probe(struct ceph_gmu_hfi_link *to,const struct ceph_gmu_hfi_link *from)
+{
+    *to=*from;
+    to->tx.io.ctx=to->rx.io.ctx=to->debug.io.ctx=to;
+    to->session.tx=&to->tx;to->session.rx=&to->rx;to->session.ctx=to;
+}
 static int notify(void *p){struct firmware *f=p;uint32_t cmd[8];unsigned count;
     assert(!ceph_hfi_read(&f->rx,cmd,8,&count) && count==2 && (cmd[0]&255)==1);
     uint32_t ack[]={ceph_hfi_header(1,4,1,0),cmd[0],0,0x20000042};
@@ -22,7 +28,7 @@ int ceph_test_hfi_link(void)
     assert(cepheus_gmu_hfi_bind(&l,&w,&b)<0);assert(!cepheus_gmu_workspace_share(&w,&p));
     uint32_t *table=w.views[2].cpu;table[6+3]=1;assert(cepheus_gmu_hfi_bind(&l,&w,&b)<0);table[6+3]=1024;
     assert(!cepheus_gmu_hfi_bind(&l,&w,&b));
-    fw.rx=l.tx;fw.rx.io=(struct ceph_hfi_ops){&fw,okay,okay,okay,okay};
+    fw.rx=l.tx;fw.rx.io=(struct ceph_hfi_ops){&fw,okay,okay,okay,okay,okay};
     fw.tx=l.rx;fw.tx.io=fw.rx.io;
     fw.debug=l.debug;fw.debug.io=fw.rx.io;
     uint32_t debug[]={ceph_hfi_header(101,4,0,0),7,123,456};assert(!ceph_hfi_write(&fw.debug,debug,4));
@@ -32,15 +38,16 @@ int ceph_test_hfi_link(void)
     assert(table[40]==4 && table[41]==4 && l.debug_messages==1 && l.last_debug[3]==456);
     /* Capacity and protocol failures latch WITHOUT mutating peer indices to
      * recover. A copy permits negative cases before the final ACK/error case. */
-    struct ceph_gmu_hfi_link probe=l;
+    struct ceph_gmu_hfi_link probe;copy_probe(&probe,&l);
     table[41]=1024;assert(cepheus_gmu_hfi_poll_debug(&probe)==CE_HFI_INVALID);table[41]=table[40];
     for(unsigned i=0;i<33;++i)assert(!ceph_hfi_write(&fw.debug,debug,4));
-    probe=l;assert(cepheus_gmu_hfi_poll_debug(&probe)==CE_HFI_PROTOCOL);
+    copy_probe(&probe,&l);assert(cepheus_gmu_hfi_poll_debug(&probe)==CE_HFI_PROTOCOL);
     assert(!cepheus_gmu_hfi_poll_debug(&l)); /* one remaining valid debug */
     uint32_t unknown[]={ceph_hfi_header(20,2,0,0),0};
-    assert(!ceph_hfi_write(&fw.debug,unknown,2));probe=l;
+    assert(!ceph_hfi_write(&fw.debug,unknown,2));copy_probe(&probe,&l);
     assert(cepheus_gmu_hfi_poll_debug(&probe)==CE_HFI_PROTOCOL && probe.error_words==2);
-    fw.fail=1;assert(cepheus_gmu_hfi_poll_debug(&l)<0);fw.fail=0;
+    copy_probe(&probe,&l);fw.fail=1;assert(cepheus_gmu_hfi_poll_debug(&probe)<0);fw.fail=0;
+    assert(cepheus_gmu_hfi_poll_debug(&probe)<0 && probe.lease_failed);
     fw.error_on_ack=1;
     assert(ceph_hfi_exchange(&l.session,cmd,2,reply,8,&count)<0 && !count && l.session.poisoned);
     assert(l.error_words==18 && l.last_error[1]==0xabc && l.debug_error==CE_HFI_FW_ERROR);

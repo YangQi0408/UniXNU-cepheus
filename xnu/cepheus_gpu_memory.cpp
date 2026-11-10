@@ -840,7 +840,7 @@ extern "C" int ceph_memory_smmu_validate(const struct ceph_gpu_publication *p)
     int e=group>=0 && ceph_group_installing[group]?0:-1;
     IOLockUnlock(lock);return e;
 }
-extern "C" int ceph_memory_smmu_finish(const struct ceph_gpu_publication *p,enum ceph_memory_smmu_result result)
+extern "C" int ceph_memory_smmu_finish(const struct ceph_gpu_publication *p,int result)
 {
     if(result!=CE_MEMORY_SMMU_REFUSED && result!=CE_MEMORY_SMMU_INSTALLED && result!=CE_MEMORY_SMMU_UNCERTAIN)return -1;
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
@@ -886,7 +886,7 @@ extern "C" int ceph_memory_upload_publish(const struct ceph_gpu_publication *p)
     }
     IOLockUnlock(lock);return e;
 }
-extern "C" int ceph_memory_upload_finish(const struct ceph_gpu_publication *p,enum ceph_memory_upload_result result)
+extern "C" int ceph_memory_upload_finish(const struct ceph_gpu_publication *p,int result)
 {
     if(result!=CE_MEMORY_UPLOAD_REFUSED && result!=CE_MEMORY_UPLOAD_COPIED && result!=CE_MEMORY_UPLOAD_UNCERTAIN)return -1;
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;

@@ -69,6 +69,12 @@ Leak detection is disabled for deliberate quarantine retention, not a leak-free
 claim. Optional ZAP inputs were not supplied; default preflight skips
 proprietary inputs without explicit paths. No phone GPU execution was observed.
 
+2026-11-11 correction: that retained whole-chain log contains UBSan invalid
+enum loads in the C/C++ completion bridge despite exit 0. Do not cite it as
+sanitizer-clean acceptance; it remains functional-path evidence only. The
+focused native tests and independent kernel-link evidence are separate.
+Raw integer status admission and a terminal-UBSan rerun are in progress.
+
 Receipts bind dirty sources at parent `e458ee7`, notably memory.cpp SHA256
 `ab97aed3c857bd797208cded732bbca4d626c184a961e6b3caa7aa80626fede4`
 and native-private SHA256

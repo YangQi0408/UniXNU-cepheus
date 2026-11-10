@@ -40,8 +40,8 @@ static void init(struct fixture *f)
 {
     memset(f,0,sizeof(*f));
     f->cr=f->cw=1020;f->rr=f->rw=1020; /* real wrap on first request/reply */
-    f->tx=(struct ceph_hfi_queue){f->cmd,&f->cr,&f->cw,1024,2,{f,okay,okay,okay,notify},0};
-    f->rx=(struct ceph_hfi_queue){f->reply,&f->rr,&f->rw,1024,2,{f,okay,okay,okay,okay},0};
+    f->tx=(struct ceph_hfi_queue){f->cmd,&f->cr,&f->cw,1024,2,{f,okay,okay,okay,notify,okay},0};
+    f->rx=(struct ceph_hfi_queue){f->reply,&f->rr,&f->rw,1024,2,{f,okay,okay,okay,okay,okay},0};
     f->fw_rx=f->tx;f->fw_rx.io.notify=okay;f->fw_tx=f->rx;
     f->session=(struct ceph_hfi_session){&f->tx,&f->rx,f,now,okay,fault,0,0,0,0};
 }

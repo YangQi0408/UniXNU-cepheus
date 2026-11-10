@@ -8,11 +8,12 @@ static int acquire(void *p) { ((struct mock *)p)->acquires++; return ((struct mo
 static int publish_data(void *p) { struct mock *m=p; m->data_publishes++; if(m->write_index) assert(*m->write_index==m->before_index); return m->fail_data; }
 static int publish(void *p) { ((struct mock *)p)->publishes++; return ((struct mock *)p)->fail_index; }
 static int notify(void *p) { ((struct mock *)p)->notifies++; return ((struct mock *)p)->fail_notify; }
+static int validate(void *p) {(void)p;return 0;}
 int main(void)
 {
 	uint32_t data[16] = {0}, r = 12, w = 12, out[8]; unsigned n;
 	struct mock m = {0};
-	struct ceph_hfi_queue q = {data,&r,&w,16,2,{&m,acquire,publish_data,publish,notify},0};
+	struct ceph_hfi_queue q = {data,&r,&w,16,2,{&m,acquire,publish_data,publish,notify,validate},0};
 	unsigned ir,iw;assert(ceph_hfi_indices(&q,NULL,&iw)==CE_HFI_INVALID && ceph_hfi_indices(&q,&ir,NULL)==CE_HFI_INVALID);
 	struct ceph_hfi_queue misaligned=q;misaligned.write_index=(uint32_t *)((uint8_t *)&w+1);
 	assert(ceph_hfi_indices(&misaligned,&ir,&iw)==CE_HFI_INVALID);
@@ -27,7 +28,7 @@ int main(void)
 	r=16; assert(ceph_hfi_write(&q,msg,3)==CE_HFI_INVALID); r=0;
 	data[0]=ceph_hfi_header(1,15,0,0); assert(ceph_hfi_read(&q,out,8,&n)==CE_HFI_INVALID);
 	data[0]=0; assert(ceph_hfi_read(&q,out,8,&n)==CE_HFI_INVALID);
-	m.fail=1; assert(ceph_hfi_write(&q,msg,3)==CE_HFI_IO); m.fail=0;
+	m.fail=1; assert(ceph_hfi_write(&q,msg,3)==CE_HFI_IO); m.fail=0;q.poisoned=0;
 	uint32_t ack[]={ceph_hfi_header(1,3,1,0),msg[0],0};
 	assert(ceph_hfi_ack(ack,3,msg[0])); ack[1]^=1; assert(!ceph_hfi_ack(ack,3,msg[0]));
 	ack[1]=msg[0]; ack[2]=1; assert(!ceph_hfi_ack(ack,3,msg[0]));

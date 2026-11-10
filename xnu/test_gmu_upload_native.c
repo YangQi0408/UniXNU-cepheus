@@ -55,7 +55,7 @@ int ceph_memory_upload_validate(const struct ceph_gpu_publication *p)
 {assert(p->handles[0]==1);return pin_invalid?-1:0;}
 int ceph_memory_upload_publish(const struct ceph_gpu_publication *p)
 {assert(p->handles[0]==1);++published;return publish_error?-1:0;}
-int ceph_memory_upload_finish(const struct ceph_gpu_publication *p,enum ceph_memory_upload_result result)
+int ceph_memory_upload_finish(const struct ceph_gpu_publication *p,int result)
 {assert(p->handles[0]==1);++unpins;pin_result=(unsigned)result;return finish_error?-1:0;}
 int cepheus_gpu_upload_snapshot(struct ceph_gmu_upload *u,uint64_t handle,struct ceph_gmu_block *plan,unsigned capacity)
 {
