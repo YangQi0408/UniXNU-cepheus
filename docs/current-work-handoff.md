@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+23:15更新：设备仍未检测到，等待之前已发出的手动fastboot确认；无手机
+操作。生产ARC接入补缺：删除guard前rh_map及裸DB读，要求现有映射，DB
+每word前后validate_access及sticky失败，sender保留实际resource验证；固定
+name/复制owner，所有attempted store结束一次finish通知，uncertainty保留。
+final-v3本地receipt实际ARC153 resource/194 PROT_NONE access/14 writes、
+BCM1977/29、ASanUBSan/native/staged/analysis/integration通过；GCC定长name
+警告的final-v2失败保留，不追认。四步preflight final-v2已全部PASS，69 host
+及七生产静态分析通过。无生产owner实现/完整新XNU构建/新CI。已验收诊断镜像保持
+CI42835691416 @2bf48ab和SHAb7d88d435...不变，不冒充新ARC；后续用新代码
+前须完整构建。目标未完成，PAS13=false/CP halt不绕，GPU/Metal未执行。
+
 23:03更新：真实tail启动包本地五步验收全部PASS，
 out/rpmh-tail-real-42835691416-v1/boot-rpmh-tail.img，70696960B，
 SHAb7d88d435723fd317825050de0ed93d890fb540b79cc1bbf89c9c5209f287c44；

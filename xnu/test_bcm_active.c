@@ -42,7 +42,6 @@ static bool rh_poisoned;
 static int ml_get_interrupts_enabled(void){return context!=1;}
 static int ml_at_interrupt_context(void){return context==2;}
 static int get_preemption_level(void){return context==3;}
-static int rh_map(void){return 0;}
 static uint32_t rh_read(uintptr_t base,uint32_t off)
 {
     assert(!(off&3) && off<(base==rh_db?rh_db_size:APERTURE));++reads;
@@ -117,6 +116,7 @@ static void finish(void *ctx,unsigned stores,int keep)
 {assert(ctx==tcs && rh_lock && stores==writes);++finished;effects=stores;kept=(unsigned)keep;}
 static int forbidden_arc_owner(void *ctx,const struct ceph_arc_resource *r,unsigned old,unsigned target)
 {(void)ctx;(void)r;(void)old;(void)target;assert(0);return -1;}
+static int forbidden_arc_access(void *ctx){(void)ctx;assert(0);return -1;}
 static void reset(void)
 {
     assert(!mprotect(tcs,APERTURE,PROT_READ|PROT_WRITE));
@@ -176,7 +176,7 @@ int main(void)
     for(unsigned n=1;n<=stores;++n) {
         reset();fail_write=n;assert(run()==EIO && writes==n && finished==1 && kept && rh_poisoned);
         unsigned old=reads;assert(run()==EIO && old==reads && finished==1);
-        struct ceph_arc_active_owner a={tcs,forbidden_arc_owner};
+        struct ceph_arc_active_owner a={tcs,forbidden_arc_owner,forbidden_arc_access,finish};
         assert(cepheus_gpu_arc_raise("cx.lvl",1,2,&a)==EIO && reads==old);
     }
     for(unsigned n=0;n<8;++n) {

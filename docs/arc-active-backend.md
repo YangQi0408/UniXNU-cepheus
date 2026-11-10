@@ -6,6 +6,37 @@ owner implementation, startup hook, or GPU execution candidate.
 
 ## Contract
 
+23:15 correction: ARC no longer calls `rh_map()` or reads command DB before
+checking access ownership. Like BCM, it requires already initialized RSC/TCS/DB
+mappings and a separate non-sleeping `validate_access` callback before and after
+each database word and every sender access. A failed access is sticky for the
+decode; there is no later unguarded read, inferred current vote or lazy mapping.
+Resource validation still binds exact metadata and current/target indices.
+The callback table is copied and the accepted resource name is selected from a
+fixed nine-byte table before callbacks execute. `finish(stores, keep)` runs once
+after any attempted write, under the shared lock; uncertainty retains resources.
+Neither callback has a production owner implementation yet.
+
+`out/arc-access-local-20261110-final-v3/receipt.json` passes ARC/BCM host and
+ASan/UBSan execution, static analysis, actual pinned/staged AArch64 compilation,
+integration and no-startup-call checks. ARC covers 153 resource and 194 access
+boundaries using PROT_NONE revocation, all 14 uncertain stores, stale/fresh ACK,
+timeout retention and caller callback/name mutation. BCM's 1977 access boundaries
+and 29 stores remain covered. Intermediate final-v2 fails GCC array-bounds
+compilation on a short literal passed to the generic eight-character parser;
+fixed-width resource-name storage resolves this without disabling warnings.
+The final-v3 result supersedes earlier local receipts for the changed API.
+`out/arc-access-preflight-20261110-final-v2/receipt.json` passes all four local
+kernel prerequisites, 69 host programs and seven production host analyses.
+Neither that preflight nor native compilation is a complete XNU link.
+
+This is a new production-code batch, not contained in the accepted diagnostic
+kernel `42835691416 @2bf48ab`. No new full XNU CI has been dispatched. The
+already packaged tail-only diagnostic remains pinned to that accepted kernel
+and is unchanged; its hook never invokes ARC/BCM. Do not relabel it as containing
+this change or rerun its current-source equality verifier against the new tree.
+Complete XNU compilation/linking is required before this batch is used later.
+
 `cepheus_gpu_arc_raise()` accepts only `cx.lvl` and `mx.lvl`, requires a strictly
 increasing legal command-db table index and thread context, and shares the
 existing `rh_lock` and boot-terminal `rh_poisoned` with touch power. Data is a
