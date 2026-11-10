@@ -77,3 +77,7 @@ macOS headers already define `__unused`, and the RAM test redefined it under
 `-Werror`. An `#ifndef` guard fixes the test without changing production code.
 Linux checks with both absent and Darwin-style existing macros pass. The old
 job is not build acceptance; a new fixed-commit run must replace it.
+
+Replacement job `42792610794` at macro-fix commit `bba0314` was dispatched
+at 17:40 CST; its build/artifact status is PENDING. Production ARC code is
+unchanged from `7c80907`. Tracking: `out/arc-active-ci-42792610794.json`.

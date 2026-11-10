@@ -1,5 +1,10 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新17:40：ARC完整CI42792076835失败于macOS RAM fixture的__unused重定义，
+未进XNU编译。bba0314加宏保护并针对Linux/模拟Darwin/ASan+UBSan通过；
+新CI42792610794 @bba0314已启动PENDING。旧失败不追认PASS，完整核/链接待
+确认。真实owner/继承票/PAS13/PA/crypto/SMMU仍缺，手机不动，GPU未执行。
+
 最新2026-11-10 17:32：新增实际sweet_rpmh翻译单元的ARC ACTIVE raise通道，
 共用触摸rh_lock/rh_poisoned；只升CX/MX合法档位、八bank冲突拒绝、fresh IRQ/
 issued+complete ACK、逐访问owner校验及异常保留。70 lease/14写入故障、
