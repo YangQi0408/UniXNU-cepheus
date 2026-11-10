@@ -4,6 +4,7 @@
 #include "cepheus_gx_core.h"
 #include "cepheus_gx_hwcg.h"
 #include "cepheus_gx_gbif.h"
+#include "cepheus_gx_perfcounter.h"
 #include "cepheus_gpu_retire.h"
 struct ceph_gx_native_owner {
     void *ctx;
@@ -17,8 +18,8 @@ struct ceph_gx_native_owner {
 struct ceph_gx_native_result {
     unsigned writes; /* attempted stores, not completed work */
     int configured,retained,error;
-    unsigned hwcg_writes,gbif_writes;
-    int hwcg_skipped,setup;
+    unsigned hwcg_writes,gbif_writes,perf_writes;
+    int hwcg_skipped,setup,perfcounter;
 };
 /* One attempt after actual native query/boot/DCVS/START with OOB0 HELD.
  * Fixed map/register plan, no caller VA/register/value/ready flag.
@@ -27,4 +28,7 @@ int cepheus_gpu_gx_core_native(const struct ceph_gx_native_owner *,struct ceph_g
 /* Same singleton/owner/map, fixed vendor order HWCG -> GBIF -> core.
  * Still no perfcounter/LLCC/security/CP initialization or execution. */
 int cepheus_gpu_gx_setup_native(const struct ceph_gx_native_owner *,struct ceph_gx_native_result *);
+/* Adds busy/performance/IFPC counters at their vendor positions within setup.
+ * Still no LLCC, GX SMMU, security, CP publication or execution. */
+int cepheus_gpu_gx_setup_perf_native(const struct ceph_gx_native_owner *,struct ceph_gx_native_result *);
 #endif

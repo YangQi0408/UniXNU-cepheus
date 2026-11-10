@@ -13,7 +13,11 @@ static inline uint32_t ceph_sqe_le32(const uint8_t *p)
 static inline int ceph_sqe_parse(const uint8_t *file,size_t bytes,struct ceph_sqe_image *out)
 {
     if(!out)return -1;
+#ifdef __cplusplus
+    *out={};
+#else
     *out=(struct ceph_sqe_image){0};
+#endif
     if(!file || bytes<8 || bytes>1024*1024 || (bytes&3))return -1;
     uint32_t v=ceph_sqe_le32(file+4);
     if((v&15)==10) {

@@ -44,6 +44,30 @@ def main():
     start = source.split('static void a6xx_start(', 1)[1].split('static int a6xx_microcode_load(', 1)[0]
     if not start.index('a6xx_hwcg_set(adreno_dev, true)') < start.index('adreno_vbif_start(') < start.index('A6XX_UCHE_WRITE_RANGE_MAX_LO'):
         raise ValueError('vendor stage ordering changed')
+    stages = ('A6XX_RBBM_PERFCTR_GPU_BUSY_MASKED', 'A6XX_UCHE_WRITE_RANGE_MAX_LO',
+              'A6XX_CP_AHB_CNTL', 'A6XX_RBBM_PERFCTR_CNTL',
+              'A6XX_GMU_CX_GMU_POWER_COUNTER_SELECT_1', 'A6XX_RB_NC_MODE_CNTL',
+              'A6XX_GPU_GMU_AO_GPU_CX_BUSY_MASK', 'A6XX_GMU_CX_GMU_POWER_COUNTER_SELECT_0',
+              'A6XX_GMU_CX_GMU_POWER_COUNTER_ENABLE')
+    offsets = [start.index(name) for name in stages]
+    if offsets != sorted(offsets):
+        raise ValueError('vendor counter/core ordering changed')
+    perf = []
+    for name, value, gmu in (('A6XX_RBBM_PERFCTR_GPU_BUSY_MASKED', 0xffffffff, 0),
+                             ('A6XX_RBBM_PERFCTR_CNTL', 1, 0),
+                             ('A6XX_GPU_GMU_AO_GPU_CX_BUSY_MASK', 0xff000000, 1),
+                             ('A6XX_GMU_CX_GMU_POWER_COUNTER_SELECT_0', 0x20, 1),
+                             ('A6XX_GMU_CX_GMU_POWER_COUNTER_ENABLE', 1, 1)):
+        rmw = name.endswith('SELECT_0')
+        pattern = (r'(?:kgsl|gmu_core)_reg' + ('rmw' if rmw else 'write') +
+                   r'\(device,\s*' + name + r',\s*' + (r'0xff,\s*' if rmw else '') +
+                   r'(0[xX][0-9a-fA-F]+|[0-9]+)\s*\)')
+        match = re.search(pattern, start)
+        if not match or int(match[1], 0) != value:
+            raise ValueError('vendor counter value/RMW changed: ' + name)
+        perf.append((registers[name], value, gmu))
+    if not re.search(r'gmu_core_regrmw\(device,\s*A6XX_GMU_CX_GMU_POWER_COUNTER_SELECT_1,\s*0xff,\s*0x4\)', start):
+        raise ValueError('vendor IFPC masked RMW changed')
     hw = source.split('static void a6xx_hwcg_set(', 1)[1].split('static void', 1)[0]
     off = re.search(r'A6XX_GPU_GMU_GX_SPTPRAC_CLOCK_CONTROL,\s*1,\s*0\)', hw)
     on = re.search(r'A6XX_GPU_GMU_GX_SPTPRAC_CLOCK_CONTROL,\s*0,\s*1\)', hw)
@@ -60,14 +84,20 @@ def main():
     code = '''#include <assert.h>
 #include "cepheus_gx_hwcg.h"
 #include "cepheus_gx_gbif.h"
+#include "cepheus_gx_perfcounter.h"
 static const struct ceph_gx_write hw[]={''' + rows(hwcg) + '''};
 static const struct ceph_gx_write gb[]={''' + rows(gbif) + '''};
+static const struct ceph_gx_perf_write perf[]={''' + ','.join(
+        '{%s,%s,%s}' % (hex(r), hex(v), g) for r, v, g in perf) + '''};
 int main(void){
 struct ceph_gx_core_input i={0x06040001,0x100000,0x100000,15,32,3};
-struct ceph_gx_hwcg_plan h;struct ceph_gx_gbif_plan g;
+struct ceph_gx_hwcg_plan h;struct ceph_gx_gbif_plan g;struct ceph_gx_perf_plan p;struct ceph_gx_core_plan c;
 assert(!ceph_gx_hwcg_plan(&i,&h) && !ceph_gx_gbif_plan(&i,&g));
+assert(!ceph_gx_perf_plan(&i,&p) && !ceph_gx_core_plan(&i,&c));
 for(unsigned n=0;n<49;++n)assert(h.regs[n].word==hw[n].word && h.regs[n].value==hw[n].value);
 for(unsigned n=0;n<5;++n)assert(g.writes[n].word==gb[n].word && g.writes[n].value==gb[n].value);
+for(unsigned n=0;n<5;++n)assert(p.writes[n].word==perf[n].word && p.writes[n].value==perf[n].value && p.writes[n].gmu==perf[n].gmu);
+assert(c.writes[16].word==0x98d && c.writes[17].word==0x8e08);
 assert(h.gmu_cgc_mode==0x20202 && h.gmu_cgc_delay==0x10111 && h.gmu_cgc_hyst==0x5555);
 assert(h.sptprac_clock==0x1a880 && h.top_clock_cntl==0x8aa8aa82);
 }
@@ -80,15 +110,18 @@ assert(h.sptprac_clock==0x1a880 && h.top_clock_cntl==0x8aa8aa82);
                         str(path), '-o', str(exe)], check=True)
         subprocess.run([str(exe)], check=True)
     local = ('scripts/audit-gx-setup-source.py', 'xnu/cepheus_gx_hwcg.h', 'xnu/cepheus_gx_gbif.h',
-             'xnu/cepheus_gx_core_native.h', 'xnu/cepheus_gx_core_native_private.h')
+             'xnu/cepheus_gx_core_native.h', 'xnu/cepheus_gx_core_native_private.h',
+             'xnu/cepheus_gx_core.h', 'xnu/cepheus_gx_perfcounter.h')
     result = {'status': 'PASS', 'vendor_commit': PIN, 'vendor_sha256': hashes,
               'local_sha256': {n: hashlib.sha256((ROOT / n).read_bytes()).hexdigest() for n in local},
-              'hwcg_entries': hwcg, 'gbif_entries': gbif, 'hwcg_before_gbif_before_core': True,
+              'hwcg_entries': hwcg, 'gbif_entries': gbif, 'perf_entries': perf,
+              'ifpc_select_1': [registers['A6XX_GMU_CX_GMU_POWER_COUNTER_SELECT_1'], 0xff, 4],
+              'counter_core_source_order': stages, 'hwcg_before_gbif_before_core': True,
               'sp_clock_off_table_on_order': True, 'phone_operations': False, 'gpu_execution': False,
               'limitations': ['source comparison only; no live FDT, owner, MMIO or firmware ACK']}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')
-    print('Pinned A640 HWCG49/GBIF5 and SP-clock/order/status semantics PASS; not hardware')
+    print('Pinned A640 HWCG49/GBIF5/counters6 and SP-clock/core order/status semantics PASS; not hardware')
 
 
 if __name__ == '__main__':

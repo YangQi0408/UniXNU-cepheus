@@ -14,7 +14,7 @@ int test_hfi_native_pool(uint64_t,const ceph_gmu_workspace *,const ceph_smmu_pla
 int main(int argc,char **argv)
 {
     if(argc!=3){std::puts("HFI native actual-pool chain skipped: supply explicit local GMU image and mode");return 0;}
-    unsigned mode=(unsigned)std::strtoul(argv[2],nullptr,10);assert(mode<=56);
+    unsigned mode=(unsigned)std::strtoul(argv[2],nullptr,10);assert(mode<=67);
     std::ifstream f(argv[1],std::ios::binary);assert(f);
     std::vector<uint8_t> fw((std::istreambuf_iterator<char>(f)),{});
     uint64_t snapshot=0;assert(!cepheus_gpu_firmware_snapshot(0,fw.data(),fw.size(),&snapshot));
@@ -32,7 +32,7 @@ int main(int argc,char **argv)
         assert(!ceph_memory_retire_begin(&w.publication));assert(ceph_memory_retire_finish(&w.publication,0)<0);
     } else {
         assert(ceph_memory_retire_begin(&w.publication)<0 && cepheus_gpu_memory_abandon_workspace(&w.publication)<0);
-        bool healthy=mode==0 || mode==8 || mode==9 || mode==10 || mode==16 || mode==18 || mode==21 || mode==22 || mode==24 || mode==25 || mode==31 || mode==44 || mode==45 || mode==48 || mode==49 || mode==50;
+        bool healthy=mode==0 || mode==8 || mode==9 || mode==10 || mode==16 || mode==18 || mode==21 || mode==22 || mode==24 || mode==25 || mode==31 || mode==44 || mode==45 || mode==48 || mode==49 || mode==50 || mode==57 || mode==58;
         assert((ceph_memory_hfi_validate(&w.publication)==0)==healthy);
         assert(status.pool_terminal==!healthy);
         assert(status.state==(healthy?CE_GPU_GROUP_SHARED:CE_GPU_GROUP_UNCERTAIN));

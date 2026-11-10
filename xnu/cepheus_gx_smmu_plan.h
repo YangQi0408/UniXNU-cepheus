@@ -10,6 +10,19 @@
 #include "cepheus_smmu_plan.h"
 #include "cepheus_smmu_geometry.h"
 struct ceph_gx_smmu_plan {struct ceph_smmu_plan context;uint32_t actlr;};
+/* Fixed encoding only, not hardware ownership or a live stream census. */
+static inline int ceph_gx_smmu_plan_canonical(const struct ceph_gx_smmu_plan *g)
+{
+    if(!g)return 0;
+    const struct ceph_smmu_plan *p=&g->context;
+    uint64_t root=p->ttbr0&0xffffffffffULL;
+    return g->actlr==0x303 && p->smr==0x84010000 && p->s2cr_fault==(2u<<16) &&
+        p->s2cr_translate==p->cb && p->cb<8 && p->slot<128 && p->asid && p->asid<=255 &&
+        root && !(root&4095u) && p->ttbr0==(root|((uint64_t)p->asid<<48)) &&
+        p->ttbr1==((uint64_t)p->asid<<48) && p->cbar==0x1f300 && p->cba2r==1 &&
+        p->tcr==0x802019 && p->tcr2==0x38002 && p->mair0==0x44ff && !p->mair1 &&
+        p->sctlr==0xc01127;
+}
 static inline int ceph_gx_smmu_plan(const struct ceph_smmu_stream *streams,unsigned count,
     const struct ceph_smmu_geometry *g,unsigned slot,unsigned cb,unsigned asid,uint64_t root,
     uint32_t current_sctlr,struct ceph_gx_smmu_plan *out)

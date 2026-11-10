@@ -96,6 +96,13 @@ static int gx_validate(void *ctx)
     if(mode==40 && ceph_gx_native.result.writes==1)*word(6,0x808*4)=0;
     if(mode==41 && ceph_gx_native.result.writes==1)*word(6,0x823*4)=1;
     if(mode==42 && ceph_gx_native.result.writes==1)*word(6,0xe05*4)=0;
+    if(mode>=59 && mode<=64) {
+        const unsigned stages[]={61,79,80,87,88,89};
+        const uint32_t words[]={0x50b,0x500,0x1f842,0x23b0e,0x1f841,0x1f840};
+        unsigned n=mode-59;
+        if(ceph_gx_native.result.writes==stages[n])
+            *word(n<2?6:2,words[n]*4-(n<2?0:0x6a000))=0;
+    }
     if(mode>=49) {
         if(ceph_gx_native.sp_clock_off) {
             *word(2,0x1f8d0*4-0x6a000)=*word(2,0x1a880*4-0x6a000)&1u?0:0x10;
@@ -109,13 +116,15 @@ static int gx_validate(void *ctx)
         if(mode==53 && ceph_gx_native.result.writes==1)*word(2,0x23b09*4-0x6a000)=0;
         if(ceph_gx_native.result.writes==55)assert(*word(6,0xae*4)==0x8aa8aa82 && !*word(6,0x3c03*4));
         if(ceph_gx_native.result.writes==60)assert(*word(6,0x3c03*4)==0x71620 && !*word(6,0xe05*4));
+        if(mode>=57 && mode!=58 && mode!=59 && ceph_gx_native.result.writes==61)assert(*word(6,0x50b*4)==UINT32_MAX && !*word(6,0xe05*4));
+        if(mode>=57 && ceph_gx_native.result.writes==79)assert(*word(6,0x98d*4)==1 && !*word(6,0x8e08*4));
     }
     return 0;
 }
 static void gx_finish(void *ctx,unsigned stores,int keep)
 {
     assert(ctx==windows && ceph_gpll0_lock);++gx_ends;gx_stores=stores;gx_keep=keep;
-    if(mode==43 || mode==54)gx_expire=gx_checks+1;
+    if(mode==43 || mode==54 || mode==67)gx_expire=gx_checks+1;
 }
 static int query_begin(void *ctx,const struct ceph_gpu_publication *pub)
 {assert(ctx==windows && ceph_gpll0_lock && pub->group==publication.group);++begins;return 0;}
@@ -212,7 +221,7 @@ static void oob_finish(void *ctx,unsigned stores,int keep)
 int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
     const struct ceph_smmu_plan *plan,unsigned selected)
 {
-    assert(snapshot && workspace && plan && selected<=56);mode=selected;publication=workspace->publication;
+    assert(snapshot && workspace && plan && selected<=67);mode=selected;publication=workspace->publication;
     bin=mode==10 || mode>=24;boot_fail=mode>=11 && mode<=14?mode-10:0;late_boot=mode==15;late_start=mode==23;
     table=workspace->views[2].cpu;ticks=1000000;gpll0_scope_reset();
     for(unsigned n=0;n<7;++n) {
@@ -325,7 +334,11 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         struct ceph_gx_native_result gr={.error=123};
         *word(6,0x808*4)=2;
         if(mode>=49)*word(2,0x1a880*4-0x6a000)=1;
-        if(mode==50)*word(6,0xae*4)=0x8aa8aa82;
+        if(mode==50 || mode==58)*word(6,0xae*4)=0x8aa8aa82;
+        if(mode>=57) {
+            *word(2,0x1f841*4-0x6a000)=mode==65?UINT32_MAX:0xa5b600dd;
+            *word(2,0x1f842*4-0x6a000)=mode==66?UINT32_MAX:0x12345678;
+        }
         if(mode==33)*word(6,0x808*4)=0;
         if(mode==34)*word(6,0x823*4)=1;
         if(mode==35)*word(2,0x1f8d0*4-0x6a000)=4;
@@ -334,8 +347,9 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         if(mode==44)ceph_oob_native.release_attempted=1;
         if(mode==45)gx.rpmh_token=0;
         unsigned before=maps;
-        int ge=mode>=49?cepheus_gpu_gx_setup_native(&gx,&gr):cepheus_gpu_gx_core_native(&gx,&gr);
-        assert((ge==0)==(mode==31 || mode==49 || mode==50));
+        int ge=mode>=57?cepheus_gpu_gx_setup_perf_native(&gx,&gr):
+            mode>=49?cepheus_gpu_gx_setup_native(&gx,&gr):cepheus_gpu_gx_core_native(&gx,&gr);
+        assert((ge==0)==(mode==31 || mode==49 || mode==50 || mode==57 || mode==58));
         if(mode==44 || mode==45) {
             assert(gr.error==123 && !ceph_gx_native.attempted && !gx_begins && !gx_ends && maps==before);
         }else {
@@ -343,7 +357,7 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
             if(mode==48)assert(!gr.retained && !gx_ends && maps==before);
             else {
                 assert(gr.retained && gx_ends==1 && gx_keep && gr.writes==gx_stores);
-                assert(gr.configured==(mode==31 || mode==49 || mode==50));
+                assert(gr.configured==(mode==31 || mode==49 || mode==50 || mode==57 || mode==58));
                 if(mode==31 || mode==43)assert(gr.writes==23);
                 if(mode>=39 && mode<=42)assert(gr.writes==1);
                 if(mode>=35 && mode<=37)assert(!gx_maps && !gr.writes);
@@ -360,6 +374,16 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
                     if(mode==53)assert(gr.writes==1);
                     if(mode==49 || mode==50)assert(*word(2,0x1a880*4-0x6a000)==1 && !ceph_gx_native.sp_clock_off &&
                         *word(6,0x808*4)==2 && !*word(6,0x807*4));
+                    if(mode>=57) {
+                        assert(gr.perfcounter);
+                        if(mode==57 || mode==58 || mode==67)assert(gr.writes==(mode==58?37u:89u) && gr.perf_writes==6);
+                        if(mode==57 || mode==58)assert(*word(6,0x50b*4)==UINT32_MAX && *word(6,0x500*4)==1 &&
+                            *word(2,0x1f841*4-0x6a000)==0xa5b60020 && *word(2,0x1f842*4-0x6a000)==0x12345604 &&
+                            *word(2,0x23b0e*4-0x6a000)==0xff000000 && *word(2,0x1f840*4-0x6a000)==1 &&
+                            *word(6,0x808*4)==2 && !*word(6,0x807*4));
+                        if(mode==65)assert(gr.writes==87);
+                        if(mode==66)assert(gr.writes==79);
+                    }
                 }
             }
             gr.error=123;

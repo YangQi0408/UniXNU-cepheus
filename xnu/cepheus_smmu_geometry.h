@@ -16,7 +16,11 @@ static inline int ceph_smmu_geometry(uint32_t id0,uint32_t id1,uint32_t id2,uint
 {
     if(!out || id0==UINT32_MAX || id1==UINT32_MAX || id2==UINT32_MAX ||
         !(id0&(1u<<30)) || !(id0&(1u<<27)) || (id0&(1u<<8)) || !(id2&(1u<<12)))return -1;
+#ifdef __cplusplus
+    struct ceph_smmu_geometry g={};
+#else
     struct ceph_smmu_geometry g={0};
+#endif
     g.page_shift=(id1&(1u<<31))?16:12;
     g.groups=id0&255;g.contexts=id1&255;g.s2_contexts=(id1>>16)&255;
     g.sid_bits=(id0>>9)&15;g.pa_bits=ceph_smmu_address_bits((id2>>4)&15);

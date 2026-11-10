@@ -18,7 +18,7 @@ clang++ -std=c++17 "${common[@]}" -pthread -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 \
     -I"$root/tests/gpu-memory-host" "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_hfi_native_pool.cpp" \
     "$out/cepheus_gpu_compile.c.o" "$out/cepheus_gmu_hfi_link.c.o" "$out/cepheus_gmu_workspace.c.o" \
     "$out/cepheus_gpu_retire.c.o" "$out/test_gmu_hfi_native_pool.c.o" -o "$out/hfi-pool" "${libs[@]}"
-for mode in {0..56}; do
+for mode in {0..67}; do
     "$out/hfi-pool" "$firmware" "$mode" > "$out/mode-$mode.log" 2>&1
     if rg -n 'runtime error:|ERROR: AddressSanitizer|SUMMARY:.*Sanitizer' "$out/mode-$mode.log"; then exit 1; fi
     tail -n 1 "$out/mode-$mode.log"

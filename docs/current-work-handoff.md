@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11：继续不停工。b3d0871 HWCG/GBIF后续计数器与CP六buffer封存/pin
+fresh frozen focused141steps PASS SHA04c809ab...，完整四步/83host preflight
+PASS SHA92b7c19c...，结束后两source hash集匹配。原厂GMU/SQE actual68HFI
+及12CP modes与旧memory链PASS，无sanitizer报告，log SHA7ff983a4...；硬件、
+owner、IOKit、ACK模拟，不是GPU运行。旧超时与source-changed FAIL不追认。
+CI42915818943 @36c94c3已完整成功且archived源码独立验收107core/35memory；
+不含setup/counters/CP。见gx-native-backend.md与cp-memory-publication.md。
+下一提交此批/一次完整XNU link并继续native GX SMMU。无phone操作/USB手机；
+真实owner/继承票/TBU/PAS13/auth仍缺，CP halt保持，GPU/Metal未执行，active。
+
 2026-11-11 05:36：不停工。471e223的CI42900020339完整成功并archived-source
 独立验收PASS，101core/35memory/无unresolved，17492488B，kernel SHA98b66afd...，
 receipt SHA079cbecb...；actual linked RPMh/idle也PASS。该核含OOB/query/pin，

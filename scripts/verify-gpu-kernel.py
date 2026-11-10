@@ -47,6 +47,7 @@ HEADERS += ('cepheus_cp_workspace.c','cepheus_cp_workspace.h')
 HEADERS += ('cepheus_gpu_vm39.h',)
 HEADERS += ('cepheus_gx_core.h',)
 HEADERS += ('cepheus_gx_core_native.h','cepheus_gx_core_native_private.h')
+HEADERS += ('cepheus_cp_memory_private.h',)
 HEADERS += ('cepheus_gx_perfcounter.h',)
 HEADERS += ('cepheus_gx_llc.h',)
 HEADERS += ('cepheus_scm_discovery.h',)
@@ -151,7 +152,7 @@ def main():
     required |= {'_cepheus_cp_workspace_prepare','_cepheus_cp_workspace_release'}
     required |= {'_cepheus_gpu_vm39_build'}
     required |= {'_cepheus_gpu_gx_core_configure'}
-    required |= {'_cepheus_gpu_gx_core_native','_cepheus_gpu_gx_setup_native'}
+    required |= {'_cepheus_gpu_gx_core_native','_cepheus_gpu_gx_setup_native','_cepheus_gpu_gx_setup_perf_native'}
     required |= {'_cepheus_gpu_gx_perfcounter_configure'}
     required |= {'_cepheus_gpu_gx_gbif_configure','_cepheus_gpu_gx_va_partition'}
     required |= {'_cepheus_gpu_gx_llc_configure'}
@@ -162,6 +163,7 @@ def main():
     required |= {'_cepheus_cp_workspace_table'}
     required |= {'_cepheus_cp_workspace_validate'}
     required |= {'_cepheus_cp_workspace_restore'}
+    required |= {'_cepheus_cp_workspace_seal'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
     required |= {'_cepheus_gmu_hfi_version_native','_cepheus_gmu_hfi_boot_native',
@@ -178,6 +180,7 @@ def main():
     memory_api |= {'_ceph_memory_smmu_acquire','_ceph_memory_smmu_publish','_ceph_memory_smmu_validate','_ceph_memory_smmu_finish'}
     memory_api |= {'_ceph_memory_upload_acquire','_ceph_memory_upload_publish','_ceph_memory_upload_validate','_ceph_memory_upload_finish'}
     memory_api |= {'_ceph_memory_hfi_acquire','_ceph_memory_hfi_validate','_ceph_memory_hfi_publish','_ceph_memory_hfi_seal','_ceph_memory_hfi_finish'}
+    memory_api |= {'_ceph_memory_cp_seal','_ceph_memory_cp_acquire','_ceph_memory_cp_validate','_ceph_memory_cp_publish','_ceph_memory_cp_finish'}
     memory_api |= {'_cepheus_zap_memory_prepare','_cepheus_zap_memory_get',
                    '_cepheus_zap_memory_put','_cepheus_zap_memory_release_cpu','_cepheus_zap_memory_selftest'}
     memory_api |= {'_ceph_zap_memory_claim','_ceph_zap_memory_expose',

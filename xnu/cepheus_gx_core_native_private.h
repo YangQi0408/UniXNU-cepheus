@@ -72,6 +72,13 @@ static int ceph_gx_native_gpu_store(uint32_t word,uint32_t value)
     if(word>=0x10000 || ceph_gx_native_window())return -1;
     ++ceph_gx_native.result.writes;
     ceph_gmu_mmio_barrier();ceph_gx_native.gpu[word]=value;ceph_gmu_mmio_barrier();
+    if(word==0x50b && value==UINT32_MAX) {
+        /* This fixed busy-mask value is legitimately all ones. Status reads
+         * and every other register retain their invalid-read rejection. */
+        if(ceph_gx_native_window() || ceph_gx_native_bus())return -1;
+        ceph_gmu_mmio_barrier();actual=ceph_gx_native.gpu[word];ceph_gmu_mmio_barrier();
+        return ceph_gx_native_bus() || actual!=value || ceph_gx_native_window()?-1:0;
+    }
     return ceph_gx_native_window() || ceph_gx_native_load(word,&actual) ||
         actual!=value || ceph_gx_native_window()?-1:0;
 }
@@ -86,22 +93,29 @@ static int ceph_gx_native_gmu_store(uint32_t word,uint32_t value)
 {
     uint32_t actual;
     if(ceph_gx_native_window())return -1;
-    ++ceph_gx_native.result.writes;++ceph_gx_native.result.hwcg_writes;
+    ++ceph_gx_native.result.writes;
     return ceph_gmu_mmio_store(&ceph_hfi_native.gmu,word,value) || ceph_gx_native_window() ||
         ceph_gx_native_gmu_load(word,&actual) || actual!=value?-1:0;
+}
+static int ceph_gx_native_hwcg_gmu_store(uint32_t word,uint32_t value)
+{
+    unsigned before=ceph_gx_native.result.writes;
+    int e=ceph_gx_native_gmu_store(word,value);
+    ceph_gx_native.result.hwcg_writes+=ceph_gx_native.result.writes-before;
+    return e;
 }
 static int ceph_gx_native_hwcg(const struct ceph_gx_core_input *input)
 {
     struct ceph_gx_hwcg_plan p;uint32_t top,control;
     if(ceph_gx_hwcg_plan(input,&p) ||
-        ceph_gx_native_gmu_store(0x23b09,p.gmu_cgc_mode) ||
-        ceph_gx_native_gmu_store(0x23b0a,p.gmu_cgc_delay) ||
-        ceph_gx_native_gmu_store(0x23b0b,p.gmu_cgc_hyst) ||
+        ceph_gx_native_hwcg_gmu_store(0x23b09,p.gmu_cgc_mode) ||
+        ceph_gx_native_hwcg_gmu_store(0x23b0a,p.gmu_cgc_delay) ||
+        ceph_gx_native_hwcg_gmu_store(0x23b0b,p.gmu_cgc_hyst) ||
         ceph_gx_native_load(0xae,&top))return -1;
     if(top==p.top_clock_cntl){ceph_gx_native.result.hwcg_skipped=1;return 0;}
     if(ceph_gx_native_gmu_load(0x1a880,&control))return -1;
     ceph_gx_native.sp_clock_off=1;
-    if(ceph_gx_native_gmu_store(0x1a880,control&~1u))return -1;
+    if(ceph_gx_native_hwcg_gmu_store(0x1a880,control&~1u))return -1;
     for(unsigned n=0;n<CE_HWCG_REGS;++n) {
         unsigned before=ceph_gx_native.result.writes;
         int e=ceph_gx_native_gpu_store(p.regs[n].word,p.regs[n].value);
@@ -109,7 +123,7 @@ static int ceph_gx_native_hwcg(const struct ceph_gx_core_input *input)
         if(e)return -1;
     }
     if(ceph_gx_native_gmu_load(0x1a880,&control) ||
-        ceph_gx_native_gmu_store(0x1a880,control|1u))return -1;
+        ceph_gx_native_hwcg_gmu_store(0x1a880,control|1u))return -1;
     ceph_gx_native.sp_clock_off=0;
     unsigned before=ceph_gx_native.result.writes;
     int e=ceph_gx_native_gpu_store(0xae,p.top_clock_cntl);
@@ -128,6 +142,19 @@ static int ceph_gx_native_gbif(const struct ceph_gx_core_input *input)
     }
     return 0;
 }
+static int ceph_gx_native_perf_store(const struct ceph_gx_perf_write *w)
+{
+    uint32_t value=w->value;
+    if(w->gmu && (w->word==0x1f841 || w->word==0x1f842)) {
+        uint32_t old;
+        if(ceph_gx_native_gmu_load(w->word,&old))return -1;
+        value=(old&~0xffu)|value;
+    }
+    unsigned before=ceph_gx_native.result.writes;
+    int e=w->gmu?ceph_gx_native_gmu_store(w->word,value):ceph_gx_native_gpu_store(w->word,value);
+    ceph_gx_native.result.perf_writes+=ceph_gx_native.result.writes-before;
+    return e;
+}
 static int ceph_gx_native_configure(const struct ceph_gx_native_owner *owner,struct ceph_gx_native_result *out,unsigned setup)
 {
     if(!owner || !owner->begin || !owner->validate || !owner->finish || !out ||
@@ -140,7 +167,8 @@ static int ceph_gx_native_configure(const struct ceph_gx_native_owner *owner,str
     const struct ceph_gx_core_input input={0x06040001,0x100000,0x100000,15,32,3};
     if(ceph_gx_core_plan(&input,&ceph_gx_native.plan))goto done;
     ceph_gx_native.attempted=1;
-    ceph_gx_native.result.setup=setup;
+    ceph_gx_native.result.setup=!!setup;
+    ceph_gx_native.result.perfcounter=setup==2;
     e=ceph_gx_native.owner.begin(ceph_gx_native.owner.ctx,&ceph_hfi_native.publication,&input);
     if(e)goto publish;
     ceph_gx_native.acquired=1;ceph_gx_native.result.retained=1;
@@ -150,10 +178,18 @@ static int ceph_gx_native_configure(const struct ceph_gx_native_owner *owner,str
     if(ceph_gx_native_bus() || !ceph_gx_native.gpu || ((uintptr_t)ceph_gx_native.gpu&3u) ||
         (uintptr_t)ceph_gx_native.gpu>UINTPTR_MAX-0x40000) {e=-1;goto finish;}
     if(setup && (ceph_gx_native_hwcg(&input) || ceph_gx_native_gbif(&input))) {e=-1;goto finish;}
+    struct ceph_gx_perf_plan perf;
+    if(setup==2 && (ceph_gx_perf_plan(&input,&perf) || ceph_gx_native_perf_store(&perf.writes[0]))) {e=-1;goto finish;}
     for(unsigned n=0;n<23;++n) {
+        if(setup==2 && n==17) {
+            const struct ceph_gx_perf_write ifpc={0x1f842,4,1};
+            if(ceph_gx_native_perf_store(&perf.writes[1]) || ceph_gx_native_perf_store(&ifpc)) {e=-1;goto finish;}
+        }
         const struct ceph_gx_write *w=&ceph_gx_native.plan.writes[n];
         if(ceph_gx_native_gpu_store(w->word,w->value)) {e=-1;goto finish;}
     }
+    if(setup==2)for(unsigned n=2;n<5;++n)
+        if(ceph_gx_native_perf_store(&perf.writes[n])) {e=-1;goto finish;}
     e=ceph_gx_native_window();
 finish:
     ceph_gx_native.owner.finish(ceph_gx_native.owner.ctx,ceph_gx_native.result.writes,
@@ -172,4 +208,6 @@ int cepheus_gpu_gx_core_native(const struct ceph_gx_native_owner *owner,struct c
 {return ceph_gx_native_configure(owner,out,0);}
 int cepheus_gpu_gx_setup_native(const struct ceph_gx_native_owner *owner,struct ceph_gx_native_result *out)
 {return ceph_gx_native_configure(owner,out,1);}
+int cepheus_gpu_gx_setup_perf_native(const struct ceph_gx_native_owner *owner,struct ceph_gx_native_result *out)
+{return ceph_gx_native_configure(owner,out,2);}
 #endif

@@ -71,7 +71,12 @@ def main():
     names += ('xnu/cepheus_gx_core.h','xnu/cepheus_gx_core_native.h',
               'xnu/cepheus_gx_core_native_private.h','xnu/test_gx_core_native.c',
               'xnu/cepheus_cp_protection.h','xnu/cepheus_cp_protect.h',
-              'xnu/cepheus_gx_hwcg.h','xnu/cepheus_gx_gbif.h','scripts/audit-gx-setup-source.py')
+              'xnu/cepheus_gx_hwcg.h','xnu/cepheus_gx_gbif.h','xnu/cepheus_gx_perfcounter.h',
+              'scripts/audit-gx-setup-source.py')
+    names += ('xnu/cepheus_cp_workspace.c','xnu/cepheus_cp_workspace.h','xnu/cepheus_cp_memory_private.h',
+              'xnu/cepheus_gx_smmu_plan.h','xnu/cepheus_smmu_geometry.h','xnu/cepheus_sqe.h',
+              'xnu/test_gx_smmu_plan.c','scripts/test-gpu-stack.sh',
+              'tests/test_cp_workspace.cpp','tests/test_cp_workspace_restore.c','scripts/test-cp-memory-pool.sh')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -274,6 +279,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gmu_hfi_version_native:',
                    'cepheus_gmu_hfi_boot_native:','cepheus_gmu_hfi_dcvs_native:','cepheus_gmu_hfi_start_native:',
                    'cepheus_gpu_gx_core_native:','cepheus_gpu_gx_setup_native:',
+                   'cepheus_gpu_gx_setup_perf_native:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)

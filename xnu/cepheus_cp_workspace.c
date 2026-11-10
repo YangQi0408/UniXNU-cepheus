@@ -1,6 +1,7 @@
 #include "cepheus_cp_workspace.h"
 #include "cepheus_gpu_compile.h"
 #include "cepheus_gpu_firmware.h"
+#include "cepheus_cp_memory_private.h"
 
 int cepheus_cp_workspace_validate(struct ceph_cp_workspace *w)
 {
@@ -108,6 +109,22 @@ int cepheus_cp_workspace_table(struct ceph_cp_workspace *w,const uint64_t va[CE_
     if(ceph_vm39_build(&p,regions,CE_CP_ROOT) || ceph_vm39_matches(&p,regions,CE_CP_ROOT))return -1;
     for(unsigned i=0;i<CE_CP_ROOT;++i)w->regions[i]=regions[i];
     w->table=p;w->state=CE_CP_WS_TABLED;return 0;
+}
+
+int cepheus_cp_workspace_seal(struct ceph_cp_workspace *w,const struct ceph_gx_smmu_plan *p)
+{
+    if(!w || w->state!=CE_CP_WS_TABLED || !w->restore_ready ||
+        !ceph_gx_smmu_plan_canonical(p) || cepheus_cp_workspace_validate(w))return -1;
+    uintptr_t self=(uintptr_t)w;
+    if(sizeof(*w)>UINTPTR_MAX-self)return -1;
+    for(unsigned i=0;i<CE_CP_BUFFERS;++i) {
+        uintptr_t base=(uintptr_t)w->views[i].cpu;
+        if(w->views[i].bytes>UINTPTR_MAX-base ||
+            (self<base+w->views[i].bytes && base<self+sizeof(*w)))return -1;
+    }
+    struct ceph_cp_publication publication;
+    if(ceph_memory_cp_seal(w->handles,w->views,w->regions,w->table.used,p,&publication))return -1;
+    w->publication=publication;w->state=CE_CP_WS_SEALED;return 0;
 }
 
 int cepheus_cp_workspace_restore(struct ceph_cp_workspace *w,struct ceph_cp_snapshot_mmio *mmio,uint32_t packet[12])

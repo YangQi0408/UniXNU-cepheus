@@ -1,5 +1,65 @@
 # Native GX Core Subset
 
+## Native Counters Follow-On
+
+The later combined batch also implements separate CP backing seal/pin; see
+`cp-memory-publication.md`. Latest frozen-source acceptance has passed:
+focused141 steps, receipt SHA256
+`04c809ab03dcfac89144b2a0a22bcd6d91b19f26010245cacf1484bbed92b4b8`;
+four-step/83-host preflight, receipt SHA256
+`92b7c19cd8b691b9da78289a5b6e754d4e7c3052af16eba5b9f7722dbcbc7c84`.
+Both source hash sets match after completion. The output directories are
+`gx-perf-cp-local-20261111-final-v2` and
+`gx-perf-cp-preflight-20261111-final-v2`. The earlier counter-only focused
+run exceeded its900-second original-firmware host-chain budget, exit124, and
+is NOT accepted. Host sanitizer compilation now usesO1 with debug/frame
+pointers, retaining all assertions/sanitizers; standalone optimized68-mode
+counter and older whole-chain run completed. Its source was later changed,
+so it is not a final-source receipt. Original ZAP exists locally but these
+focused runs explicitly did not supply the optional artifact.
+
+HWCG/GBIF setup is committed/pushed as b3d0871. The later dirty
+`cepheus_gpu_gx_setup_perf_native` adds six counter stores without a startup
+caller: fixed GPU_BUSY_MASKED after GBIF and before UCHE; PERFCTR_CNTL and
+IFPC SELECT_1 after CP_AHB_CNTL and before UBWC; GMU busy mask, SELECT_0 and
+enable after the fixed core subset. SELECT_0/1 preserve all upper24 bits with
+source mask0xff; initial all-ones reads are rejected. The all-ones readback
+exception applies only to fixed GPU word0x50b written with0xffffffff. Halt,
+fault and every other status/register load retain their rejection policy.
+Cold89/early-out37 attempted stores include6 counter writes. Subgroup counts
+are accumulated after each guarded attempt, not hardware completion claims.
+
+Fast ASan/UBSan fixture passes cold9614 owner/6380 admitted scope and
+early-out4142/2740 PROT_NONE points, fixed all-ones mask, upper-field RMW,
+six independent readback corruptions, invalid source/status reads and final
+callback loss. Upstream records and hardware remain synthetic. Its initial
+fixture missed the first corruption because it gated on a subgroup count
+updated only after the store returned; `out/gx-perf-fast-v1-failure.txt` retains
+the failure. Corrected fixture passes, without weakening production.
+
+Pinned source audit independently verifies five existing counter plan entries,
+IFPC SELECT_1 mask/value and their ordering among the core source stages.
+`out/gx-perf-vendor-20261111-v1.json` records this comparison, not live FDT,
+MMIO or GPU execution. Counter-only and changed-source final-v1 runs are
+superseded by the frozen-source combined final-v2 acceptance above.
+The earlier standalone actual-pool v1 passed cold/early-out then failed a
+success-only assertion in corruption mode59; its log is preserved. The final
+acceptance compiled the corrected fixture, and a separate mode59 v2 passed.
+No older receipt or in-flight CI42915818943 covers this later source batch.
+
+CI42915818943 @36c94c3 completed successfully. Archived-source independent
+acceptance passes107 core/35 memory symbols, no unresolved, touch/64-bit PA/
+native SCM/tail ABI/caller. Kernel17526448B SHA256
+`65886aa88228fef6573ef58d303305db2a09e87aa8b43dc1a5c0ace1d9b169a8`.
+`out/kernel-verification-ci-42915818943.json` SHA256
+`f3b14b4fbcafddb8b48b68caedb2171fe938d6b79535c8ca0e63dcef836a8a9f`;
+actual linked RPMh receipt SHA256
+`e63c866349faf2fa73ba0781b28bd6dff02c56a0234b25b8538b1db96587f19d`;
+idle SHA256
+`c066334a79b14b6c409d43a3a6aa75d347683f8a83531ace3723bc550285fd95`.
+It includes fixed native core/config-cold, NOT b3d0871 HWCG/GBIF or this
+counter/CP batch. No new boot image or phone operation.
+
 ## HWCG And GBIF Follow-On
 
 The accepted subset below was committed/pushed as36c94c3. Single full XNU

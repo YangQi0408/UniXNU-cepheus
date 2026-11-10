@@ -11,6 +11,11 @@ int main(void)
     struct ceph_gx_smmu_plan p;
     assert(!ceph_gx_smmu_plan(streams,16,&g,0,1,2,0x120000000ULL,0,&p));
     assert(p.context.smr==0x84010000 && p.context.tcr==0x802019 && p.actlr==0x303);
+    assert(ceph_gx_smmu_plan_canonical(&p));
+    struct ceph_gx_smmu_plan changed=p;changed.context.ttbr0^=1ULL<<40;
+    assert(!ceph_gx_smmu_plan_canonical(&changed));changed=p;changed.context.tcr=0x802020;
+    assert(!ceph_gx_smmu_plan_canonical(&changed));changed=p;changed.actlr=0;
+    assert(!ceph_gx_smmu_plan_canonical(&changed));
     assert(!ceph_smmu_plan_canonical(&p.context)); /* GMU installer MUST reject */
     for(unsigned sid=0;sid<0x800;++sid)
         assert(ceph_smmu_overlap(p.context.smr,sid,0)==(sid==0 || sid==1 || sid==0x400 || sid==0x401));
