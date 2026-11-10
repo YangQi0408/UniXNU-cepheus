@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
@@ -21,7 +22,73 @@ def blob(tokens,table=b'compatible\0'):
 def word(n): return struct.pack('>I',n)
 
 
+def tbu_fixture():
+    smmu = '/soc/smmu'
+    nodes = {'/': {'#address-cells': word(1), '#size-cells': word(1)},
+             '/soc': {'#address-cells': word(1), '#size-cells': word(1), 'ranges': b''},
+             smmu: {'#address-cells': word(1), '#size-cells': word(1), 'ranges': b'',
+                    'compatible': b'qcom,qsmmu-v500\0'}}
+    for index in range(2):
+        nodes[smmu+'/tbu'+str(index)] = {
+            'compatible': b'qcom,qsmmuv500-tbu\0',
+            'reg': b''.join(word(value) for value in (0x2cc5000 + index*0x4000, 0x1000,
+                                                     0x2cc2200 + index*8, 8)),
+            'reg-names': b'base\0status-reg\0',
+            'qcom,stream-id-range': word(index*0x400)+word(0x400)}
+    return nodes, smmu
+
+
 class FdtTests(unittest.TestCase):
+    def test_masked_tbu_coverage(self):
+        nodes, smmu = tbu_fixture()
+        streams = {'gmu_kernel': {'sid': 5, 'mask': 0x400},
+                   'gmu_user': {'sid': 4, 'mask': 0x400},
+                   'gx_user': {'sid': 0, 'mask': 0x401},
+                   'gx_secure': {'sid': 2, 'mask': 0x400}}
+        result = fdt.tbu_coverage(nodes, smmu, streams)
+        self.assertFalse(result['resource_owner'] or result['hardware_access'])
+        self.assertEqual(result['stream_coverage']['gmu_kernel']['matched_sids'], [5, 0x405])
+        self.assertEqual([row['matched_sids'] for row in result['stream_coverage']['gx_user']['tbus']],
+                         [[0, 1], [0x400, 0x401]])
+        for row in result['stream_coverage'].values():
+            self.assertEqual(len(row['tbus']), 2)
+        nodes[smmu+'/tbu0']['qcom,opt-out-tbu-halting'] = b''
+        result = fdt.tbu_coverage(nodes, smmu, {'single': {'sid': 5, 'mask': 0}})
+        self.assertEqual(len(result['stream_coverage']['single']['tbus']), 1)
+        self.assertTrue(result['tbus'][0]['opt_out_halting'])
+
+    def test_tbu_refusals(self):
+        nodes, smmu = tbu_fixture()
+        stream = {'gmu_kernel': {'sid': 5, 'mask': 0x400}}
+        variants = []
+        for prop, value in (('qcom,stream-id-range', word(0x400)+word(0)),
+                            ('qcom,stream-id-range', word(0x8000)+word(1)),
+                            ('qcom,stream-id-range', word(0x3ff)+word(0x400)),
+                            ('qcom,stream-id-range', word(0x406)+word(0x400)),
+                            ('reg-names', b'base\0base\0'),
+                            ('reg', word(0x2cc5000)+word(0x1000)+word(0x2cc2208)+word(8)),
+                            ('reg', word(0x2cc9000)+word(0)+word(0x2cc2208)+word(8)),
+                            ('status', b'disabled\0')):
+            variant = copy.deepcopy(nodes)
+            variant[smmu+'/tbu1'][prop] = value
+            variants.append(variant)
+        variant = copy.deepcopy(nodes)
+        del variant[smmu+'/tbu1']
+        variants.append(variant)
+        for value in (None, word(0)+word(0)+word(0x1000)):
+            variant = copy.deepcopy(nodes)
+            if value is None:
+                del variant['/soc']['ranges']
+            else:
+                variant['/soc']['ranges'] = value
+            variants.append(variant)
+        for index, variant in enumerate(variants):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                fdt.tbu_coverage(variant, smmu, stream)
+        for sid, mask in ((-1, 0), (5, -1), (0x8000, 0), (5, 0x8000)):
+            with self.subTest(sid=sid, mask=mask), self.assertRaises(ValueError):
+                fdt.tbu_coverage(nodes, smmu, {'bad': {'sid': sid, 'mask': mask}})
+
     def test_minimal_and_properties(self):
         tokens=word(1)+bytes(4)+word(3)+word(5)+word(0)+b'test\0'+bytes(3)+word(2)+word(9)
         self.assertEqual(fdt.parse(blob(tokens))['/']['compatible'],b'test\0')
@@ -69,6 +136,8 @@ class FdtTests(unittest.TestCase):
                                   'memory_region':None,'subsys_vmid':None,'clock_names':[],'proxy_clock_names':[]})
         self.assertEqual(r['opp_levels'][0],{'hz':257000000,'raw_vlvl':64})
         self.assertEqual(r['streams']['gmu_kernel'],{'sid':5,'mask':0x400,'actlr':0x303})
+        self.assertEqual(r['smmu_tbu']['stream_coverage']['gmu/gmu_kernel']['matched_sids'], [5, 0x405])
+        self.assertEqual(len(r['smmu_tbu']['stream_coverage']['gmu/gmu_kernel']['tbus']), 2)
         self.assertEqual([b['throttle_mask'] for b in r['speed_bins']],[0x80,0x40])
         self.assertEqual([b['lm_enabled_by_source'] for b in r['speed_bins']],[False,True])
         self.assertEqual([b['acd_mailbox_by_source'] for b in r['speed_bins']],[False,True])

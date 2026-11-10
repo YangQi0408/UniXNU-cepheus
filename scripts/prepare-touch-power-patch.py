@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Add ONLY an ldoc1 XOB enable vote to pinned SWEET RPMh transport.
+"""Add ldoc1 XOB enable policy and participating-writer scope admission.
 
 The Mi 9 live FDT uses the same RSC/DRV layout, but ldoc1 is XOB: never
 write its voltage or mode. Keep idle-slot validation and timeout quarantine.
+Legacy writers refuse a held GPU reservation before mappings/access; this is
+software coordination, not inherited resource ownership or a new idle policy.
 """
 import difflib
 from pathlib import Path
@@ -20,6 +22,12 @@ def replace(s, old, new, count=1):
 
 
 def transform(s):
+    s = replace(s, ' * Sole XNU apps-DRV owner, called from thread context with deep idle disabled.',
+                ' * Participating XNU apps-DRV transport; no inherited-owner or idle-policy claim.')
+    s = replace(s, 'static bool rh_poisoned;',
+                'static bool rh_poisoned;\n#include "cepheus_rpmh_scope_private.h"')
+    s = replace(s, '\terror = rh_map();\n',
+                '\tif (ceph_rpmh_scope_legacy()) { error = EBUSY; goto out; }\n\terror = rh_map();\n')
     s = replace(s, 'int sweet_rpmh_vreg_enable(const char *res, unsigned mv);',
                 'int sweet_rpmh_vreg_enable(const char *res, unsigned mv);\nint cepheus_touch_power_enable(void);')
     s = replace(s, 'rh_send(uint32_t address, unsigned mv)',
@@ -47,7 +55,8 @@ cepheus_touch_power_enable(void)
 	if (__atomic_exchange_n(&rh_lock, 1, __ATOMIC_ACQUIRE)) { return EBUSY; }
 	int error = EIO;
 	uint32_t address = 0;
-	if (!rh_poisoned) {
+	if (ceph_rpmh_scope_legacy()) { error = EBUSY; }
+	else if (!rh_poisoned) {
 		error = rh_map();
 		if (!error) { error = rh_lookup("ldoc1", &address); }
 		if (!error) { error = rh_send(address, 0, true); }

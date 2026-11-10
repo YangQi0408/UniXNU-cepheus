@@ -22,6 +22,7 @@ static int ceph_rpmh_active_read(const struct ceph_rpmh_active_call *c,uint32_t 
 static int ceph_rpmh_active_write(struct ceph_rpmh_active_call *c,uint32_t off,uint32_t value,int sync)
 {
     if(ceph_rpmh_active_lease(c))return EBUSY;
+    if(ceph_rpmh_scope_effect())return EBUSY;
     rh_poisoned=true;++c->attempted_stores;
     rh_write(rh_tcs,off,value);
     if(!sync)return ceph_rpmh_active_lease(c);

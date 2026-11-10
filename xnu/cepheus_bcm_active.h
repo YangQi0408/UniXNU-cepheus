@@ -20,6 +20,9 @@ struct ceph_bcm_active_owner {
      * keep=0 follows ACK+slot cleanup, not permission to lower/free live votes.
      */
     void (*finish)(void *,unsigned attempted_stores,int keep);
+    /* Participating-writer reservation, not inherited request evidence.
+     * Management/finish callbacks must not recurse into scope APIs. */
+    uint64_t rpmh_token;
 };
 /* Encoded X/Y components, never AB/IB or a prebuilt arbitrary command. Each
  * component stays within14 bits and cannot decrease; each included vote raises

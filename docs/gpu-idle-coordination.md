@@ -69,6 +69,31 @@ the post-build `verify-gpu-idle-kernel.py` requires actual applied source and
 five linked native entries. The existing CI `42860421403 @d22a054` does not
 contain these idle hooks and cannot accept them. No phone boot has occurred.
 
+Commit `91a5ec198cf671dca0cee8426bf5d6ed833f3796` was pushed and complete
+idle XNU CI `42867280759` dispatched once at 2026-11-11 01:40:04 Asia/Shanghai.
+At 01:48 regression/static analysis passed; native codegen was in progress.
+Full link, independent artifact acceptance and phone behavior remain pending.
+Do not dispatch a duplicate or promote this state to runtime acceptance.
+
+At 2026-11-11 02:06:25 Asia/Shanghai that exact CI completed successfully.
+The independent archived-91a5ec1 acceptance is
+`out/kernel-verification-ci-42867280759.json` (SHA256
+`d299587a42f38135afe1a0febcac0c7c2f9ed3a680f06f387a0da9ee444df39b`).
+Kernel is 17472904 bytes, SHA256
+`3a77999f46e307ed4b2353989dd2c1ae339cc9c643a2178c42a7c9bf2e8e59f1`.
+94 core/30 memory entries, no unresolved symbols and touch/PA64/SCM/tail pass.
+Use the original artifact `build.log`, not the full Actions log's echoed shell
+checks (the latter initially triggered a false skipped-patch refusal).
+
+Additional independent `scripts/verify-gpu-idle-linked.py` accepts actual linked
+CPU/machine-idle control flow, five entries, CAS/atomic gate operations,
+leave-before-context branches and reset-entry bypass. Receipt
+`out/idle-linked-ci-42867280759-v1.json`, SHA256
+`d1d0d990e84f18ed763e6d2e8402917eff9dd2fcf04e0a0d4f61c1bd392ef0fa`.
+It rejects the older d22a054 kernel without idle hooks. This is linked code
+inspection plus CI applied-source proof, not a reconstructed full source tree
+or phone runtime measurement. No boot/image was made from this kernel.
+
 Earlier source-harness v1/v2 failed because its notification double incorrectly
 required an idle reader on reset entry. The corrected fixture treats reset
 notification separately; failure outputs are retained, not relabeled PASS.

@@ -29,6 +29,7 @@ def main():
     names=('xnu/cepheus_bcm_active.h','xnu/cepheus_bcm_active_private.h',
            'xnu/cepheus_rpmh_active_private.h','xnu/cepheus_arc_active_private.h',
            'xnu/cepheus_arc_active.h','xnu/cepheus_bcm.h','xnu/cepheus_arc.h',
+           'xnu/cepheus_rpmh_scope.h','xnu/cepheus_rpmh_scope_private.h',
            'xnu/test_bcm_active.c','xnu/test_arc_active.c','scripts/test-bcm-active.py')
     receipt={'time_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
              'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
@@ -94,7 +95,8 @@ def main():
     (tree/'bsd/conf/files').write_text('base\n')
     subprocess.run(['bash',str(patches/'0086-stage-cepheus-gpu-arc.sh')],cwd=tree,check=True)
     for name in ('cepheus_bcm_active.h','cepheus_bcm_active_private.h','cepheus_rpmh_active_private.h',
-                 'cepheus_arc_active.h','cepheus_arc_active_private.h','cepheus_arc.h','cepheus_bcm.h'):
+                 'cepheus_arc_active.h','cepheus_arc_active_private.h','cepheus_arc.h','cepheus_bcm.h',
+                 'cepheus_rpmh_scope.h','cepheus_rpmh_scope_private.h'):
         assert (tree/'bsd/dev'/name).read_bytes()==(ROOT/'xnu'/name).read_bytes()
     run('staged-native',['python3',str(ROOT/'scripts/test-arc-active-native.py'),str(pinned),'--headers',str(tree/'bsd/dev')])
     receipt['result']='PASS'

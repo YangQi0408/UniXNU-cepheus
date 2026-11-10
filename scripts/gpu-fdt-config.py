@@ -92,6 +92,109 @@ def parse(blob):
     return nodes
 
 
+def tbu_coverage(nodes, smmu, streams):
+    """Resolve every masked SID, not just its low representative, without MMIO."""
+    limit = 1 << 15
+
+    def scalar(path, name):
+        value = cells(nodes[path][name])
+        if len(value) != 1:
+            raise ValueError('TBU geometry property must be scalar')
+        return value[0]
+
+    def active(path):
+        while path:
+            status = strings(nodes[path]['status']) if 'status' in nodes[path] else ['okay']
+            if status not in (['okay'], ['ok']):
+                raise ValueError('disabled or invalid TBU ancestor')
+            if path == '/':
+                break
+            path = path.rsplit('/', 1)[0] or '/'
+
+    def registers(path):
+        parent = path.rsplit('/', 1)[0] or '/'
+        ac = scalar(parent, '#address-cells')
+        sc = scalar(parent, '#size-cells')
+        if ac not in (1, 2) or sc not in (1, 2):
+            raise ValueError('unsupported TBU register cell geometry')
+        ancestor = parent
+        while ancestor != '/':
+            if nodes[ancestor].get('ranges') != b'':
+                raise ValueError('TBU registers require explicit identity bus ranges')
+            ancestor = ancestor.rsplit('/', 1)[0] or '/'
+        raw = cells(nodes[path]['reg'])
+        names = strings(nodes[path]['reg-names'])
+        width = ac + sc
+        if len(raw) % width or len(names) != len(raw) // width or len(set(names)) != len(names):
+            raise ValueError('TBU register names/geometry mismatch')
+        result = {}
+        for index, name in enumerate(names):
+            row = raw[index * width:(index + 1) * width]
+            address = 0
+            size = 0
+            for value in row[:ac]:
+                address = (address << 32) | value
+            for value in row[ac:]:
+                size = (size << 32) | value
+            if not size or address + size > 1 << 64:
+                raise ValueError('invalid TBU physical range')
+            result[name] = {'address': address, 'bytes': size}
+        return result
+
+    if not streams or smmu not in nodes:
+        raise ValueError('missing TBU stream scope')
+    active(smmu)
+    if 'qcom,qsmmu-v500' not in strings(nodes[smmu]['compatible']):
+        raise ValueError('unsupported TBU parent')
+    tbus = []
+    for path, props in nodes.items():
+        if path.rsplit('/', 1)[0] != smmu or 'compatible' not in props:
+            continue
+        if 'qcom,qsmmuv500-tbu' not in strings(props['compatible']):
+            continue
+        active(path)
+        span = cells(props['qcom,stream-id-range'])
+        if len(span) != 2 or not span[1] or span[0] >= limit or span[1] > limit - span[0]:
+            raise ValueError('invalid TBU stream-id range')
+        mapped = registers(path)
+        if set(mapped) != {'base', 'status-reg'}:
+            raise ValueError('unexpected TBU register set')
+        tbus.append({'path': path, 'sid_start': span[0], 'sid_count': span[1],
+                     'registers': mapped, 'opt_out_halting': 'qcom,opt-out-tbu-halting' in props})
+    tbus.sort(key=lambda item: item['sid_start'])
+    if not tbus or len(tbus) > 32:
+        raise ValueError('missing/excess TBU ranges')
+    physical = [value for tbu in tbus for value in tbu['registers'].values()]
+    for index, first in enumerate(physical):
+        for second in physical[index + 1:]:
+            if first['address'] < second['address'] + second['bytes'] and second['address'] < first['address'] + first['bytes']:
+                raise ValueError('overlapping TBU physical ranges')
+    for first, second in zip(tbus, tbus[1:]):
+        if first['sid_start'] + first['sid_count'] > second['sid_start']:
+            raise ValueError('overlapping TBU SID ranges')
+    coverage = {}
+    for name, stream in streams.items():
+        sid, mask = stream['sid'], stream['mask']
+        if not isinstance(sid, int) or not isinstance(mask, int) or not 0 <= sid < limit or not 0 <= mask < limit:
+            raise ValueError('SID/mask outside SMR policy')
+        matched = [value for value in range(limit) if ((value ^ sid) & ~mask) == 0]
+        grouped = []
+        covered = 0
+        for tbu in tbus:
+            ids = [value for value in matched if tbu['sid_start'] <= value < tbu['sid_start'] + tbu['sid_count']]
+            if ids:
+                grouped.append({'path': tbu['path'], 'matched_sids': ids})
+                covered += len(ids)
+        if covered != len(matched):
+            raise ValueError('masked stream has uncovered TBU SIDs')
+        coverage[name] = {'sid': sid, 'mask': mask, 'matched_sids': matched, 'tbus': grouped}
+    return {'smmu_path': smmu, 'tbus': tbus, 'stream_coverage': coverage,
+            'resource_owner': False, 'hardware_access': False,
+            'limitations': ['FDT topology only; no live SID-width or TBU readiness measurement',
+                            'TBU debug halt/status is not passive owner acquisition',
+                            'power, clocks, inherited traffic and foreign writers require separate ownership']}
+
+
 def report(blob,speed_bin=None):
     nodes=parse(blob)
     handles={}
@@ -297,13 +400,16 @@ def report(blob,speed_bin=None):
          'clock_names':strings(nodes[zp]['clock-names']) if 'clock-names' in nodes[zp] else [],
          'proxy_clock_names':strings(nodes[zp]['qcom,proxy-clock-names']) if 'qcom,proxy-clock-names' in nodes[zp] else []}
     if zap['pas_id']!=13 or zap['no_auth']:raise ValueError('unsupported/unauthenticated ZAP policy')
+    tbu = tbu_coverage(nodes, smmu, {**{'gmu/'+name: stream for name, stream in streams.items()},
+                                    **{'gx/'+name: stream for name, stream in gx_streams.items()}})
     return {'fdt_sha256':hashlib.sha256(blob).hexdigest(),'fdt_bytes':len(blob),
         'chipid':scalar(gpu,'qcom,chipid'),'gpu_path':gpu,'gmu_path':gmu,'opp_path':opppath,
         'gpu_registers':regs(gpu),'gmu_registers':regs(gmu),'gmu_hz':[n[1] for n in gmu_levels],
         'opp_levels':opps,'speed_bins':bins,
         'selected_bin':selected,'speed_bin_evidence':'caller-supplied; not checked by this tool' if selected else 'UNKNOWN; no eFuse read performed',
         'ddr_vectors':ddr,'cnoc_vectors':cnoc,'bus_routes':routes,'streams':streams,'smmu_path':smmu,
-        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'acd':acd,'qmp':qmp,'thermal':thermal,'gx':gx,'zap':zap,
+        'smmu_actlr_matches':[actlr[i:i+3] for i in range(0,len(actlr),3)],'smmu_tbu':tbu,
+        'acd':acd,'qmp':qmp,'thermal':thermal,'gx':gx,'zap':zap,
         'limitations':['saved FDT only, no hardware execution','BCM cmd-db unit/width/VCD values still needed',
                         'not an ARC vote ownership proof','selected OPP phandle must replace generic sm8150 table']}
 

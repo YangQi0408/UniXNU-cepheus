@@ -42,6 +42,16 @@ static unsigned elapsed,slot;
 static int ml_get_interrupts_enabled(void){return context!=1;}
 static int ml_at_interrupt_context(void){return context==2;}
 static int get_preemption_level(void){return context==3;}
+static int idle_held,idle_retained;
+int cepheus_gpu_idle_check(uint64_t token){return token==1 && idle_held?0:-1;}
+int cepheus_gpu_idle_finish(uint64_t token,int keep)
+{
+    if(cepheus_gpu_idle_check(token))return -1;
+    if(keep){idle_retained=1;return 0;}
+    if(idle_retained)return -1;
+    idle_held=0;return 0;
+}
+#include "cepheus_rpmh_scope_private.h"
 static uint32_t rh_read(uintptr_t base,uint32_t off)
 {
     assert(!(off&3));++reads;
@@ -105,7 +115,7 @@ static void init(void)
     assert(!mprotect(db,APERTURE,PROT_READ|PROT_WRITE));
     memset(tcs,0,APERTURE);memset(db,0,APERTURE);
     rh_rsc=1;rh_tcs=(uintptr_t)tcs;rh_db=(uintptr_t)db;rh_db_size=256;
-    owner=(struct ceph_arc_active_owner){tcs,validate,validate_access,finish};
+    owner=(struct ceph_arc_active_owner){tcs,validate,validate_access,finish,1};
     db[0]=1;db[1]=0x0c0330db;db[2]=3;db[3]=(1u<<16)|24u;
     memcpy((uint8_t *)db+144,"cx.lvl",6);db[160/4]=0x30010;db[164/4]=8;
     db[168/4]=16u<<16;db[172/4]=48u|(64u<<16);
@@ -116,6 +126,10 @@ static void init(void)
     context=corrupt_payload=triggered=revoked=0;complete=1;elapsed=slot=0;
     access_calls=fail_access=finished=kept=effects=mutate_owner=0;
     strcpy(mutable_name,"cx.lvl");
+    ceph_rpmh_scope_phase=CE_RS_OPEN;ceph_rpmh_scope_effects=ceph_rpmh_scope_attempted=0;
+    ceph_rpmh_scope_failed=0;
+    idle_held=1;idle_retained=0;
+    uint64_t token=0;assert(!cepheus_gpu_rpmh_hold(1,&token) && token==1);
 }
 static int run(void){return cepheus_gpu_arc_raise("cx.lvl",1,2,&owner);}
 int main(void)
@@ -184,6 +198,11 @@ int main(void)
     assert(cepheus_gpu_arc_raise("cx.lvl",1,2,NULL)==EINVAL && !reads);
     init();owner.validate_access=NULL;assert(run()==EINVAL && !reads && !lease_calls);
     init();owner.finish=NULL;assert(run()==EINVAL && !reads && !access_calls);
+    init();owner.rpmh_token=0;assert(run()==EBUSY && !reads && !writes);
+    init();assert(!cepheus_gpu_rpmh_finish(1,0));assert(run()==EBUSY && !reads && !writes);
+    init();assert(!run() && idle_retained && ceph_rpmh_scope_effects);
+    assert(cepheus_gpu_rpmh_finish(1,0)==EBUSY && ceph_rpmh_scope_legacy()==EBUSY);
+    assert(cepheus_gpu_idle_finish(1,0)!=0 && idle_held);
     init();mutate_owner=1;
     assert(!cepheus_gpu_arc_raise(mutable_name,1,2,&owner) && finished==1 && !kept && !owner.finish);
     assert(!strcmp(mutable_name,"gfx.lvl"));

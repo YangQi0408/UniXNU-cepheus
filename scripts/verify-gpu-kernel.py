@@ -26,6 +26,7 @@ HEADERS += ('cepheus_gpll0.h','cepheus_gpll0_private.h')
 HEADERS += ('cepheus_clock_measure.h','cepheus_clock_measure_private.h')
 HEADERS += ('cepheus_arc_active.h','cepheus_arc_active_private.h')
 HEADERS += ('cepheus_bcm_active.h','cepheus_bcm_active_private.h','cepheus_rpmh_active_private.h')
+HEADERS += ('cepheus_rpmh_scope.h','cepheus_rpmh_scope_private.h')
 HEADERS += ('cepheus_gpu_fault_mmio.h',)
 HEADERS += ('cepheus_gmu_upload_mmio.h',)
 HEADERS += ('cepheus_qmp_connect.h',)
@@ -127,6 +128,7 @@ def main():
     required |= {'_cepheus_gmu_upload_native'}
     required |= {'_cepheus_gpu_arc_raise'}
     required |= {'_cepheus_gpu_bcm_raise'}
+    required |= {'_cepheus_gpu_rpmh_hold','_cepheus_gpu_rpmh_check','_cepheus_gpu_rpmh_finish'}
     required |= {'_cepheus_gpu_gpll0_hold','_cepheus_gpu_gpll0_check'}
     required |= {'_cepheus_gpu_gpll0_measure'}
     required |= {'_cepheus_gpu_fault_mmio_read'}

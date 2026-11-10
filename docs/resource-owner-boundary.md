@@ -72,6 +72,39 @@ hardware behavior before any production owner/startup admission.
 
 ## Required Next Evidence
 
+### Masked TBU Coverage
+
+`scripts/gpu-fdt-config.py` now resolves every SID matched by each GMU/GX
+mask to active, nonoverlapping TBU ranges. Missing high-SID coverage, disabled
+ancestors, translated/unspecified bus ranges and overlapping MMIO are rejected.
+It does not access TBU registers or authorize any SMMU store.
+
+`out/smmu-tbu-source-20261111-v1/receipt.json` passes a separate pinned-vendor
+source audit. Vendor commit is `36f369fdb77319a2984a48b89f025ac3e5f97386`;
+all included DTS/header/driver files are byte-compared to that commit. Real
+vendor DTS files are compiled by CPP/dtc using clearly labeled synthetic
+external phandle stubs, NOT a board/live-FDT capture. Compiler warnings about
+vendor unit-address syntax and incomplete interrupt stubs are preserved.
+
+Masked matches are GMU kernel `[0x005,0x405]`, GMU user `[0x004,0x404]`,
+GX user `[0x000,0x001,0x400,0x401]`, GX secure `[0x002,0x402]`. Every stream
+needs both TBU0 (`0x2cc5000/0x1000`, SID `[0,0x400)`) and TBU1
+(`0x2cc9000/0x1000`, SID `[0x400,0x800)`). Their status windows are
+`0x2cc2200/8` and `0x2cc2208/8`. The parent requires CX and MEMNOC/DVM/AHB
+clocks and carries `qcom,skip-init`/three-level tables.
+
+The source audit also verifies `qsmmuv500_tbu_halt` can clear faults, alter
+SCTLR, issue RESUME_TERMINATE and undo a halt on timeout. This destructive
+debug path must not be used as passive ownership acquisition. TBU list
+registration, an empty TCS and the new CPU-idle token still do not establish
+inherited traffic/writer exclusion.
+
+Six FDT test cases pass (one recorded-live-FDT test explicitly skipped because
+its file is unavailable). `/tmp/live-cepheus.dtb` is not present; no synthetic
+file is substituted for the historical recorded SHA. Reacquire an actual
+capture for runtime topology acceptance. This work changes only offline tools
+and tests; the in-flight `91a5ec1` production source remains unchanged.
+
 2026-11-11 follow-on implementation: `gpu-idle-coordination.md` now describes
 actual scoped SWEET XNU `cpu_idle`/preceding-WFE reader/block hooks and a
 one-shot drain/retain API. It has no startup caller or runtime acceptance.

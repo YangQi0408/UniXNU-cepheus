@@ -6,6 +6,16 @@ packaging and independent artifact verification run locally.
 
 ## Kernel preflight
 
+2026-11-11 02:15 update: complete idle CI `42867280759 @91a5ec1` succeeded
+and independently passes archived-source/touch/PA64/SCM/tail plus actual linked
+idle control-flow checks. Kernel 17472904 bytes, SHA256
+`3a77999f46e307ed4b2353989dd2c1ae339cc9c643a2178c42a7c9bf2e8e59f1`.
+Receipts `out/kernel-verification-ci-42867280759.json` and
+`out/idle-linked-ci-42867280759-v1.json`. No phone boot or new image.
+The subsequent `rpmh-writer-coordination.md` batch is separate and not accepted
+by this kernel. Local focused scope/adapters and final-v2 full preflight pass
+(four prerequisites/77 host/seven analyses, SHA256 `f31e8502e85a410a1c3d2c55d404df8d77fe43b33c61dcb8d21781a8f373ed02`).
+
 2026-11-11 01:33 combined native kernel acceptance supersedes the pending
 link notes below: CI `42860421403 @d22a054` succeeded. Downloaded kernel is
 17472504 bytes, SHA256
@@ -19,7 +29,9 @@ Scoped idle work: `out/gpu-idle-local-20261111-accepted/receipt.json` accepts
 10000 eight-reader pthread races, native lifecycle and actual applied CPU/
 machine-idle bodies with host/ASan/UBSan, native AArch64 and static analysis.
 See `gpu-idle-coordination.md`; full XNU link/runtime of this later batch is
-pending, no startup caller or phone operation. The existing diagnostic boot
+pending under CI `42867280759 @91a5ec1` (dispatched once, 01:40:04), no startup
+caller or phone operation. At 01:48 its regression/static analysis passed;
+codegen was in progress, not complete kernel acceptance. The existing diagnostic boot
 image remains bound to CI42835691416, not this newer kernel.
 
 2026-11-11 native upload continuation:

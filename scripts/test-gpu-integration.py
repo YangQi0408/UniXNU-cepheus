@@ -161,6 +161,7 @@ class Integration(unittest.TestCase):
         # A build can accidentally retain all symbols AND introduce a startup
         # call. Keep this separate check on actual boot-facing source bodies.
         dangerous=('cepheus_gpu_arc_raise','cepheus_gpu_bcm_raise','cepheus_gmu_bringup_start','ceph_power_start','cepheus_gpu_power_start',
+                   'cepheus_gpu_rpmh_hold','cepheus_gpu_idle_hold',
                    'cepheus_gpu_power_start_native',
                    'cepheus_gpu_tsens_bind_native','cepheus_gpu_temperature_sample_native','cepheus_gpu_thermal_now_native',
                    'cepheus_gmu_start_cold_native',

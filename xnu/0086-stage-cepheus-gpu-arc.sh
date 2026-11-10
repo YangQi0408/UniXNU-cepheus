@@ -8,4 +8,5 @@ test -d bsd/dev
 install -m 0644 "$here/cepheus_arc.h" "$here/cepheus_arc_probe.h" "$here/cepheus_bcm.h" \
     "$here/cepheus_arc_active.h" "$here/cepheus_arc_active_private.h" \
     "$here/cepheus_bcm_active.h" "$here/cepheus_bcm_active_private.h" \
-    "$here/cepheus_rpmh_active_private.h" bsd/dev/
+    "$here/cepheus_rpmh_active_private.h" "$here/cepheus_rpmh_scope.h" \
+    "$here/cepheus_rpmh_scope_private.h" bsd/dev/

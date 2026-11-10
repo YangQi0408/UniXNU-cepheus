@@ -4,6 +4,7 @@
 #ifndef CEPHEUS_ARC_ACTIVE_PRIVATE_H
 #define CEPHEUS_ARC_ACTIVE_PRIVATE_H
 #include "cepheus_arc_active.h"
+#include "cepheus_rpmh_scope.h"
 #include "cepheus_rpmh_active_private.h"
 
 struct ceph_arc_active_call {
@@ -15,15 +16,15 @@ struct ceph_arc_active_call {
 static int ceph_arc_active_lease(void *ctx)
 {
     const struct ceph_arc_active_call *c=ctx;
-    return c->owner.validate_access(c->owner.ctx) ||
+    return cepheus_gpu_rpmh_check(c->owner.rpmh_token) || c->owner.validate_access(c->owner.ctx) ||
         c->owner.validate(c->owner.ctx,&c->resource,c->current,c->target)?EBUSY:0;
 }
 static uint32_t ceph_arc_active_db_read(void *ctx,uint32_t off)
 {
     struct ceph_arc_active_call *c=ctx;
-    if(c->db_failed || c->owner.validate_access(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
+    if(c->db_failed || cepheus_gpu_rpmh_check(c->owner.rpmh_token) || c->owner.validate_access(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
     uint32_t value=rh_read(rh_db,off);
-    if(c->owner.validate_access(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
+    if(cepheus_gpu_rpmh_check(c->owner.rpmh_token) || c->owner.validate_access(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
     if(value==UINT32_MAX)c->db_failed=1;
     return value;
 }
@@ -41,6 +42,7 @@ int cepheus_gpu_arc_raise(const char *name,unsigned current,unsigned target,
     int e=EIO;
     struct ceph_rpmh_active_call call={.ctx=&c,.validate=ceph_arc_active_lease,.count=1,.wait=1};
     if(rh_poisoned)goto done;
+    if(cepheus_gpu_rpmh_check(c.owner.rpmh_token)){e=EBUSY;goto done;}
     if(!rh_rsc || !rh_tcs || !rh_db || !rh_db_size){e=ENODEV;goto done;}
     if(c.owner.validate_access(c.owner.ctx)){e=EBUSY;goto done;}
     struct ceph_arc_db db={&c,rh_db_size,ceph_arc_active_db_read};

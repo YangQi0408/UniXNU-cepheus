@@ -2,6 +2,7 @@
 #ifndef CEPHEUS_BCM_ACTIVE_PRIVATE_H
 #define CEPHEUS_BCM_ACTIVE_PRIVATE_H
 #include "cepheus_bcm_active.h"
+#include "cepheus_rpmh_scope.h"
 #include "cepheus_rpmh_active_private.h"
 struct ceph_bcm_active_call {
     struct ceph_bcm_active_owner owner;
@@ -13,7 +14,7 @@ struct ceph_bcm_active_call {
 static int ceph_bcm_active_lease(void *ctx)
 {
     const struct ceph_bcm_active_call *c=ctx;
-    if(c->owner.validate(c->owner.ctx))return EBUSY;
+    if(cepheus_gpu_rpmh_check(c->owner.rpmh_token) || c->owner.validate(c->owner.ctx))return EBUSY;
     for(unsigned n=0;n<c->count;++n) {
         const struct ceph_bcm_active_vote *v=&c->votes[n];
         if(c->owner.current(c->owner.ctx,v->id,&c->resources[n],v->current_x,v->current_y))return EBUSY;
@@ -23,9 +24,9 @@ static int ceph_bcm_active_lease(void *ctx)
 static uint32_t ceph_bcm_active_db_read(void *ctx,uint32_t off)
 {
     struct ceph_bcm_active_call *c=ctx;
-    if(c->db_failed || c->owner.validate(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
+    if(c->db_failed || cepheus_gpu_rpmh_check(c->owner.rpmh_token) || c->owner.validate(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
     uint32_t value=rh_read(rh_db,off);
-    if(c->owner.validate(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
+    if(cepheus_gpu_rpmh_check(c->owner.rpmh_token) || c->owner.validate(c->owner.ctx)){c->db_failed=1;return UINT32_MAX;}
     if(value==UINT32_MAX)c->db_failed=1;
     return value;
 }
@@ -49,6 +50,7 @@ int cepheus_gpu_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned coun
     struct ceph_rpmh_active_call call={.ctx=&c,.validate=ceph_bcm_active_lease,
         .count=count,.reject_armed_bcm=1};
     if(rh_poisoned)goto done;
+    if(cepheus_gpu_rpmh_check(c.owner.rpmh_token)){e=EBUSY;goto done;}
     /* Do not map/read shared hardware outside the supplied ownership guard. */
     if(!rh_rsc || !rh_tcs || !rh_db || !rh_db_size){e=ENODEV;goto done;}
     if(c.owner.validate(c.owner.ctx)){e=EBUSY;goto done;}

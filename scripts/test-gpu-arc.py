@@ -25,7 +25,8 @@ class ArcIntegrationTests(unittest.TestCase):
             subprocess.run(["bash", str(ROOT / "xnu/0086-stage-cepheus-gpu-arc.sh")],
                            cwd=tree, check=True)
             for name in ("cepheus_arc.h", "cepheus_arc_probe.h", "cepheus_arc_active.h", "cepheus_arc_active_private.h",
-                         "cepheus_bcm_active.h", "cepheus_bcm_active_private.h", "cepheus_rpmh_active_private.h"):
+                         "cepheus_bcm_active.h", "cepheus_bcm_active_private.h", "cepheus_rpmh_active_private.h",
+                         "cepheus_rpmh_scope.h", "cepheus_rpmh_scope_private.h"):
                 self.assertEqual((tree / "bsd/dev" / name).read_bytes(), (ROOT / "xnu" / name).read_bytes())
             self.assertFalse((tree / "bsd/dev/sweet_rpmh.c").exists())
 
@@ -33,7 +34,8 @@ class ArcIntegrationTests(unittest.TestCase):
         for path in ('scripts/build-kernel-patches.sh', '.github/workflows/touch-kernel.yml'):
             text = (ROOT / path).read_text()
             for name in ('cepheus_arc_active.h', 'cepheus_arc_active_private.h',
-                         'cepheus_bcm_active.h', 'cepheus_bcm_active_private.h', 'cepheus_rpmh_active_private.h'):
+                         'cepheus_bcm_active.h', 'cepheus_bcm_active_private.h', 'cepheus_rpmh_active_private.h',
+                         'cepheus_rpmh_scope.h', 'cepheus_rpmh_scope_private.h'):
                 self.assertIn(name, text, path)
 
     def test_real_patch_after_touch_enable_only(self):

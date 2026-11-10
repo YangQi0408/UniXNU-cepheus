@@ -1,5 +1,22 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 02:15：idle完整XNU CI42867280759 @91a5ec1全成功并本机独立
+验收PASS，kernel17472904B/SHA3a77999f46e307ed4b2353989dd2c1ae339cc9c643
+a2178c42a7c9bf2e8e59f1，94core/30memory/touch/PA64/SCM/tail/无unresolved。
+out/kernel-verification-ci-42867280759.json SHAd299587a...；附加actual linked
+五idle entry/control flow PASS，out/idle-linked-ci-42867280759-v1.json
+SHAd1d0d990...，用准确91a5ec1 archive验收，未boot。
+后续actual apps-DRV reservation与legacy touch/vreg map前拒绝/ARCBCM token/
+写前永久idle retain已实现，无startup/新票/SMC/真实资源owner。focused实际
+source/adapters final-v2 PASS，1000pthread/ASanUBSan/native/staged/analysis；
+preflight v1四步/77host/七分析PASS但注释/禁用断言运行中更新，fresh final-v2
+进行中。详见rpmh-writer-coordination.md；原厂masked双TBU source audit PASS，
+不是录制FDT/运行owner。此批待提交/完整link，不混入91a5ec1核。02:20 fresh
+final-v2全部PASS，四步/77host/七分析，receipt SHA f31e8502...，生产源码
+检查期间无改动。
+USB仍无手机/无操作；旧tail未boot镜像不变。PAS13=false/supported=false/CP halt
+不绕，GPU/Metal未执行，目标active继续真owner/继承/GPLL0协调/诊断及启动。
+
 2026-11-11 01:34：组合native完整XNU CI42860421403 @d22a054成功并本机
 独立验收PASS，kernel17472504B/SHA801079f0e46560de5ee4c2cd0ff5d36bb5b564
 02012cf42f078fec610c457656，94 core/30 memory/无unresolved/touch/PA64/SCM/
@@ -11,7 +28,9 @@ tail通过；receipt out/kernel-verification-ci-42860421403.json，SHA1fd028a9..
 函数体host/ASanUBSan/native AArch64/analysis通过，详见gpu-idle-coordination.md。
 后续全量preflight final-v2已PASS，四步/77 host/七分析，SHA35f198c6...；
 先前final-v1撞到修正前reset夹具失败保留。
-本批idle未完整XNU link/真机验收，无新CI/镜像/手机操作；无USB手机，等待已有
+91a5ec1已推送，01:40:04仅派发一次完整idle XNU CI42867280759；01:48
+回归/静态分析通过、codegen进行中，待完整link/独立验收/真机，不是GPU执行。
+无新镜像/手机操作，勿重复派发；无USB手机，等待已有
 手动fastboot回复。旧未boot tail镜像CI42835691416 @2bf48ab/SHA b7d88d435...
 不含近期native/idle。下一真实resource owner/继承/foreign writers/启动绑定；
 PAS13=false/supported=false/CP halt保持，GPU/Metal未执行，目标active不停工。

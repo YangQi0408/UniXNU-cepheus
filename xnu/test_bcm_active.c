@@ -42,6 +42,16 @@ static bool rh_poisoned;
 static int ml_get_interrupts_enabled(void){return context!=1;}
 static int ml_at_interrupt_context(void){return context==2;}
 static int get_preemption_level(void){return context==3;}
+static int idle_held,idle_retained;
+int cepheus_gpu_idle_check(uint64_t token){return token==1 && idle_held?0:-1;}
+int cepheus_gpu_idle_finish(uint64_t token,int keep)
+{
+    if(cepheus_gpu_idle_check(token))return -1;
+    if(keep){idle_retained=1;return 0;}
+    if(idle_retained)return -1;
+    idle_held=0;return 0;
+}
+#include "cepheus_rpmh_scope_private.h"
 static uint32_t rh_read(uintptr_t base,uint32_t off)
 {
     assert(!(off&3) && off<(base==rh_db?rh_db_size:APERTURE));++reads;
@@ -125,7 +135,11 @@ static void reset(void)
     rh_rsc=1;rh_tcs=(uintptr_t)tcs;rh_db=(uintptr_t)db;rh_db_size=1024;
     rh_ncpt=16;rh_lock=0;rh_poisoned=false;reads=writes=checks=expire=fail_write=0;
     finished=kept=effects=elapsed=slot=model_stores=context=corruption=late_bcm=triggered=current_bad=mutate_input=0;
-    complete=1;owner=(struct ceph_bcm_active_owner){tcs,validate,current,finish};
+    complete=1;owner=(struct ceph_bcm_active_owner){tcs,validate,current,finish,1};
+    ceph_rpmh_scope_phase=CE_RS_OPEN;ceph_rpmh_scope_effects=ceph_rpmh_scope_attempted=0;
+    ceph_rpmh_scope_failed=0;
+    idle_held=1;idle_retained=0;
+    uint64_t token=0;assert(!cepheus_gpu_rpmh_hold(1,&token) && token==1);
     for(unsigned n=0;n<8;++n)tcs[(n*0x2a0+0x18)/4]=1;
     tcs[0]=0xa5;tcs[1]=0x80;
     db[0]=1;db[1]=0x0c0330db;db[2]=5;db[3]=(6u<<16)|144u;
@@ -176,7 +190,7 @@ int main(void)
     for(unsigned n=1;n<=stores;++n) {
         reset();fail_write=n;assert(run()==EIO && writes==n && finished==1 && kept && rh_poisoned);
         unsigned old=reads;assert(run()==EIO && old==reads && finished==1);
-        struct ceph_arc_active_owner a={tcs,forbidden_arc_owner,forbidden_arc_access,finish};
+        struct ceph_arc_active_owner a={tcs,forbidden_arc_owner,forbidden_arc_access,finish,1};
         assert(cepheus_gpu_arc_raise("cx.lvl",1,2,&a)==EIO && reads==old);
     }
     for(unsigned n=0;n<8;++n) {
@@ -211,6 +225,10 @@ int main(void)
     reset();votes[5].target_y=7;assert(run()==EINVAL && !reads);
     reset();votes[1].id=CE_BA_SH2;assert(run()==EINVAL && !reads);
     reset();owner.finish=NULL;assert(run()==EINVAL && !reads);
+    reset();owner.rpmh_token=0;assert(run()==EBUSY && !reads && !writes);
+    reset();assert(!cepheus_gpu_rpmh_finish(1,0));assert(run()==EBUSY && !reads && !writes);
+    reset();assert(!run() && idle_retained && ceph_rpmh_scope_effects);
+    assert(cepheus_gpu_rpmh_finish(1,0)==EBUSY && ceph_rpmh_scope_legacy()==EBUSY);
     reset();assert(cepheus_gpu_bcm_raise(votes,7,&owner)==EINVAL && !reads);
     reset();assert(cepheus_gpu_bcm_raise(NULL,1,&owner)==EINVAL && !reads);
     reset();assert(cepheus_gpu_bcm_raise(votes,1,&owner)==0 && finished && !kept);

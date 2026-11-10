@@ -14,6 +14,9 @@ struct ceph_arc_active_owner {
     /* Once after any attempted store, while the shared transport lock is held.
      * keep=1 retains resources on uncertainty; keep=0 is ACK+cleanup, not off. */
     void (*finish)(void *,unsigned attempted_stores,int keep);
+    /* Participating-writer reservation, separate from the resource ledger.
+     * Management/finish callbacks must not recurse into scope APIs. */
+    uint64_t rpmh_token;
 };
 /* Only cx.lvl/mx.lvl, strictly increasing table indices, no userspace API.
  * Caller updates its owner ledger only on success; any uncertain request must

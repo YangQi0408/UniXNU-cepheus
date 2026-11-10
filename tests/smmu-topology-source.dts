@@ -1,0 +1,34 @@
+/dts-v1/;
+#include <dt-bindings/clock/qcom,gcc-sm8150.h>
+#include <dt-bindings/clock/qcom,gpucc-sm8150.h>
+#include <dt-bindings/clock/qcom,cpucc-sm8150.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+/* Only external label resolution is synthetic; the two included DTS files
+ * supply the topology under audit. This is not a board or live-FDT fixture. */
+/ {
+    #address-cells = <1>;
+    #size-cells = <1>;
+    soc: soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
+        clock_gcc: clock-gcc { #clock-cells = <1>; };
+        clock_gpucc: clock-gpucc { #clock-cells = <1>; };
+        clock_cpucc: clock-cpucc { #clock-cells = <1>; };
+        gpu_cx_gdsc: gpu-cx {};
+        gpu_gx_gdsc: gpu-gx {};
+        hlos1_vote_aggre_noc_mmu_tbu1_gdsc: aggre-tbu1 {};
+        hlos1_vote_aggre_noc_mmu_tbu2_gdsc: aggre-tbu2 {};
+        hlos1_vote_mmnoc_mmu_tbu_hf0_gdsc: mmnoc-hf0 {};
+        hlos1_vote_mmnoc_mmu_tbu_hf1_gdsc: mmnoc-hf1 {};
+        hlos1_vote_mmnoc_mmu_tbu_sf_gdsc: mmnoc-sf {};
+        hlos1_vote_aggre_noc_mmu_audio_tbu_gdsc: aggre-audio {};
+        hlos1_vote_aggre_noc_mmu_pcie_tbu_gdsc: aggre-pcie {};
+        suspendable_ddr_bw_opp_table: bw-opp-table {};
+        llcc: llcc { #cache-cells = <1>; };
+        qmp_aop: qmp-aop { #mbox-cells = <1>; };
+    };
+};
+#include "msm-arm-smmu-sm8150.dtsi"
+#include "sm8150-gpu.dtsi"
