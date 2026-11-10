@@ -1,5 +1,52 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10 16:29：NPA请求完成与PDC配置续查
+
+手机保持已验收配对版，无重启/协议/SMC/MMIO执行；未构建新核或改动生产
+后端。新增NPA与Clock完成路径纳入原字节核验，身份均与accepted boot一致。
+
+NPA revision0x10002/table0x110b8的slot0x18→0x145c→0x391c→0x91a8，
+**完成当前client请求，不是销毁client或全局清票**。汇编明确client在x0，
+不能按伪代码误识别成额外参数。设置client+0x80 complete bit0；非type0x200
+路径只清pending首32位，地址为client+0x38+((active_index XOR1)*0x18)，
+并按old active首值非零与否调用client+0x88。type0x200另转0x31c8，未展开。
+0x29b0首用/属性分支可强制更新再装0x8f64。0x8f7c调用plugin0x922c和条件
+node driver0x9258，之后翻转active index与更新软件sequence；无变化等分支
+可能跳过driver。独立destroy0x3a7c先complete，再unlink、plugin destroy、free。
+注意protocol slot0x18与plugin slot0x18含义不同，不能按偏移名混为一谈。
+
+Clock plugin0x432a0首指针0xc704、destroy0xc930。0xc704读取pending len>>3，
+零时遍历**本client**配置route count，写零IB/AB/latency；0xd720比较新旧记录
+并经0xd270去重入队master/slave节点，0xdb80进入已另验的聚合提交。
+这保留其他client记录；全局BCM/ARC不必为零。独立0xc930才移除节点记录并
+free client data。0xc704未被Ghidra定义成函数，使用完整556B raw/Capstone
+解码，拒绝把伪代码不可用当成不可达。
+
+私有logs新增npa-request-complete-v2（52 records）/clock-request-complete-v2
+（148 records）bundle与snapshot；v1/final保留。NPA pending汇编
+`ev_c588bf50dd6b001b806d1f1f1f81bcb919a9168072b299ab795b478df9c006bd`；
+Clock完整update read
+`ev_a3cc7f01211cd7134a7a55bf902298b2685ba143c0cfe5c3574cb794eedfeedb`。
+核验新增NPA61/Clock47指令及范围/协议绑定；24测试普通/-O通过，含逐指令
+拒绝、pending index/store宽度和slot突变。v5两模式receipt完全一致，SHA
+`695440d362a8329d19082ca4ee34b50938496e6d22eaa0cadb0c3ec04bc30b31`。
+crypto31/ICB24/NPA8回归通过。PASS_STATIC_BYTES_ONLY不代表活态ACK。
+
+PdcDxe GUID B43C22DB-6333-490C-872D-0A73439059FD，36864B/SHA
+`377e09d998ea8c538d77eb3ffca65194e7287d88b9e579dc6575dd2ff7f739eb`，
+与accepted boot逐字节一致。0x1f58→0x2164经CmdDb slot0x10查询cx.lvl/
+mx.lvl/xo.lvl/vrm.soc（初始地址0/0/0/4），检查0x0b291004字段后配置三组
+TCS命令/使能。0x2450按chip版本选择display序列表，0x2418→0x2704设置
+动态base+0x4500 bit0（保留bit31）。这是启动配置链，不是已证明的退出清票
+或最终ARC状态。保存pdc-resource-config-v2（33 records）bundle/snapshot；
+TCS汇编`ev_5cead7820611408a8b1e0e0ce5e691dc20cd9c46ea179191b670e5d6c8586730`。
+未穷举PDC所有callback/其他writer，不能宣布全部退出路径已收敛。
+
+下一是实际ARC registrar/最终writer及唯一XNU资源owner，另需解决配对
+UEFI/XNU均PAS13=false的运行原因、secure PA/XPU/crypto clocks和SMMU。
+本轮仅补静态链，无新GPU镜像/真机测试点；supported=false/CP halt保持，
+GPU scratch/fence、Metal和PAS认证均未执行。
+
 ## 2026-11-10 16:08：显示退出的条件分支与ICB后续写入
 
 离线继续，无手机/协议/SMC/MMIO执行，无内核或生产后端改动；Darwin/USB批

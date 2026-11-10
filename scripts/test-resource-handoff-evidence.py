@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 from pathlib import Path
+import struct
 import unittest
 from unittest.mock import patch
 import uuid
@@ -194,7 +195,9 @@ class ExitPathTests(unittest.TestCase):
         digest = hashlib.sha256(original).hexdigest()
         for guid, source, name in ((VERIFY.DARWIN_GUID, VERIFY.DARWIN_SOURCE, 'DarwinBoot'),
                                    (VERIFY.USB_GUID, VERIFY.USB_SOURCE, 'UsbConfigDxe'),
-                                   (VERIFY.DISPLAY_GUID, VERIFY.DISPLAY_SOURCE, 'DisplayDxe')):
+                                   (VERIFY.DISPLAY_GUID, VERIFY.DISPLAY_SOURCE, 'DisplayDxe'),
+                                   (VERIFY.NPA_GUID, VERIFY.NPA_SOURCE, 'NpaDxe'),
+                                   (VERIFY.CLOCK_GUID, VERIFY.CLOCK_SOURCE, 'ClockDxe')):
             inner = {guid: bytes(24) + section}
             self.assertTrue(VERIFY.bind_pe(inner, original, guid, digest, source, name)
                             ['embedded_bytes_equal'])
@@ -220,6 +223,118 @@ class ExitPathTests(unittest.TestCase):
         put(0x13c84, bytes.fromhex('39139f9a'))
         with self.assertRaisesRegex(ValueError, 'unexpected instruction'):
             VERIFY.ICB.instruction(blob, segments, 0x13c84, 'csel', 'x25, x25, xzr, eq')
+
+
+class RequestCompletionTests(unittest.TestCase):
+    def fixture(self, name):
+        blob, _, reads, put = FIXTURE.fixture()
+        blob.extend(bytes(0x47000 - len(blob)))
+        struct.pack_into('<I', blob, 128, 0x46000)
+        struct.pack_into('<I', blob, 136, 0x46000)
+        reads.clear()
+        ranges = VERIFY.NPA_RANGES if name == 'npa' else VERIFY.CLOCK_COMPLETE_RANGES
+        for address, size in ranges:
+            put(address, bytes(size))
+        if name == 'npa':
+            put(0x110b8, struct.pack('<4Q', 0x10002, 0x1418, 0x1430, 0x145c))
+        else:
+            put(0x432a0, struct.pack('<7Q', 0xc704, 0x1400, 0, 0xc930, 0xca0c, 0, 0xcd50))
+        return blob, VERIFY.ICB.NPA.pe_segments(blob), reads, put
+
+    def analyze(self, name):
+        return VERIFY.npa_complete if name == 'npa' else VERIFY.clock_complete
+
+    def capture(self, name):
+        checks = []
+
+        def instruction(blob, segments, address, mnemonic, operands):
+            checks.append((address, mnemonic, operands))
+            return FIXTURE.AbiTests().capture(blob, segments, address, mnemonic, operands)
+
+        blob, segments, reads, _ = self.fixture(name)
+        with patch.object(VERIFY.ICB, 'instruction', side_effect=instruction):
+            result = self.analyze(name)(blob, segments, reads)
+        return result, checks
+
+    def test_complete_is_per_client_not_destroy_or_global_ack(self):
+        result, checks = self.capture('npa')
+        self.assertEqual(result['protocol']['slot'], '0x18')
+        self.assertIn('pending first word', result['pending'])
+        self.assertIn('Separate 0x3a7c', result['destroy'])
+        self.assertIn('not a live ACK', result['limitations'][0])
+        for check in ((0x91ec, 'eor', 'w9, w8, #1'),
+                      (0x91f8, 'str', 'wzr, [x10, x9]'),
+                      (0x9200, 'ldr', 'x2, [x19, #0x88]'),
+                      (0x2a04, 'str', 'x8, [x19, #0x88]')):
+            self.assertIn(check, checks)
+
+    def test_zero_vector_clears_only_client_routes_then_aggregates(self):
+        result, checks = self.capture('clock')
+        self.assertIn('other client records', result['pending_zero'])
+        self.assertIn('queues changed', result['propagation'])
+        self.assertIn('does not imply zero global', result['limitations'][1])
+        for check in ((0xc738, 'ldr', 'x21, [x19, #0x28]'),
+                      (0xc788, 'stp', 'xzr, xzr, [sp, #0x30]'),
+                      (0xc82c, 'bl', '#0xd720'), (0xc8f0, 'bl', '#0xdb80')):
+            self.assertIn(check, checks)
+
+    def test_protocol_revision_complete_slot_and_plugin_slots_bound(self):
+        for name, address, count, offsets in (('npa', 0x110b8, 4, (0, 3)),
+                                               ('clock', 0x432a0, 7, (0, 1, 3))):
+            for index in offsets:
+                blob, segments, reads, put = self.fixture(name)
+                raw = VERIFY.ICB.NPA.span(blob, segments, address, count * 8)
+                values = list(struct.unpack('<' + str(count) + 'Q', raw))
+                values[index] ^= 4
+                put(address, struct.pack('<' + str(count) + 'Q', *values))
+                with self.subTest(name=name, index=index):
+                    with self.assertRaisesRegex(ValueError, 'table mismatch'):
+                        self.analyze(name)(blob, segments, reads)
+
+    def test_every_completion_range_required(self):
+        for name, ranges in (('npa', VERIFY.NPA_RANGES),
+                              ('clock', VERIFY.CLOCK_COMPLETE_RANGES)):
+            blob, segments, reads, _ = self.fixture(name)
+            for missing in ranges:
+                changed = reads.copy()
+                del changed[missing]
+                with self.subTest(name=name, missing=missing):
+                    with self.assertRaisesRegex(ValueError, 'coverage'):
+                        self.analyze(name)(blob, segments, changed)
+
+    def test_each_completion_instruction_rejected_when_changed(self):
+        for name in ('npa', 'clock'):
+            _, checks = self.capture(name)
+            blob, segments, reads, _ = self.fixture(name)
+            for address, _, _ in checks:
+                def changed(blob, segments, observed, mnemonic, operands):
+                    if observed == address:
+                        raise ValueError('changed completion instruction')
+                    return FIXTURE.AbiTests().capture(blob, segments, observed, mnemonic, operands)
+                with self.subTest(name=name, address=hex(address)):
+                    with patch.object(VERIFY.ICB, 'instruction', side_effect=changed):
+                        with self.assertRaisesRegex(ValueError, 'changed completion instruction'):
+                            self.analyze(name)(blob, segments, reads)
+
+    def test_real_pending_index_and_store_width_guards(self):
+        for name, address, raw, mnemonic, operands in (
+                ('npa', 0x91ec, '09010052', 'eor', 'w9, w8, #1'),
+                ('npa', 0x91f8, '5f6929b8', 'str', 'wzr, [x10, x9]'),
+                ('clock', 0xc73c, '2b010052', 'eor', 'w11, w9, #1'),
+                ('clock', 0xc788, 'ff7f03a9', 'stp', 'xzr, xzr, [sp, #0x30]')):
+            blob, segments, _, put = self.fixture(name)
+            data = bytes.fromhex(raw)
+            put(address, data)
+            VERIFY.ICB.instruction(blob, segments, address, mnemonic, operands)
+            put(address, bytes((data[0] ^ 1,)) + data[1:])
+            with self.assertRaisesRegex(ValueError, 'unexpected instruction'):
+                VERIFY.ICB.instruction(blob, segments, address, mnemonic, operands)
+
+    def test_zero_bytes_fail_without_instruction_mock(self):
+        for name in ('npa', 'clock'):
+            blob, segments, reads, _ = self.fixture(name)
+            with self.assertRaisesRegex(ValueError, 'unexpected instruction'):
+                self.analyze(name)(blob, segments, reads)
 
 
 if __name__ == '__main__':

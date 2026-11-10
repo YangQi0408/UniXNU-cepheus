@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind accepted DXE dispatch and Darwin/USB/display exits to original bytes.
+"""Bind accepted exits and per-client request completion to original bytes.
 
 No device, firmware execution, protocol invocation, SMC or MMIO access.
 """
@@ -44,6 +44,19 @@ DISPLAY_SOURCE = ('uefi/Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/'
                   'PatchedBinaries/DisplayDxe.efi')
 DISPLAY_RANGES = ((0x1708, 92), (0x14dc, 208), (0x13c28, 532),
                   (0x13b58, 208), (0x1261c, 584), (0x124fc, 156), (0x1eb08, 84))
+NPA_GUID = 'CB29F4D1-7F37-4692-A416-93E82E219711'
+NPA_SHA = 'a08453756c58db8d187eaa515c8bfb938226b3b8c3f4273e68d9cfc6afc49640'
+NPA_SOURCE = ('uefi/Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/'
+              'Binaries/QcomPkg/Drivers/NpaDxe/NpaDxe.efi')
+NPA_RANGES = ((0x110b8, 32), (0x145c, 24), (0x391c, 128), (0x91a8, 120),
+              (0x3cd8, 144), (0x8f64, 24), (0x29b0, 100), (0x9480, 16),
+              (0x8f7c, 408), (0x922c, 44), (0x9258, 264), (0x3a7c, 604))
+CLOCK_GUID = '4DB5DEA6-5302-4D1A-8A82-677A683B0D29'
+CLOCK_SHA = 'babe80a2b671823b1c0296dc0adb26e3642aa70d6ed58562d1c6cfea88e81dfe'
+CLOCK_SOURCE = ('uefi/Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/'
+                'Binaries/QcomPkg/Drivers/ClockDxe/ClockDxe.efi')
+CLOCK_COMPLETE_RANGES = ((0x432a0, 56), (0xc704, 556), (0xd720, 292),
+                         (0xd270, 36), (0xc930, 220))
 
 
 def bind_pe(inner, original, guid, digest, source, name):
@@ -202,8 +215,103 @@ def display_exit(blob, segments, reads):
             'instructions': decoded,
             'limitations': ['No runtime supported-display inventory, cumulative latch, clock tables or successful registrations are captured',
                             'Old-style exit event exists despite no literal EBS group GUID in this PE; GUID absence alone is not callback absence',
-                            'Clock/ICB calls and ignored failures are not live ACKs or global quiescence; the NPA slot+0x18 backend still needs binding',
+                            'Clock/ICB calls and ignored failures are not live ACKs or global quiescence; bound NPA slot+0x18 completes only this client request',
                             'Final display-state copy is not a complete ARC/client snapshot or unique XNU resource lease']}
+
+
+def npa_complete(blob, segments, reads):
+    table = CRYPTO.read(blob, segments, reads, 0x110b8, 32)
+    require(struct.unpack('<4Q', table) == (0x10002, 0x1418, 0x1430, 0x145c),
+            'NPA complete protocol table mismatch')
+    checks = (
+        (0x1464, 'bl', '#0x391c'), (0x1468, 'mov', 'x0, xzr'),
+        (0x3928, 'mov', 'x19, x0'), (0x395c, 'mov', 'x0, x19'),
+        (0x3964, 'b', '#0x91a8'), (0x91b4, 'mov', 'w1, #1'),
+        (0x91bc, 'bl', '#0x3cd8'), (0x3cec, 'ldr', 'w8, [x0, #0x80]'),
+        (0x3cf0, 'orr', 'w9, w8, w1'), (0x3cf4, 'str', 'w9, [x0, #0x80]'),
+        (0x91c0, 'ldr', 'w8, [x19, #0x30]'), (0x91c4, 'cmp', 'w8, #0x200'),
+        (0x91c8, 'b.ne', '#0x91e0'), (0x91d4, 'mov', 'w1, wzr'),
+        (0x91dc, 'b', '#0x31c8'), (0x91e0, 'ldr', 'w8, [x19, #0x68]'),
+        (0x91e4, 'add', 'x10, x19, #0x38'), (0x91ec, 'eor', 'w9, w8, #1'),
+        (0x91f0, 'mov', 'w8, #0x18'), (0x91f4, 'umull', 'x9, w9, w8'),
+        (0x91f8, 'str', 'wzr, [x10, x9]'), (0x9200, 'ldr', 'x2, [x19, #0x88]'),
+        (0x9208, 'mul', 'x12, x11, x8'), (0x920c, 'ldr', 'w10, [x10, x12]'),
+        (0x9214, 'cset', 'w1, ne'), (0x921c, 'br', 'x2'),
+        (0x8f64, 'cbz', 'w1, #0x8f6c'), (0x8f68, 'b', '#0x8f7c'),
+        (0x8f70, 'orr', 'w8, w8, #1'), (0x8f78, 'b', '#0x8e70'),
+        (0x29c8, 'cbz', 'w8, #0x29f0'), (0x29d4, 'bl', '#0x9480'),
+        (0x29d8, 'cbz', 'w0, #0x29f0'), (0x9484, 'ldr', 'w8, [x0, #0x80]'),
+        (0x9488, 'and', 'w0, w8, w1'), (0x29f0, 'mov', 'w1, #1'),
+        (0x29f8, 'bl', '#0x8f64'), (0x2a00, 'add', 'x8, x8, #0xf64'),
+        (0x2a04, 'str', 'x8, [x19, #0x88]'),
+        (0x8f94, 'ldr', 'x20, [x19, #0x20]'), (0x9048, 'bl', '#0x922c'),
+        (0x9054, 'bl', '#0x9258'), (0x923c, 'ldr', 'x8, [x19, #0x28]'),
+        (0x9240, 'ldr', 'x8, [x8]'), (0x9244, 'blr', 'x8'),
+        (0x9248, 'str', 'w0, [x19, #0x30]'),
+        (0x9298, 'tbnz', 'w8, #0, #0x92f0'),
+        (0x92a4, 'b.ne', '#0x92f0'), (0x92ec, 'tbz', 'w1, #2, #0x9348'),
+        (0x92f4, 'ldr', 'x13, [x19, #0x10]'),
+        (0x9308, 'ldr', 'x8, [x13, #8]'), (0x930c, 'blr', 'x8'),
+        (0x935c, 'b', '#0x8ce8'), (0x9068, 'eor', 'w10, w10, #1'),
+        (0x906c, 'stp', 'w10, w9, [x19, #0x68]'),
+        (0x3ad8, 'add', 'x9, x9, #0xf64'),
+        (0x3ae0, 'str', 'x9, [x19, #0x88]'), (0x3ae4, 'bl', '#0x391c'),
+        (0x3c58, 'ldr', 'x12, [x25, #0x28]'),
+        (0x3c5c, 'ldr', 'x8, [x12, #0x18]'), (0x3c68, 'blr', 'x8'))
+    decoded = CRYPTO.instructions(blob, segments, reads, NPA_RANGES, checks)
+    return {'protocol': {'revision': '0x10002', 'slot': '0x18', 'wrapper': '0x145c'},
+            'client_register': 'x0, not the misleading extra pseudocode parameter',
+            'pending': 'Set complete attribute bit0 at client+0x80; non-limit-max path zeros only the pending first word at client+0x38+((active_index XOR 1)*0x18)',
+            'dispatch': 'client+0x88 receives whether the old active first word was nonzero; 0x29b0 can force the first update, then install 0x8f64',
+            'update': '0x8f7c calls resource plugin then conditional node driver, toggles active index and updates software sequence',
+            'destroy': 'Separate 0x3a7c completes first, unlinks the client and invokes plugin destroy slot+0x18; this is not protocol complete slot+0x18',
+            'instructions': decoded,
+            'limitations': ['Static per-client completion, not a live ACK or clearing all clients',
+                            'Type0x200 delegates to 0x31c8; its limit-max body is outside this claim',
+                            'Transaction, lock, callback and no-change driver branches are runtime-dependent',
+                            'No complete resource snapshot, final ARC state, PAS support or XNU owner is established']}
+
+
+def clock_complete(blob, segments, reads):
+    plugin = struct.unpack('<7Q', CRYPTO.read(blob, segments, reads, 0x432a0, 56))
+    require(plugin == (0xc704, 0x1400, 0, 0xc930, 0xca0c, 0, 0xcd50),
+            'Clock ICB plugin table mismatch')
+    checks = (
+        (0xc724, 'mov', 'x19, x1'), (0xc738, 'ldr', 'x21, [x19, #0x28]'),
+        (0xc730, 'ldr', 'w9, [x19, #0x68]'), (0xc73c, 'eor', 'w11, w9, #1'),
+        (0xc72c, 'mov', 'w8, #0x18'), (0xc740, 'umaddl', 'x9, w11, w8, x19'),
+        (0xc744, 'ldr', 'w11, [x9, #0x38]'), (0xc754, 'lsr', 'w24, w11, #3'),
+        (0xc758, 'cbz', 'w24, #0xc764'), (0xc764, 'ldr', 'w24, [x21]'),
+        (0xc768, 'mov', 'w25, #1'), (0xc780, 'tbz', 'w25, #0, #0xc794'),
+        (0xc784, 'mov', 'x8, xzr'), (0xc788, 'stp', 'xzr, xzr, [sp, #0x30]'),
+        (0xc78c, 'str', 'wzr, [sp, #0x48]'),
+        (0xc7d8, 'str', 'x8, [x12]'), (0xc7e0, 'str', 'x15, [x12, #8]'),
+        (0xc7f0, 'str', 'w10, [x12, #0x18]'), (0xc82c, 'bl', '#0xd720'),
+        (0xd738, 'ldp', 'x23, x22, [x3]'), (0xd778, 'ldr', 'w21, [x21, #0x80]'),
+        (0xd7a0, 'ldr', 'x9, [x20, #8]'), (0xd7a4, 'ldr', 'x10, [x19, #8]'),
+        (0xd7a8, 'cmp', 'x9, x10'), (0xd7ac, 'b.ne', '#0xd7d0'),
+        (0xd7e0, 'add', 'x1, x23, #0x90'), (0xd7e8, 'bl', '#0xd270'),
+        (0xd808, 'add', 'x1, x23, #0x70'), (0xd810, 'bl', '#0xd270'),
+        (0xd814, 'add', 'x1, x22, #0x50'), (0xd82c, 'b', '#0xd270'),
+        (0xd270, 'ldrb', 'w8, [x1, #0x18]'), (0xd274, 'cbz', 'w8, #0xd27c'),
+        (0xd284, 'str', 'x8, [x1]'), (0xd288, 'str', 'x1, [x0]'),
+        (0xd28c, 'strb', 'w9, [x1, #0x18]'),
+        (0xc864, 'cmp', 'w12, #0x400'), (0xc8cc, 'sub', 'w13, w10, #1'),
+        (0xc8d0, 'str', 'w13, [x20, #8]'), (0xc8f0, 'bl', '#0xdb80'),
+        (0xc924, 'bl', '#0xdb80'), (0xc928, 'bl', '#0xdd70'),
+        (0xc948, 'ldr', 'x20, [x19, #0x28]'),
+        (0xc99c, 'bl', '#0xd8ec'), (0xc9bc, 'bl', '#0xd8ec'),
+        (0xc9f0, 'bl', '#0x9338'), (0xc9f4, 'str', 'xzr, [x19, #0x28]'))
+    decoded = CRYPTO.instructions(blob, segments, reads, CLOCK_COMPLETE_RANGES, checks)
+    return {'plugin': {'table': '0x432a0', 'update': '0xc704', 'destroy': '0xc930'},
+            'pending_zero': 'Length>>3 == 0 selects all configured routes of this client and zero IB/AB/latency, preserving the client and other client records',
+            'propagation': '0xd720 compares new/old route records and queues changed master/slave nodes via deduplicating 0xd270; 0xdb80 aggregates/submits',
+            'destroy': 'Separate plugin callback 0xc930 removes node records and frees client data; completion does not take this path',
+            'instructions': decoded,
+            'limitations': ['Static bytes only; no live client count, resulting BCM vote or ACK is captured',
+                            'Zero this client request does not imply zero global bandwidth or ARC rails',
+                            'Aggregation/submission is covered separately by the crypto ICB verifier',
+                            'No final-writer inventory, XNU lease, resource backend or SMMU setup is established']}
 
 
 def core_order(blob, segments, reads):
@@ -286,7 +394,10 @@ def verify(root):
              'darwin-resource-handoff-final', darwin_exit),
             ('usb', USB_GUID, USB_SHA, USB_SOURCE, 'usb-resource-handoff-v2', usb_exit),
             ('display', DISPLAY_GUID, DISPLAY_SHA, DISPLAY_SOURCE,
-             'display-resource-handoff-final', display_exit)):
+             'display-resource-handoff-final', display_exit),
+            ('npa', NPA_GUID, NPA_SHA, NPA_SOURCE, 'npa-request-complete-v2', npa_complete),
+            ('clock', CLOCK_GUID, CLOCK_SHA, CLOCK_SOURCE,
+             'clock-request-complete-v2', clock_complete)):
         original = (root / source).read_bytes()
         identity_extra = bind_pe(inner, original, guid, digest, source, name)
         evidence = (root / ('logs/pas13-instruction-replay-20261110/' +
@@ -295,11 +406,13 @@ def verify(root):
         extras[name] = {'identity': identity_extra,
                         'evidence_sha256': hashlib.sha256(evidence).hexdigest(),
                         'read_evidence_ids': list(extra_reads.values()),
-                        'exit_path': analyze(original, extra_segments, extra_reads)}
+                        ('request_completion' if name in ('npa', 'clock') else 'exit_path'):
+                        analyze(original, extra_segments, extra_reads)}
     return {'status': 'PASS_STATIC_BYTES_ONLY', 'boot_sha256': accepted['boot_sha256'],
             'dxe_core': identity, 'evidence_sha256': hashlib.sha256(bundle).hexdigest(),
             'read_evidence_ids': list(reads.values()), 'core_order': core_order(blob, segments, reads),
-            'exit_consumers': extras,
+            'exit_consumers': {name: extras[name] for name in ('darwin', 'usb', 'display')},
+            'request_backends': {name: extras[name] for name in ('npa', 'clock')},
             'phone_operations': False, 'gpu_execution': False, 'pas_authentication': False}
 
 
