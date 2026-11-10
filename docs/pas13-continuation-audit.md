@@ -1,5 +1,44 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+## 2026-11-10：受限原指令回放
+
+配对真机已确认 UEFI/XNU 均 false 后，新增
+`scripts/replay-tz-pas13.py`。只把固定原件的12段lookup代码（219条静态指令）、
+count/15项descriptor/30项cache/锁复制到Unicorn 2.1.4的主机RAM；合成栈与
+结果区独立，禁止范围外执行/读写、SMC/HVC/SVC/异常返回及代码写入。
+代码全部与两份原生Ghidra导出及LLVM临时`.inst`解码一致。未运行startup、
+dispatcher、EL2/EL3、认证、MMIO或手机命令，原件未修改。
+
+| 合成RAM状态 | lookup结果 |
+|---|---|
+| 原始表、空cache、MPIDR0x81000000 | wrapper0/result[1,0,0]；363条，缓存PAS13；第二次89条仍true |
+| 原始表、空cache、MPIDR0x81000200 | 同上 |
+| count0或count5（止于PAS13项前） | false，分别108/161条，cache仍0 |
+| PAS13项ID改0 | false，261条，cache仍0 |
+| cache13已非零，再将count0或ID改0 | true，89条；未重新检查descriptor |
+| lock13持有1 | 达100000条预算未返回；无verdict，不归为false |
+
+结论只在这些受限输入成立：空cache本身不能解释固定代码/表的false；
+两次已记录MPIDR在此局部模型中也不改变结果；非零cache绕过重新查表；
+锁持有导致等待而非快速false。count/ID修改是**假设反例**，不是手机发生
+修改的证据。运行TZ身份、其他初始化/写入者、EL2/dispatch与启动历史仍未知。
+保持supported=false及CP halt门禁，不尝试PAS认证。
+
+16项不含私有材料的合成回放测试通过，包含越界/代码写/异常指令/无返回/
+错误wrapper/空调用拒绝及访问日志上限。原件回放8场景通过。v1/v2保留，
+最终receipt为`../logs/pas13-instruction-replay-20261110/replay-v3.json`，
+SHA256 `7982a916f81387f83ae3cc48ccdaeb0795779304e6e9bd5e93751a6dccf326b1`。
+逐访存日志最多2048项，完整read/write/omitted计数另存，边界检查不因截断关闭。
+
+```sh
+python3 scripts/test-tz-pas13-replay.py
+python3 scripts/replay-tz-pas13.py \
+  --tz ../logs/recovery-tz-acquisition-20261107-clean/tz-partition.img \
+  --evidence ../logs/tz-native-ghidra-20261107/evidence-dispatch.json \
+  --evidence ../logs/tz-native-ghidra-20261107/evidence-startup-init.json \
+  --output ../logs/pas13-instruction-replay-20261110/replay-new.json
+```
+
 本轮核对实际已启动的 query7-basic-b2b99e7 内核与本机 TZ 原件。结果排除了
 本地 native callback 在打印前后丢失参数/返回值这一具体假设，并收窄了
 启动初始化失败的解释。PAS13=false 的运行原因仍未知；没有手机操作、

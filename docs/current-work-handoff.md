@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+最新 2026-11-10 13:24 +08:00：本机离线推进，无新手机操作/SMC/内核改动。
+新增有界PAS13原指令回放，12段219条静态指令与原生Ghidra/LLVM一致，8场景
+通过、16项无私有材料守卫测试通过。原表空cache两记录MPIDR均true，count/ID
+假设缺项可false，非零cache不复查，持锁达10万条未返回不归false。
+不能据此确认手机发生修改；运行TZ/EL2/dispatch未知，真机两段false未解。
+证据../logs/pas13-instruction-replay-20261110/replay-v3.json，详见PAS后续文档。
+NPA默认CURRENT_STATE确为软件resource+0x34读取；NpaDeinit仅卸载协议，非
+全局完成/资源交接屏障。四已验收boot模块身份逐字节核验，CPR为Cambria版
+不是cepheus目录版。129 plain DXE PE内字节检索及Clock消费者/Pmic动态节点
+链已保存，实际CX/MX driver/完成/最终EBS仍未知。8项PE/检索合成测试通过。
+证据npa-state-verification-v3.json及5组REA bundle/snapshot，详见RPMh文档。
+保持可用配对版及supported=false/CP halt门禁，不追加控制/查询/内存轮；
+GPU scratch/fence/Metal/PAS认证未运行，无可boot GPU执行候选。
+
 最新 2026-11-10 12:33 +08:00：配对诊断真机完成。67eea163/cepheus 已解锁，
 12:27:29 单次临时 boot 成功，无刷写/自动重启/恢复/重试。镜像仍为
 out/scm-pair-final-6ce4c7c/boot-scm-pair.img（SHA2c93dc333366...）。

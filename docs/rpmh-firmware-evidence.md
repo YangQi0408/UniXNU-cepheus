@@ -1,5 +1,62 @@
 # Cepheus RpmhDxe静态取证
 
+## 2026-11-10：NPA查询/退出与已验收模块身份
+
+新增`scripts/verify-npa-state-evidence.py`，直接从已验收配对boot
+SHA256 `2c93dc3333665bdbc8f1c835c0e59226f5b2a0cfda2678d4bb121a3fc86903d2`
+解码压缩FD/FFS/PE32。NpaDxe、RpmhDxe、ClockDxe及**Cambria CPRDxe**逐字节
+等于本机原件。设备目录CPRDxe（c216b483...）未被此候选采用，不能把它的
+行为当作本轮实际模块；选用Cambria SHA256
+`63a777c11fc8006ca540886e2ea3ebdafa56bea752d716ea09f7514756821fbb`。
+包含不证明DXE已dispatch、节点注册或live状态。
+
+REA/Ghidra12.1.2同一NpaDxe SHA。四段REA读字节与原PE file-backed映射一致：
+
+- Query0x1670和QueryByName0x169c的BL分别到0x8b14/0x8bb4；wrapper把查询
+  状态写到输出，EFI return固定0。不能仅用EFI_SUCCESS验收查询结果。
+  read ev_a550a7cd6cf77bb8bcf897c8e29162edeed57e366462a1b6df7094565199aedd。
+- 0x8b14先尝试definition+0x38的link query；未处理则到0x89c4，后者先尝试
+  definition+0x30的resource query，再处理通用ID。默认ID0在0x8a58读取
+  resource+0x34并写result+8/type0/status0。参考ABI称CURRENT_STATE，布局
+  对应active_state；**默认路径是软件字段读取，没有硬件READ/ACK**。
+  专属query可能不同，未证明实际CX/MX采用哪个路径。
+  pseudo ev_009c365953d8a0f632e68bf502e6fe80d11ea579f3bac8bf7eba81a91b57f6e1、
+  ev_a6d245a3ca875afe96a6b44b1c10c65389cfc7285d8422db837efc4a57a55a04；
+  read ev_717428169ce79d4235d9d992c94a65c990d1ceea2d918d5c1affe8843a0164c5。
+- NpaDeinit0x1a74..1a9c构造handle/GUID/table/null，读取BootServices+0x150，
+  尾跳UninstallMultipleProtocolInterfaces。此完整短路径无join/churn/释放
+  client/投票恢复；**不能当全局完成屏障或EBS资源交接**。
+  read ev_20c43373c4b3663c55b64488d44891e1d649a5237f77db66d24e0e4c2823e552。
+
+在已验收内层FV129个plain PE32 DXE文件中检索NPA GUID、/arc/client/及
+cx.lvl/mx.lvl字节，14个匹配模块及file offsets已保存。不涉及其他类型FFS、
+间接构造或压缩子载荷。默认协议标识不能证明运行资源；后续目标不靠猜目录。
+
+同轮进一步追模块注册路径，仅静态观察：
+
+| 模块/地址 | 观察与仍缺的事实 |
+|---|---|
+| ClockDxe0x6bec→0xa6e0/0x6a4c | 查ClockRailConfig引导默认值、注册可用回调；回调创建clock required/suppressible客户端，属于消费者，不证明CX/MX节点定义 |
+| ClockDxe0x3150→0xa764 | 可定义配置中的clock节点，未证明其就是/arc/client/节点 |
+| Cambria CPR0x4c4c | 本体只处理0x106/mmcx和0x103/gfx；创建CPR_AGING，发RPMh并churn single；不是通用CX/MX聚合器，其他caller未穷举 |
+| PmicDxe0x1455c→0x162f0 | 动态构造节点/资源，driver候选0x1522c，DefineNodeCb；0x14b08命名on_off/mV/mode PMIC资源，尚不能绑定到/arc/client/rail_cx |
+
+Pmic driver候选未被Ghidra定义成procedure；该拒绝不是成功反编译，不以缺
+函数推断不可达。完整bundle保留no-return/间接调用等限制。上述证据不建立
+current_cx/mx、crypto/GPU租约或停止协议，没有生产资源后端/新GPU执行版。
+下一沿**已打包模块**定位实际CX/MX节点/driver/completion与最后EBS写入者。
+
+全部材料位于`../logs/pas13-instruction-replay-20261110/`：npa-query、
+cambria-cpr、clock-init、clock-registration、pmic-npa的evidence/snapshot；
+npa-state-verification-v3.json核验PASS，8项合成PE/检索覆盖测试PASS。
+本轮无手机/协议调用/SMC/MMIO写，无内核编辑或重新构建。旧receipt保留。
+
+```sh
+python3 scripts/test-npa-state-evidence.py
+python3 scripts/verify-npa-state-evidence.py --root .. \
+  --output ../logs/pas13-instruction-replay-20261110/npa-state-new.json
+```
+
 目标来自本机xiaomi-cepheus UEFI设备目录，PE/arm64，65536字节：
 `RpmhDxe.efi` SHA256
 `03ccd266ce0c9e268ac199c0f27903c9dbdac675c9374c797e4178673564a7fa`。

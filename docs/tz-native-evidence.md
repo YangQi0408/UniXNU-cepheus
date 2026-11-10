@@ -1,5 +1,11 @@
 # 本机 TZ 采集与原生 Ghidra 查询链证据（2026-11-07）
 
+2026-11-10追加：固定lookup原指令已在有界主机RAM中回放，12段/219条静态
+指令与保存Ghidra及LLVM一致，8场景通过；原表空cache两MPIDR均true，查表
+缺项可false，持锁不返回。16项合成守卫测试通过。不是完整firmware执行、
+运行TZ身份或真机descriptor观察；配对UEFI/XNU的false仍未解。详见
+[回放结果及限制](pas13-continuation-audit.md)。不解除supported=false门禁。
+
 ## 安全与材料身份
 
 用户将手机置于 recovery 后，核对 serial `67eea163`、`cepheus`、root、
