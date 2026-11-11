@@ -72,11 +72,13 @@ extern int SecureDTGetProperty(DTEntry,const char *,const void **,unsigned *);
         c = work / 'receiver.c'
         c.write_text(prefix + helper + '\n__attribute__((noinline)) bool soc_thread(void) {volatile bool result=soc_smem_map();return result;}\nvoid fixture_entry(void) {soc_thread();}\n')
         output = work / 'receiver.o'
-        subprocess.run(['clang', '--target=arm64-apple-darwin', '-ffreestanding', '-O2', '-Wall', '-Wextra', '-Werror',
+        subprocess.run(['clang', '--target=arm64-apple-macos11', '-ffreestanding', '-O2', '-Wall', '-Wextra', '-Werror',
                         '-I', str(ROOT / 'xnu'), '-c', str(c), '-o', str(output)], check=True)
         stubs = work / 'stubs.c'
         stubs.write_text('''
 #include <stddef.h>
+void fixture_binder(void) __asm__("dyld_stub_binder");
+void fixture_binder(void) {__builtin_trap();}
 unsigned long __stack_chk_guard;
 __attribute__((noreturn)) void __stack_chk_fail(void) {for(;;) {}}
 char *PE_boot_args(void) {return "cephsmemmap=1";}
@@ -89,7 +91,7 @@ int memcmp(const void *a,const void *b,size_t count) {const unsigned char *x=a,*
 int bcmp(const void *a,const void *b,size_t count) {return memcmp(a,b,count);}
 ''')
         stub_object = work / 'stubs.o'
-        subprocess.run(['clang', '--target=arm64-apple-darwin', '-ffreestanding', '-O2', '-c', str(stubs),
+        subprocess.run(['clang', '--target=arm64-apple-macos11', '-ffreestanding', '-O2', '-c', str(stubs),
                         '-o', str(stub_object)], check=True)
         linked = work / 'fixture.macho'
         if sys.platform == 'darwin':
