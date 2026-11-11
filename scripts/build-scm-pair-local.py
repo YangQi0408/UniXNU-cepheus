@@ -107,11 +107,14 @@ def main():
             ['python3',str(ROOT/'scripts/verify-scm-pair-boot.py'),str(image),str(baseline),str(kernel),
              str(fd),str(efi),str(fv_receipt),str(out/'boot-verification.json'),
              '--smem-map','--kernel-receipt',str(a.kernel_receipt.resolve())],
+            ['python3',str(ROOT/'scripts/verify-smem-packaged-adt.py'),'--baseline',str(baseline),
+             '--build',str(a.firmware_build.resolve()),'--image',str(image),
+             '--output',str(out/'adt-verification.json')],
         ]
         receipt.update(profile='smem-map-handoff',gpu_execution=False,smem_bytes_acquired=False,
                        smem_access_authorized=False,firmware_execution=False)
     for index,command in enumerate(steps):
-        if a.container and index>=len(steps)-2:
+        if a.container and index>=len(steps)-(3 if a.smem_map else 2):
             command=['docker','run','--rm','--network','none','--user',
                      subprocess.check_output(['id','-u'],text=True).strip()+':'+
                      subprocess.check_output(['id','-g'],text=True).strip(),

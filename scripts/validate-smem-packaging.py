@@ -33,7 +33,8 @@ def main():
     image = subprocess.check_output(['docker','image','inspect',args.container,'--format','{{.Id}}'],text=True).strip()
     sources = [ROOT/'scripts'/name for name in ('smem-packaging-evidence.py','verify-smem-map-kernel.py',
         'make-scm-pair-boot.py','verify-scm-pair-boot.py','repack-scm-pair-fv.py','adt.py',
-        'build-scm-pair-local.py','test-smem-packaging.py','test-scm-pair-packaging.py','validate-smem-packaging.py')]
+        'build-scm-pair-local.py','test-smem-packaging.py','test-scm-pair-packaging.py','validate-smem-packaging.py',
+        'verify-smem-packaged-adt.py')]
     source_hashes = {str(file.relative_to(ROOT)):identity(file)['sha256'] for file in sources}
     receipt = {'time_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
                'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),

@@ -1,5 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 03:48 +08:00：完整基线ADT与实际DarwinBoot解析器连接验收PASS。
+旧parser测试PREAMBLE的WindowSizeValid为256MiB替身，已在SMEM固件
+verifier改用实际WindowSize.h；生产未改。完整ADT17388B/slot offset1372、
+4576zero/3GiB窗口/无RAMDisk TrustCache确认；unaligned input及6损坏
+case拒绝，receipt out/smem-packaging-final-20261112-v1/actual-adt-verification.json。
+新增verify-smem-packaged-adt.py绑定staging manifest，已接入本地真实候选
+第五步；当前fixture仍明确mock admission/runner非kernel候选。
+focused15checks PASS out/smem-kernel-prereq-20261112-v3/receipt.json SHA
+fdc9521fc39f152dbb2a636612152a21b44c857a40971a55e4dfdd030a485eea；
+封装三项PASS out/smem-packaging-final-20261112-v2/receipt.json SHA
+16c4bb5e62d65461ae4b7bda328e8e9ec28679d6fb417c10fb284a37a44eeb42。
+CI43085831185@2be27a4所有前置PASS，03:42:59开始full XNU仍live。
+下一同run terminal下载独立验收/本地封装；无phone/boot/SMC/GPU操作，
+PAS13=false/CP halt/真owner secure PA crypto auth缺失保持，目标active。
+
 2026-11-12 03:30 +08:00：same-boot SMEM离线封装路径准备完成，尚无真实
 新核candidate。现有make/verify/local增加隔离SMEM profile/zero4576槽、
 严格exact kernel receipt+全部production source hashes+独立native复验，

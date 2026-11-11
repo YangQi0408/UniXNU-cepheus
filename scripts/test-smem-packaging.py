@@ -134,10 +134,12 @@ def main():
                 Path(command[5]).write_bytes(b'FIXTURE NEVER BOOT')
             return subprocess.CompletedProcess(command,0)
         with patch.object(sys,'argv',argv),patch.object(LOCAL.smem,'validate',return_value={}),patch.object(LOCAL.subprocess,'run',side_effect=stub_run):
-            if LOCAL.main() != 0 or len(commands) != 4:
+            if LOCAL.main() != 0 or len(commands) != 5:
                 raise ValueError('local fixture step order')
         if any('--core' in command for command in commands) or '--smem-map' not in commands[2] or '--smem-map' not in commands[3]:
             raise ValueError('local fixture mixed mode/core replacement')
+        if Path(commands[4][1]).name!='verify-smem-packaged-adt.py' or '--image' not in commands[4]:
+            raise ValueError('actual packaged parser check missing')
         for options in (['--rpmh-tail'],['--core-build',str(root/'core')]):
             with patch.object(sys,'argv',[*argv[:7],'--output',str(root/'refused-local'),
                                          '--smem-map','--firmware-build',str(root/'loader'),*options]):

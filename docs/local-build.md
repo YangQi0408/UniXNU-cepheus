@@ -328,7 +328,10 @@ python3 scripts/build-scm-pair-local.py \
 The local container needs Python 3.11+, mtools and LLVM objdump; it runs with
 network disabled and the invoking UID/GID. Firmware native verification stays
 on the host, followed by baseline-reproduced FV rebuilding, boot packaging and
-independent nested-FV/EFI/FAT equality verification. A PASS is offline package
+independent nested-FV/EFI/FAT equality verification. A final host-RAM execution
+of the actual staged DarwinBoot ADT parser verifies the complete packaged tree,
+including its real WindowSize.h, unique SMEM slot and unchanged 3GiB window.
+A PASS is offline package
 acceptance, not a boot, mapping-access authorization or GPU result.
 
 ## Full Linux XNU

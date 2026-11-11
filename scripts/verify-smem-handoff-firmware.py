@@ -125,6 +125,8 @@ def verify(build, repository, uefi):
         preamble = next(ast.literal_eval(n.value) for n in ast.parse((ROOT / 'scripts/test-scm-pair.py').read_text()).body
             if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'PREAMBLE' for t in n.targets))
         preamble = preamble.replace('#include "cepheus_scm_handoff.h"', '#include "cepheus_smem_map_handoff.h"')
+        preamble = preamble.replace('static int DarwinWindowSizeValid(uint64_t n) {return n==0x10000000;}',
+                                    '#include "WindowSize.h"')
         parser = 'STATIC\nBOOLEAN\nAdtNode' + text.split('STATIC\nBOOLEAN\nAdtNode', 1)[1].split('STATIC\nBOOLEAN\nValidTrustCaches', 1)[0]
         source = work / 'parser.c'
         source.write_text(preamble + parser + '''
