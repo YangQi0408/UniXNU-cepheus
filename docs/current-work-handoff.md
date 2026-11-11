@@ -1,5 +1,25 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 00:47 +08:00：独立SMEM版本证据工具离线完成，未操作手机。
+analyze-smem-versions.py支持exact4096B item469、caller显式base的单region
+TOC v11/global partition v12（cached/uncached）及sysfs rendering；完整边界/
+重复/重叠/canary/padding/item size拒绝，不猜TZ/HYP索引，raw字段/hash保留。
+外部AUX/小于32cached alignment等严格布局拒绝，非phone布局无效证明。
+collect-recovery-smem-versions.py仅为未来已运行recovery准备：固定serial/
+product/root、显式allowlisted images节点、双读/same boot、stdout/stderr及
+timeout partial保留，无boot/reboot/写sysfs/block/SMC/自动重试；未真机运行。
+21parser tests（256mutations）+2collector tests（12modes）普通/-O及14旧mapping
+PASS，focused5checks receipt out/smem-version-offline-20261112-v2/receipt.json
+SHAf2efd602...，验收源码hash未变；两测试已注册offline validator，未重跑
+全量GPU重型验收/无新kernel/CI。详见tz-runtime-identity-boundary.md。
+版本metadata不认证running secure bytes；当前offline/preserve状态继续。
+v1历史保留；v2移除v12分区offset的旧TOC-size误假设并补CLI/重叠测试。
+已定位Cepheus原厂SmemDxe.efi（40960B/SHA4553d85a...），getter语义/副作用/
+live protocol/lifetime未证，下一离线审查，不凭generic header调用。
+下一确认独立采集入口/无换系统UEFI copied-view路径与真实owner，不重复
+PAS配对/触摸；PAS13=false、supported=false、CP halt保持，owner/secure PA/
+crypto仍缺，GPU scratch/fence/Metal未执行，目标active不停工。
+
 2026-11-12 00:26 +08:00：monitor路由有界审查收尾，开始独立身份线索。
 重要更正：旧SMC framing回放实际FAST c2000207，不能覆盖真机普通42000207。
 新normal64脚本使用历史输入/两MPIDR，四场景普通/-O复验PASS；调度handoff及

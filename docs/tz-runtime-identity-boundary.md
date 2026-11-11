@@ -1,6 +1,6 @@
 # TZ Runtime Identity Boundary
 
-2026-11-12 source audit only. No device, SMC, MMIO, boot or firmware execution.
+2026-11-12 source audit and offline tools. No device, SMC, MMIO, boot or firmware execution.
 The fixed recovery partition is `TZ.XF.5.2-00209`, but its SHA256 identifies
 stored bytes, not the secure image running during the saved false query.
 The paired query records establish normal64 inputs and false outputs only.
@@ -51,7 +51,79 @@ No unrelated UEFI fixes or phone path were added in this audit. A future
 collector must consume a copied, bounded view; validate header/table/partition
 and exact item size; reject duplicate/overlapping/malformed entries; never
 allocate SMEM, write the selector, or guess physical fallback addresses.
-An offline copied-view parser is the next implementation step, not a GPU gate.
+The offline copied-view parser described below is now implemented, not a GPU gate.
+
+## Implemented Offline Tools
+
+`scripts/analyze-smem-versions.py` parses an explicit saved item469 (exact4096B),
+a single copied SMEM region, or the `msm_get_images` sysfs rendering. It has no
+device command or physical-memory accessor. A region requires a caller-supplied
+physical base; the source Cepheus address is never an automatic fallback.
+It validates initialized/version11 or12 headers, partition-table extents,
+host pairs/partition boundaries, global allocation flags/ranges, item IDs,
+canaries/padding and exact item469 size. It rejects duplicate/overlapping
+allocations and does not stop checking after finding the requested item.
+
+Version11 uses the512-entry global TOC; version12 uses the unique global
+partition and its SIII item-count info. Cached and uncached global-partition
+lists are supported. The strict single-region profile rejects external AUX
+regions and cached alignments below32 (kernel/UEFI first-header formulas differ
+there), as well as layouts outside its documented initialized bounds. Those
+are unsupported layouts, not proof that the actual phone layout is invalid.
+No region has yet been collected from the phone, so no live layout is accepted.
+
+All32 raw records preserve field bytes, fixed offsets, hashes and termination/
+printability flags. TZ/HYP prefix matches are **label candidates**, with no
+assumed index or uniqueness. Non-ASCII raw fields remain visible as escaped
+bytes; they do not produce identity claims. Sysfs parsing retains only rendered
+records and rejects partial/reordered/duplicate/malformed output and outputs
+at least4096B. It cannot detect truncation exactly between complete records,
+recover NUL padding or prove absent raw rows are zero. Every result explicitly
+keeps running secure identity unauthenticated and GPU admission unchanged.
+
+`scripts/collect-recovery-smem-versions.py` is prepared but **not run on a phone**.
+It requires an already-running recovery, serial67eea163, product cepheus, root,
+a reported recovery version and an explicit allowlisted `images` path. Paths
+are candidate sysfs locations, not a claim of observed availability. It reads
+boot_id and mounts, reads the same versions twice, checks identical bytes and
+same boot, then runs the rendering parser. Each command has a20-second timeout;
+stdout/stderr stream to new host files and even timeout partials are preserved.
+Failures do not retry, boot, reboot, switch systems, write sysfs or touch block
+devices. A missing/changed/unavailable node is FAIL, not an alternate path guess.
+Recovery's own persistent writes remain outside the collector's guarantee.
+
+Local tests use synthetic SMEM buffers and mocked ADB only:21 parser tests
+(including256 deterministic mutations) and2 collector tests with12 lifecycle
+modes plus pre-command path/output rejection. Ordinary and `python -O` both
+pass; the prior14 mapping tests also pass. These two new checks are registered
+in the offline validator; the full heavy GPU suite was **not rerun**, and its
+previous42-check receipt is historical, not a receipt for these new files.
+
+Final focused receipt `out/smem-version-offline-20261112-v2/receipt.json` has five
+successful checks and unchanged source hashes, SHA256
+`f2efd6028025bae66c5cb49ece5b8f68374e5ca3d3140d992fab2cd91428ff6d`.
+This is tool/mock verification, not acquisition, firmware execution or GPU.
+The earlier v1 receipt remains historical: later changes removed an unwarranted
+legacy TOC-size lower bound on v12 partition offsets and added CLI/overlap
+coverage. v2 accepts the declared v12 partition at4096B without assuming a full
+v11 TOC exists; it still bounds the actual208B initialized header.
+
+Offline commands from the `gpu-work` directory:
+
+```sh
+python3 scripts/test-smem-versions.py
+python3 scripts/test-collect-smem-versions.py
+python3 scripts/analyze-smem-versions.py SAVED_ITEM469.bin \
+  --format item --output NEW_RESULT.json
+python3 scripts/analyze-smem-versions.py SAVED_SMEM_REGION.bin \
+  --format region --physical-base CALLER_VERIFIED_BASE --output NEW_RESULT.json
+```
+
+Do not invoke the collector merely because a phone is connected. The current
+instruction remains offline/preserve state. A future acquisition must first
+confirm the already-running environment and accessible node without booting
+the rejected Android/recovery images, or prepare an independently checked UEFI
+copied-view route. No candidate diagnostic boot image was built in this batch.
 
 ## Existing Evidence And Next Decision
 
@@ -62,8 +134,16 @@ The backup manifest outside the workspace names only a boot partition.
 Filename searches of workspace inputs/backups/logs found no HYP/ABL/XBL image
 or SMEM version dump; this is a bounded search, not a complete machine inventory.
 
-Next prepare the bounded host parser and its rejection tests, then select one
-new independent acquisition route only after its access/lifetime is verified.
+Next select one independent acquisition route only after its access/lifetime
+is verified. The host parser and fixed recovery collector are prepared; actual
+recovery node availability and a no-system-switch UEFI capture remain unverified.
+The local Cepheus DXE list includes `QcomPkg/Drivers/SmemDxe/SmemDxe.inf`; its
+40960B shipped EFI is now a concrete next audit target, SHA256
+`4553d85a7cfe19d9f7642822ce02799ac796faf17843391bc75db3b2db7c4a0e`.
+The generic protocol header declares a GetFunc but its actual semantics,
+registration, side effects and returned-view lifetime have not been inspected.
+Do not call it based only on the header or filename. Its inclusion is not an
+observed running protocol identity. No new REA session or device was started.
 Do not repeat paired INFO/PAS queries, boot rejected Android images, read
 arbitrary secure memory, or change PAS13 admission based on version strings.
 Actual owner/secure PA/cache/crypto/authentication remain separate blockers.

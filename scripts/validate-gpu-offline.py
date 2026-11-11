@@ -57,6 +57,8 @@ def main():
             ('soc-delay-packaging',['python3','scripts/test-soc-delay-packaging.py'],{}),
             ('pas13-audit-tests',['python3','scripts/test-pas13-audit.py'],{}),
             ('tz-mapping-tests',['python3','scripts/test-tz-evidence.py'],{}),
+            ('smem-version-parser',['python3','scripts/test-smem-versions.py'],{}),
+            ('smem-version-collector',['python3','scripts/test-collect-smem-versions.py'],{}),
             ('diagnostic-log-tests',['python3','scripts/test-gpu-diagnostic-log.py'],{}),
             ('ready-boot-args',['python3','scripts/test-ready-boot-args.py'],{}),
             ('gx-probe',['python3','scripts/test-gx-probe.py'] +
