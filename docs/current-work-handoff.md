@@ -1,5 +1,28 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 01:59 +08:00：SMEM copied-view及native pre-EBS map diagnostic
+离线完成。final-v1 receipt out/smem-copy-final-20261112-v1/receipt.json SHA
+5deace4772c6e477ac0b8574c6a7fbf05575ecce6b56d5ce3afd704944b9e4e6，六项
+普通/-O PASS，源码及9reference hash复验不变。C/Python完整2411 cases/
+ASanUBSan（含512 allocations/84partitions/最高item）及copy32read/36map
+故障PASS。map512page故障/PA+cache位/CPU/EBS/HOB/GCD/profile模拟PASS，
+actual AArch64编译/静态分析及AT/PAR/DAIF指令核验PASS。无SMEM load。
+map诊断显式profile/unique resource/GCD reserved/one-shot/EBS事件，保留
+partial及重复调用不覆盖；仅stage1证据，不授权live read/EL2/XPU/abort。
+无loader caller/link/新kernel CI/phone，后续独立mapping staging/link及有界
+handoff；不要凭源码SMEM地址读物理内存。PAS13=false/supported=false、
+CP halt及owner/secure PA/crypto/auth缺，GPU scratch/fence/Metal未执行。
+详见tz-runtime-identity-boundary.md。本批准备提交，不停止目标。
+
+2026-11-12 01:35 +08:00：SMEM copied-view C parser和callback-only双读流程
+已写，未接live adapter/caller；本批源码尚未提交。普通/-O各2407个完整
+C/Python对照、ASan/UBSan corpus/guards/copy及两header AArch64编译PASS。
+此前/tmp quota失败为环境问题，改用out/smem-copy-validation-20261112/tmp
+完成；未保存focused receipt，不冒充全量验收。copy测试callback为mock，
+两份相等不证明atomicity/authentication，真实mapping/access尚待确认。
+无新kernel/CI/phone操作；PAS13=false/supported=false、CP halt、owner/
+secure PA/crypto缺及GPU/Metal未执行均不变。下一pre-EBS真实映射与采集证据。
+
 2026-11-12 01:11 +08:00：原厂SmemDxe静态审查完成，无phone操作。
 REA/Ghidra经on-disk TMPDIR恢复quota失败；35-record bundle/snapshot保存关闭，
 无surviving过程。exact40960B EFI与历史pair boot内FFS逐字节一致；不是live

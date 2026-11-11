@@ -5,6 +5,76 @@ The fixed recovery partition is `TZ.XF.5.2-00209`, but its SHA256 identifies
 stored bytes, not the secure image running during the saved false query.
 The paired query records establish normal64 inputs and false outputs only.
 
+## Copied-View And Mapping Probe (01:59)
+
+At 2026-11-12 01:59 +08:00, the freestanding C headers
+`firmware/cepheus_smem_copied_view.h` and `firmware/cepheus_smem_copy.h`
+implement bounded parsing and callback-only double-copy acquisition. No live
+mapping, device callback, production caller or GPU admission was added.
+Both copies and partial reads remain caller-owned; equality is not atomicity
+or authenticated running-image identity. The caller must independently prove
+the actual pre-EBS mapping, access permissions and buffer lifetime.
+
+`scripts/test-smem-copied-view.py` passed normally and under `python -O`:
+2,411 C/Python differential cases per run, full-corpus ASan/UBSan, output/alias
+and pre-dereference guards, mocked copy lifecycle (32 read and 36 mapping
+failures), and freestanding AArch64 compilation of both headers. Initial runs
+failed with disk quota in `/tmp`; successful reruns used
+`out/smem-copy-validation-20261112/tmp`. Capacity coverage includes 512 global
+allocations, 84 partitions and item65534 of a declared65535-item table.
+These results do not validate a live mapping or actual GPU execution.
+
+`firmware/CepheusSmemMapProbe.c` now supplies a native **mapping diagnostic**, not
+a live-copy adapter. It is not linked into a loader and has no production caller.
+Prepare accepts only an explicit profile from the identity-bound compiled
+Cepheus platform table; the fixed address is a cross-check, never a fallback.
+It creates an ExitBootServices event and binds the CPU. Probe consumes one
+attempt, checks the bounded HOB chain for exactly one reserved SMEM resource,
+rejects conflicting resource/allocation records, obtains the GCD descriptor,
+and records all512 page translations plus CPU context before/after. Foreign
+or partial mappings, Device/cacheable attributes, unsupported EL/granule/PA
+formats, hardware AF/dirty updates and changed CPU state are refused.
+Raw partial evidence survives failure and subsequent calls. Close releases the
+event before module unload; after EBS it invokes no service. A failed pre-EBS
+CloseEvent retains the handle for cleanup without enabling another probe.
+
+The architecture path uses AT S1E1R only at EL1 and preserves PAR_EL1/DAIF
+around each query. It does not load SMEM bytes, modify page tables, flush caches,
+call SMC or grant access. Stage-1 translation is **not** EL2/XPU/bus-abort proof;
+successful mapping evidence alone must not authorize a subsequent raw read.
+EFI table pointers and ordinary output RAM disjoint from tables/module state
+are trusted caller preconditions, not arbitrary-pointer abort containment.
+Output/status is a native diagnostic structure, not a versioned DT wire ABI.
+
+Source inspection explains why several tempting shortcuts were rejected:
+
+- Cepheus `PlatformMemoryMapLib.c` declares SMEM as AddMem/MEM_RES/WC with Normal
+  noncacheable Arm attributes. `MemoryInitPeiLib.c` creates its resource HOB and
+  identity MMU descriptor, but logs ArmConfigureMmu failure and still returns
+  EFI_SUCCESS. Source inclusion therefore does not prove the running map.
+- DXE GCD converts EFI_RESOURCE_MEMORY_RESERVED to Reserved, not ordinary
+  allocatable system RAM. This SMEM profile produces no allocation HOB there.
+- CpuDxe `MemoryAttribute.c` masks GetMemoryAttributes output down to RP/RO/XP;
+  it cannot alone establish cache type or physical translation. Its source is
+  not a verified running protocol identity.
+- `MemoryMapHelperLib` delegates to UEFI Config ShLib; its getter remains
+  unaudited. `_XN` platform aliases do not independently prove execute protection.
+
+Final focused receipt `out/smem-copy-final-20261112-v1/receipt.json`, SHA256
+`5deace4772c6e477ac0b8574c6a7fbf05575ecce6b56d5ce3afd704944b9e4e6`,
+contains six PASS checks (Python parser, C copy/parser and map probe, each
+ordinary/-O), with unchanged source and nine reference-source hashes. Native
+map-probe AArch64 compile/static analysis and instruction checks pass; host
+ASan/UBSan covers512 page faults, PA/cache bits, CPU/EBS changes and HOB/GCD/
+profile failures with services/AT mocked. No firmware link, new kernel/CI, phone
+operation, SMEM capture or GPU execution occurred. The earlier2407-case result
+is historical; the final receipt binds the expanded2411-case script.
+
+Next stage/link one isolated mapping diagnostic from the pinned platform profile
+and design a bounded evidence handoff. Do not read SMEM based solely on this
+diagnostic, invoke SmemDxe, or repeat PAS/touch tests. Actual independent identity,
+resource owner and secure PA/cache/crypto/authentication remain unresolved.
+
 ## Independent Metadata Route
 
 The local SM8150 kernel at commit
