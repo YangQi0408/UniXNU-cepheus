@@ -14,7 +14,7 @@ log=importlib.util.module_from_spec(spec);spec.loader.exec_module(log)
 source=(ROOT/'xnu/cepheus_soc.c').read_text()
 assert '__attribute__((noinline))\nstatic bool soc_rpmh_tail(void)' in source
 helper='static bool soc_rpmh_tail(void)'+source.split('static bool soc_rpmh_tail(void)',1)[1].split('static bool soc_smem_map',1)[0]
-for forbidden in ('gBS','cepheus_gpu_scm_probe_once','cepheus_gpu_arc_raise','cepheus_gpu_bcm_raise',
+for forbidden in ('gBS','cepheus_gpu_scm_probe_once','cepheus_gpu_arc_raise','cepheus_gpu_bcm_raise','cepheus_zap_bcm_raise',
                   'cepheus_gpu_submit','ceph_power_start'):
     assert forbidden not in helper,forbidden
 prefix=r'''

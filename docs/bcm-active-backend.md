@@ -1,5 +1,45 @@
 # BCM ACTIVE Native Transport
 
+## Crypto Route Extension
+
+On2026-11-12, `cepheus_zap_bcm_raise()` adds the missing fixed crypto route
+`CE0/SN11/SN0/SH0/MC0/ACV` using the same native sender, `rh_lock`, terminal
+poison and RPMh/idle reservation as the GPU transport. The old six GPU IDs
+keep their values; the three crypto-only IDs are appended. The GPU entry still
+refuses crypto-only IDs, and the crypto entry refuses GPU-only IDs. Each
+transaction remains limited to six commands, not the nine-ID namespace.
+
+The resource names were rechecked against the accepted firmware's fixed
+crypto-route evidence. Addresses, width, units and VCD still come from the
+guarded live command DB, never static firmware offsets. Encoded X/Y raises,
+ACV0->8, copied callbacks, fresh ACK, VCD commit ordering and retention rules
+are unchanged. No IB/AB aggregation, inherited-ledger initializer, default
+owner, crypto clock control, secure memory grant or PAS caller was added.
+This is a transport building block, not a completed crypto/PAS backend.
+
+Focused local receipt `out/crypto-bcm-local-20261112-v2/receipt.json` passed
+19 compile/run/analysis/native/staging/integration steps, SHA256
+`8f9ce1f35f41408418f08640666d17ee94790d404f06c6acd368ba9a26072e8e`.
+Both routes exercise1977 protected-aperture validation boundaries and29
+uncertain-store positions, including cross-route/ARC poison rejection,
+route-only ID refusal, dynamic metadata, command ordering and retained
+timeouts. ASan/UBSan and full pinned/staged RPMh AArch64 compilation pass.
+The crypto fixture is registered in the existing host and sanitizer suites.
+Rechecked static firmware receipt
+`out/crypto-bcm-route-static-20261112-v1.json`, SHA256
+`c7e2af21cc19214027f3cd399756151ded5516ef208580e2e815824a7720cb90`,
+is `PASS_STATIC_BYTES_ONLY`, not a phone vote or runtime identity.
+
+Full local kernel prerequisites passed4/4, including87 host programs, sanitizer
+suite and7 production-unit analyses; receipt
+`out/crypto-bcm-preflight-20261112-v1/receipt.json`, SHA256
+`9bc7f7fad00fe6277f40f37804a4b5c9cbd760899c7c3741206d3e0e1b730d4f`.
+All recorded source hashes were rechecked unchanged. Complete XNU linking
+remains a separate acceptance step. The accepted CI43103322477 kernel and mapping boot
+image do not contain this extension and are unchanged; never substitute their
+earlier receipts for changed-source acceptance. No phone operation or real
+BCM vote occurred, PAS13=false and CP halt remain in force, GPU/Metal unrun.
+
 2026-11-10: `cepheus_gpu_bcm_raise()` now uses the actual private
 `sweet_rpmh.c` ACTIVE transport. No startup hook, firmware call, phone command,
 boot package or GPU execution was added. Real inherited votes, writer exclusion

@@ -6,8 +6,8 @@
 #include "cepheus_rpmh_active_private.h"
 struct ceph_bcm_active_call {
     struct ceph_bcm_active_owner owner;
-    struct ceph_bcm_active_vote votes[CE_BA_NRESOURCE];
-    struct ceph_bcm_resource resources[CE_BA_NRESOURCE];
+    struct ceph_bcm_active_vote votes[CE_BA_MAX_VOTES];
+    struct ceph_bcm_resource resources[CE_BA_MAX_VOTES];
     unsigned count;
     int db_failed;
 };
@@ -30,15 +30,16 @@ static uint32_t ceph_bcm_active_db_read(void *ctx,uint32_t off)
     if(value==UINT32_MAX)c->db_failed=1;
     return value;
 }
-int cepheus_gpu_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned count,
-    const struct ceph_bcm_active_owner *owner)
+static int ceph_bcm_active_raise(const struct ceph_bcm_active_vote *votes,unsigned count,
+    const struct ceph_bcm_active_owner *owner,uint32_t allowed_ids)
 {
-    if(!votes || !count || count>CE_BA_NRESOURCE || !owner || !owner->validate ||
+    if(!votes || !count || count>CE_BA_MAX_VOTES || !owner || !owner->validate ||
         !owner->current || !owner->finish)return EINVAL;
     struct ceph_bcm_active_call c={.owner=*owner,.count=count};
     for(unsigned n=0;n<count;++n) {
         c.votes[n]=votes[n];const struct ceph_bcm_active_vote *v=&c.votes[n];
-        if(v->id<0 || v->id>=CE_BA_NRESOURCE || v->current_x>0x3fff || v->current_y>0x3fff ||
+        if(v->id<0 || v->id>=CE_BA_NRESOURCE || !(allowed_ids&(1u<<v->id)) ||
+            v->current_x>0x3fff || v->current_y>0x3fff ||
             v->target_x>0x3fff || v->target_y>0x3fff || v->target_x<v->current_x ||
             v->target_y<v->current_y || (v->target_x==v->current_x && v->target_y==v->current_y))return EINVAL;
         if(v->id==CE_BA_ACV && (v->current_x || v->target_x || v->current_y || v->target_y!=8))return EINVAL;
@@ -54,9 +55,11 @@ int cepheus_gpu_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned coun
     /* Do not map/read shared hardware outside the supplied ownership guard. */
     if(!rh_rsc || !rh_tcs || !rh_db || !rh_db_size){e=ENODEV;goto done;}
     if(c.owner.validate(c.owner.ctx)){e=EBUSY;goto done;}
-    static const char *const names[] = {"SH2","SN15","SN3","SH0","MC0","ACV"};
+    static const char *const names[CE_BA_NRESOURCE] = {
+        "SH2","SN15","SN3","SH0","MC0","ACV","CE0","SN11","SN0"
+    };
     struct ceph_arc_db db={&c,rh_db_size,ceph_bcm_active_db_read};
-    struct ceph_bcm_vote encoded[CE_BA_NRESOURCE];
+    struct ceph_bcm_vote encoded[CE_BA_MAX_VOTES];
     int acv=-1;
     for(unsigned n=0;n<count;++n) {
         enum ceph_bcm_active_id id=c.votes[n].id;
@@ -66,8 +69,8 @@ int cepheus_gpu_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned coun
         encoded[n]=(struct ceph_bcm_vote){c.resources[n],c.votes[n].target_x,c.votes[n].target_y};
         if(id==CE_BA_ACV)acv=(int)n;
     }
-    struct ceph_bcm_command commands[CE_BA_NRESOURCE];uint32_t wait;
-    if(ceph_bcm_commands_kind(encoded,count,commands,CE_BA_NRESOURCE,&wait,acv)!=(int)count){e=EINVAL;goto done;}
+    struct ceph_bcm_command commands[CE_BA_MAX_VOTES];uint32_t wait;
+    if(ceph_bcm_commands_kind(encoded,count,commands,CE_BA_MAX_VOTES,&wait,acv)!=(int)count){e=EINVAL;goto done;}
     call.wait=wait;
     for(unsigned n=0;n<count;++n)
         call.command[n]=(struct ceph_rpmh_active_command){
@@ -79,5 +82,19 @@ done:
         c.owner.finish(c.owner.ctx,&call.lease,e!=0);
     __atomic_store_n(&rh_lock,0,__ATOMIC_RELEASE);
     return e==ENOSPC?EBUSY:e;
+}
+int cepheus_gpu_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned count,
+    const struct ceph_bcm_active_owner *owner)
+{
+    return ceph_bcm_active_raise(votes,count,owner,
+        (1u<<CE_BA_SH2)|(1u<<CE_BA_SN15)|(1u<<CE_BA_SN3)|
+        (1u<<CE_BA_SH0)|(1u<<CE_BA_MC0)|(1u<<CE_BA_ACV));
+}
+int cepheus_zap_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned count,
+    const struct ceph_bcm_active_owner *owner)
+{
+    return ceph_bcm_active_raise(votes,count,owner,
+        (1u<<CE_BA_CE0)|(1u<<CE_BA_SN11)|(1u<<CE_BA_SN0)|
+        (1u<<CE_BA_SH0)|(1u<<CE_BA_MC0)|(1u<<CE_BA_ACV));
 }
 #endif

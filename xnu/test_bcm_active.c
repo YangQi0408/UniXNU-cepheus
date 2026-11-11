@@ -89,6 +89,15 @@ static void delay(unsigned us)
 }
 #include "cepheus_arc_active_private.h"
 #include "cepheus_bcm_active_private.h"
+#ifdef TEST_CRYPTO_ROUTE
+#define test_raise cepheus_zap_bcm_raise
+static const enum ceph_bcm_active_id route_ids[]={CE_BA_CE0,CE_BA_SN11,CE_BA_SN0,CE_BA_SH0,CE_BA_MC0,CE_BA_ACV};
+static const char *const route_names[]={"CE0","SN11","SN0","SH0","MC0","ACV"};
+#else
+#define test_raise cepheus_gpu_bcm_raise
+static const enum ceph_bcm_active_id route_ids[]={CE_BA_SH2,CE_BA_SN15,CE_BA_SN3,CE_BA_SH0,CE_BA_MC0,CE_BA_ACV};
+static const char *const route_names[]={"SH2","SN15","SN3","SH0","MC0","ACV"};
+#endif
 static struct ceph_rpmh_active_lease finished_lease;
 static struct ceph_bcm_active_owner owner;
 static struct ceph_bcm_active_vote votes[6];
@@ -116,10 +125,13 @@ static int validate(void *ctx)
 }
 static int current(void *ctx,enum ceph_bcm_active_id id,const struct ceph_bcm_resource *r,uint32_t x,uint32_t y)
 {
-    assert(ctx==tcs && id>=0 && id<6);
+    assert(ctx==tcs);
+    unsigned index=0;
+    while(index<6 && route_ids[index]!=id)++index;
+    assert(index<6);
     check_aperture();if(expire && checks>=expire)return -1;
-    assert(r->address==0x50000+4u*(unsigned)id);
-    assert((r->vcd==(const unsigned[]){2,1,2,0,0,3}[id]));
+    assert(r->address==0x50000+4u*index);
+    assert((r->vcd==(const unsigned[]){2,1,2,0,0,3}[index]));
     assert(r->unit==(id==CE_BA_ACV?0u:100u) && r->width==(id==CE_BA_ACV?0u:8u));
     assert(id==CE_BA_ACV?(x==0 && y==0):(x==1 && y==10));
     return current_bad?-1:0;
@@ -151,17 +163,16 @@ static void reset(void)
     for(unsigned n=0;n<8;++n)tcs[(n*0x2a0+0x18)/4]=1;
     tcs[0]=0xa5;tcs[1]=0x80;
     db[0]=1;db[1]=0x0c0330db;db[2]=5;db[3]=(6u<<16)|144u;
-    const char *names[]={"SH2","SN15","SN3","SH0","MC0","ACV"};
     const unsigned vcd[]={2,1,2,0,0,3};
     for(unsigned n=0;n<6;++n) {
         unsigned e=144+n*24,a=288+n*8;
-        memcpy((uint8_t *)db+e,names[n],strlen(names[n]));
+        memcpy((uint8_t *)db+e,route_names[n],strlen(route_names[n]));
         db[(e+16)/4]=0x50000+4*n;db[(e+20)/4]=8u|((8*n)<<16);
         db[a/4]=n==5?0:100;db[(a+4)/4]=(n==5?0:8)|(vcd[n]<<16);
-        votes[n]=(struct ceph_bcm_active_vote){(enum ceph_bcm_active_id)n,n==5?0:1,n==5?0:10,n==5?0:2,n==5?8:20};
+        votes[n]=(struct ceph_bcm_active_vote){route_ids[n],n==5?0:1,n==5?0:10,n==5?0:2,n==5?8:20};
     }
 }
-static int run(void){return cepheus_gpu_bcm_raise(votes,6,&owner);}
+static int run(void){return test_raise(votes,6,&owner);}
 int main(void)
 {
     tcs=mmap(NULL,APERTURE,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
@@ -208,6 +219,8 @@ int main(void)
     for(unsigned n=1;n<=stores;++n) {
         reset();fail_write=n;assert(run()==EIO && writes==n && finished==1 && kept && rh_poisoned);
         unsigned old=reads;assert(run()==EIO && old==reads && finished==1);
+        assert(cepheus_gpu_bcm_raise(votes+3,3,&owner)==EIO && reads==old && finished==1);
+        assert(cepheus_zap_bcm_raise(votes+3,3,&owner)==EIO && reads==old && finished==1);
         struct ceph_arc_active_owner a={tcs,forbidden_arc_owner,forbidden_arc_access,finish,1};
         assert(cepheus_gpu_arc_raise("cx.lvl",1,2,&a)==EIO && reads==old);
     }
@@ -246,25 +259,34 @@ int main(void)
     reset();votes[0].target_y=9;assert(run()==EINVAL && !reads);
     reset();votes[0].target_x=1;votes[0].target_y=10;assert(run()==EINVAL && !reads);
     reset();votes[5].target_y=7;assert(run()==EINVAL && !reads);
-    reset();votes[1].id=CE_BA_SH2;assert(run()==EINVAL && !reads);
+    reset();votes[1].id=route_ids[0];assert(run()==EINVAL && !reads);
     reset();owner.finish=NULL;assert(run()==EINVAL && !reads);
     reset();owner.rpmh_token=0;assert(run()==EBUSY && !reads && !writes);
     reset();assert(!cepheus_gpu_rpmh_finish(1,0));assert(run()==EBUSY && !reads && !writes);
     reset();assert(!run() && idle_retained && ceph_rpmh_scope_effects);
     assert(cepheus_gpu_rpmh_finish(1,0)==EBUSY && ceph_rpmh_scope_legacy()==EBUSY);
-    reset();assert(cepheus_gpu_bcm_raise(votes,7,&owner)==EINVAL && !reads);
-    reset();assert(cepheus_gpu_bcm_raise(NULL,1,&owner)==EINVAL && !reads);
-    reset();assert(cepheus_gpu_bcm_raise(votes,1,&owner)==0 && finished && !kept);
+    reset();assert(test_raise(votes,7,&owner)==EINVAL && !reads);
+    reset();assert(test_raise(NULL,1,&owner)==EINVAL && !reads);
+    reset();assert(test_raise(votes,1,&owner)==0 && finished && !kept);
     reset();votes[0].target_x=0x3fff;votes[0].target_y=0x3fff;
-    assert(!cepheus_gpu_bcm_raise(votes,1,&owner) && tcs[0x38/4]==0x6fffffff);
-    reset();assert(!cepheus_gpu_bcm_raise(votes+5,1,&owner) && tcs[0x38/4]==0x60000008);
+    assert(!test_raise(votes,1,&owner) && tcs[0x38/4]==0x6fffffff);
+    reset();assert(!test_raise(votes+5,1,&owner) && tcs[0x38/4]==0x60000008);
     reset();struct ceph_bcm_active_vote reordered[6];
     for(unsigned n=0;n<6;++n)reordered[n]=votes[5-n];
-    assert(!cepheus_gpu_bcm_raise(reordered,6,&owner));
+    assert(!test_raise(reordered,6,&owner));
     const unsigned reverse_order[]={4,3,1,2,0,5};
     for(unsigned n=0;n<6;++n)assert(tcs[(0x34+n*0x14)/4]==0x50000+4*reverse_order[n]);
     reset();mutate_input=1;assert(!run() && finished && !kept && owner.finish==NULL);
     assert(tcs[(0x38+3*0x14)/4]==0x20008014);
+    for(int id=-1;id<=CE_BA_NRESOURCE;++id) {
+        bool allowed=false;
+        for(unsigned n=0;n<6;++n)if(id==(int)route_ids[n])allowed=true;
+        if(allowed)continue;
+        reset();votes[0].id=(enum ceph_bcm_active_id)id;
+        assert(run()==EINVAL && !reads && !writes && !checks && !finished);
+    }
+    reset();memcpy((uint8_t *)db+144,"WRONG",5);
+    assert(run()==EINVAL && !writes && !finished);
     assert(!munmap(tcs,APERTURE) && !munmap(db,APERTURE));
-    printf("BCM ACTIVE: %u protected-aperture owner boundaries/%u uncertain stores, fixed GPU routes/VCD commit/fresh ACK, nondecreasing votes/shared quarantine PASS (host model, no phone votes)\n",total,stores);
+    printf("BCM ACTIVE %s route: %u protected-aperture owner boundaries/%u uncertain stores, VCD commit/fresh ACK, nondecreasing votes/shared quarantine PASS (host model, no phone votes)\n",route_names[0],total,stores);
 }

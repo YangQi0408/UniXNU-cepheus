@@ -30,7 +30,10 @@ def main():
            'xnu/cepheus_rpmh_active_private.h','xnu/cepheus_arc_active_private.h',
            'xnu/cepheus_arc_active.h','xnu/cepheus_bcm.h','xnu/cepheus_arc.h',
            'xnu/cepheus_rpmh_scope.h','xnu/cepheus_rpmh_scope_private.h',
-           'xnu/test_bcm_active.c','xnu/test_arc_active.c','scripts/test-bcm-active.py')
+           'xnu/test_bcm_active.c','xnu/test_arc_active.c','scripts/test-bcm-active.py',
+           'scripts/test-arc-active-native.py','scripts/test-gpu-stack.sh',
+           'scripts/test-gpu-sanitizers.sh','scripts/verify-gpu-kernel.py',
+           'scripts/test-gpu-integration.py','scripts/test-rpmh-tail-hook.py')
     receipt={'time_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
              'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
              'source_sha256':{n:hashlib.sha256((ROOT/n).read_bytes()).hexdigest() for n in names},
@@ -74,13 +77,17 @@ def main():
     for variant,compiler,flags in (
         ('host',os.environ.get('CC','cc'),['-O2','-fsanitize=undefined']),
         ('sanitized','clang',['-O1','-g','-fsanitize=address,undefined','-fno-omit-frame-pointer'])):
-        for name in ('arc_active','bcm_active'):
+        for name in ('arc_active','bcm_active','bcm_crypto_active'):
             exe=out/(variant+'-'+name)
-            run(variant+'-'+name+'-compile',[compiler,*common,*flags,str(ROOT/'xnu'/('test_'+name+'.c')),'-o',str(exe)])
+            source='bcm_active' if name=='bcm_crypto_active' else name
+            route_flags=['-DTEST_CRYPTO_ROUTE=1'] if name=='bcm_crypto_active' else []
+            run(variant+'-'+name+'-compile',[compiler,*common,*flags,*route_flags,str(ROOT/'xnu'/('test_'+source+'.c')),'-o',str(exe)])
             run(variant+'-'+name+'-run',[str(exe)],env)
-    for name in ('arc_active','bcm_active'):
+    for name in ('arc_active','bcm_active','bcm_crypto_active'):
+        source='bcm_active' if name=='bcm_crypto_active' else name
+        route_flags=['-DTEST_CRYPTO_ROUTE=1'] if name=='bcm_crypto_active' else []
         run(name+'-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
-                              str(ROOT/'xnu'/('test_'+name+'.c')),'-o',os.devnull])
+                              *route_flags,str(ROOT/'xnu'/('test_'+source+'.c')),'-o',os.devnull])
     run('native',['python3',str(ROOT/'scripts/test-arc-active-native.py'),str(pinned)])
     run('integration',['python3',str(ROOT/'scripts/test-gpu-arc.py'),str(pinned)])
     run('boot-no-call',['python3',str(ROOT/'scripts/test-gpu-integration.py')])

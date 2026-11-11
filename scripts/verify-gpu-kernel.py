@@ -145,7 +145,7 @@ def main():
     required |= {'_cepheus_gpu_smmu_install_native'}
     required |= {'_cepheus_gmu_upload_native'}
     required |= {'_cepheus_gpu_arc_raise'}
-    required |= {'_cepheus_gpu_bcm_raise'}
+    required |= {'_cepheus_gpu_bcm_raise', '_cepheus_zap_bcm_raise'}
     required |= {'_cepheus_gpu_rpmh_hold','_cepheus_gpu_rpmh_check','_cepheus_gpu_rpmh_finish'}
     required |= {'_cepheus_gpu_gpll0_hold','_cepheus_gpu_gpll0_check'}
     required |= {'_cepheus_gpu_gpll0_measure'}

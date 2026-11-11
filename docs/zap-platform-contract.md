@@ -1,5 +1,22 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-12：原生 crypto BCM 传输已补，真实资源租约仍缺
+
+`cepheus_zap_bcm_raise()`复用GPU BCM的actual RPMh sender/shared lock/poison/
+idle reservation，仅接受固定CE0/SN11/SN0/SH0/MC0/ACV。动态address/unit/
+width/VCD仍须由有真实owner保护的command DB取得；不使用固件结构偏移作
+MMIO地址，不把AB/IB直接当encoded X/Y。两个入口分别拒绝对方专用ID，
+最多6条命令，不因ID总数扩到9放宽。crypto/GPU各1977 owner失效边界与29
+uncertain stores、cross-route/ARC隔离、ASanUBSan/native/staged检查PASS。
+本批只是受限投票传输能力，不会聚合完整client状态或生成ACK ledger，
+没有真实owner/provider/startup/PAS caller/crypto clocks/secure PA授权。
+local receipt out/crypto-bcm-local-20261112-v2/receipt.json SHA
+8f9ce1f35f41408418f08640666d17ee94790d404f06c6acd368ba9a26072e8e；
+固定固件路由static复验PASS，详见bcm-active-backend.md。完整XNU链接待验，
+旧accepted核/映射镜像不含此production change，不复用旧receipt。无phone/
+实际投票/SMC/认证/GPU执行；PAS13=false/CP halted、secure PA cache及真实
+crypto时钟/资源所有权/认证阻塞不变。
+
 ## 2026-11-11：owner provider 边界只提供接线合同
 
 新增 `cepheus_resource_owner_provider.h`，为未来的真实 owner 后端提供

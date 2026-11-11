@@ -72,7 +72,7 @@ with workspace as directory:
     assembly = tree/'rpmh.s'
     subprocess.run(command + ['-S', str(source), '-o', str(assembly)], check=True)
     text = assembly.read_text()
-    if any(symbol not in text for symbol in ('cepheus_gpu_arc_raise:', 'cepheus_gpu_bcm_raise:',
+    if any(symbol not in text for symbol in ('cepheus_gpu_arc_raise:', 'cepheus_gpu_bcm_raise:', 'cepheus_zap_bcm_raise:',
             'cepheus_gpu_config_build_native:', 'cepheus_gpu_config_check_native:', 'dsb\tosh', 'dmb\tosh')):
         raise SystemExit('Missing native ARC/BCM symbol or actual MMIO barriers')
     subprocess.run(command + ['-c', str(source), '-o', str(tree/'rpmh.o')], check=True)

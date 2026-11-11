@@ -11,6 +11,9 @@ for name in gmu_firmware zap_image gmu_upload hfi hfi_access hfi_messages hfi_se
         "$root/xnu/test_${name}.c" -o "$tmp/$name"
     "$tmp/$name"
 done
+"${CC:-clang}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+    -fno-omit-frame-pointer -DTEST_CRYPTO_ROUTE=1 "$root/xnu/test_bcm_active.c" -o "$tmp/bcm-crypto-active"
+"$tmp/bcm-crypto-active"
 "${CC:-clang}" -std=c11 -Wall -Wextra -Werror -I"$root/xnu" -fsanitize=address,undefined \
     -fno-omit-frame-pointer "$root/xnu/test_gmu_hfi_native.c" "$root/xnu/cepheus_gmu_hfi_link.c" -o "$tmp/gmu-hfi-native"
 "$tmp/gmu-hfi-native"

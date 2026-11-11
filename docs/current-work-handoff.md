@@ -1,5 +1,23 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 07:41 +08:00：新增原生cepheus_zap_bcm_raise固定crypto路由
+CE0/SN11/SN0/SH0/MC0/ACV，复用actual RPMh sender/rh_lock/poison/idle token；
+GPU旧6ID不变，双方分别拒绝对方专用ID，交易仍max6不扩9。动态DB metadata/
+encoded raises/VCD commit/fresh ACK/retention合同保持，无IBAB聚合/owner默认
+实现/crypto clock/secure PA/PAS caller/startup。crypto/GPU各1977PROT_NONE
+owner边界/29uncertain stores，cross-route/ARC隔离及ASanUBSan/native/staged
+PASS。focused19steps receipt out/crypto-bcm-local-20261112-v2/receipt.json SHA
+8f9ce1f35f41408418f08640666d17ee94790d404f06c6acd368ba9a26072e8e；
+固定固件route static复验PASS receipt out/crypto-bcm-route-static-20261112-v1.json
+SHAc7e2af21cc19214027f3cd399756151ded5516ef208580e2e815824a7720cb90。
+本地kernel前置4/4、87host/sanitizers/7production分析PASS receipt
+out/crypto-bcm-preflight-20261112-v1/receipt.json SHA
+9bc7f7fad00fe6277f40f37804a4b5c9cbd760899c7c3741206d3e0e1b730d4f，
+source/log hash复验不变；session41835/50537均exit0。production changed，
+旧CI43103322477核和mapping镜像不含此change，不复用旧receipt。准备提交/
+唯一完整CI，禁止重复dispatch或phone操作。PAS13=false/CP halted/真实owner
+secure PA cache crypto clocks auth仍缺，GPU/Metal未执行，完整目标active。
+
 2026-11-12 07:01 +08:00：专用run-smem-map-device.py离线完成。复用bounded
 host生命周期但独立profile/analyzer，exact候选SHA/size与READY后再次hash；
 逐字节重建4576B并绑定3份embedded source metadata，不当作身份认证。

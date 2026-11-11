@@ -12,6 +12,9 @@ for name in fts_events i2c_bitbang soc cpu_policy a640_pm4 gmu_firmware gpu_conf
         "$root/xnu/test_${name}.c" -o "$tmp/$name" "${libs[@]}"
     "$tmp/$name"
 done
+"${CC:-cc}" -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=undefined \
+    -DTEST_CRYPTO_ROUTE=1 "$root/xnu/test_bcm_active.c" -o "$tmp/bcm-crypto-active"
+"$tmp/bcm-crypto-active"
 "${CC:-cc}" -std=c11 -O1 -g -Wall -Wextra -Werror -O2 -I"$root/xnu" \
     "$root/xnu/test_gmu_hfi_native.c" "$root/xnu/cepheus_gmu_hfi_link.c" -o "$tmp/gmu-hfi-native"
 "$tmp/gmu-hfi-native"
@@ -20,4 +23,4 @@ for name in gpu_idle gpu_idle_native; do
         "$root/xnu/test_${name}.c" -o "$tmp/$name"
     "$tmp/$name"
 done
-echo '86 host test programs passed; no hardware backend or GPU execution validated'
+echo '87 host test programs passed; no hardware backend or GPU execution validated'
