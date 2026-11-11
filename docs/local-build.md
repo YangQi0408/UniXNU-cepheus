@@ -353,6 +353,26 @@ RPMh-tail device runner for this distinct profile. Phone testing and any SMEM
 content acquisition require a separate explicit decision; no GPU execution or
 PAS admission has been established.
 
+The dedicated `scripts/run-smem-map-device.py` is now prepared and validated
+offline for this exact candidate. It is not an offline build command: invoking
+its lifecycle issues one temporary fastboot boot, so it remains unused until
+the separate hardware decision. It checks the image again after capture READY,
+accepts only one Cepheus device, retains raw logs, and has no flash/reboot/retry
+path. Capture defaults to300 seconds (allowed300..600).
+
+The runner independently reconstructs the4576-byte record and checks its three
+embedded source hashes against the accepted candidate. A complete failed
+mapping diagnostic is retained as `result=PASS`, `evidence_complete=true`,
+`mapping_diagnostic_pass=false`: PASS here means evidence completeness only.
+Incomplete/rejected collection is FAIL with an unknown mapping result. Neither
+case authorizes SMEM reads, authenticates a secure identity or executes GPU.
+Focused normal/`python -O` lifecycle, integration and host-adapted actual
+producer/XNU round-trip checks passed; the integration suite has one optional
+reference-source skip. Receipt:
+`out/smem-device-runner-offline-20261112-v1/receipt.json`, SHA256
+`a210e073c232741233512e5e0ba6c3b96a3de6fe56763ddca8897bff9b635e74`.
+No full kernel rebuild or device operation was needed for this host-tool change.
+
 ## Full Linux XNU
 
 On 2026-11-09 the host dependency check reported missing `tcsh`, `unifdef`,

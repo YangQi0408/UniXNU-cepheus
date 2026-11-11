@@ -3,6 +3,7 @@
 import argparse
 import ctypes
 import importlib.util
+import json
 from pathlib import Path
 import struct
 import subprocess
@@ -20,6 +21,7 @@ def module(name, file):
 
 STAGE = module('smem_handoff_stage', 'stage-smem-handoff-firmware.py')
 LOG = module('smem_handoff_log', 'analyze-smem-handoff-log.py')
+DEVICE = module('smem_handoff_device', 'run-smem-map-device.py')
 
 
 def require(condition, message):
@@ -164,6 +166,20 @@ int main(int argc,char **argv) {
         failed_result = LOG.analyze(failed_log)
         require(not failed_result['diagnostic_pass'] and failed_result['diagnostic']['end']['pages'] == 5,
                 'partial evidence lost/reclassified as pass')
+        # The real host-adapted producer/receiver must satisfy the same evidence
+        # acceptance as the device runner, without invoking its lifecycle.
+        for name, saved, parsed, passed in (
+                ('pass', output, decoded, True), ('partial', failed_log, failed_result, False)):
+            capture_dir = work / name
+            capture_dir.mkdir()
+            (capture_dir / 'boot.log').write_bytes(saved)
+            analysis_path = capture_dir / 'analysis.json'
+            analysis_path.write_text(json.dumps(parsed))
+            receipt = {'capture': {'evidence': {'directory': str(capture_dir),
+                                               'sha256': parsed['log_sha256']}}}
+            require(DEVICE.accept_analysis(receipt, analysis_path) == 0 and
+                    receipt['evidence_complete'] is True and receipt['mapping_diagnostic_pass'] is passed,
+                    'device evidence acceptance disagrees with actual producer/receiver')
         cli_log = work / 'log.txt'
         cli_log.write_bytes(output)
         result = work / 'log.json'

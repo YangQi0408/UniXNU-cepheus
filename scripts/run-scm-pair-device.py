@@ -93,8 +93,11 @@ def accept_analysis(receipt, analysis_path):
     return 0
 
 
-def run(image, output, capture_seconds):
-    identity = image_identity(image)
+def run(image, output, capture_seconds, *, diagnostic=None):
+    identify = image_identity if diagnostic is None else diagnostic.image_identity
+    accept = accept_analysis if diagnostic is None else diagnostic.accept_analysis
+    analyzer = 'analyze-scm-pair-log.py' if diagnostic is None else diagnostic.ANALYZER
+    identity = identify(image)
     if output.exists():
         raise ValueError(f'output already exists: {output}')
     ensure_port_free()
@@ -111,7 +114,7 @@ def run(image, output, capture_seconds):
     capture_log = output / 'capture.log'
     analysis_path = output / 'analysis.json'
     receipt = {
-        'profile': 'scm-pair-device-run',
+        'profile': 'scm-pair-device-run' if diagnostic is None else diagnostic.PROFILE,
         'result': 'RUNNING',
         'image': identity,
         'device': {'serial': serial, 'product': product},
@@ -125,6 +128,8 @@ def run(image, output, capture_seconds):
         'admission_changed': False,
         'query_outcome_is_gpu_authorization': False,
     }
+    if diagnostic is not None:
+        receipt.update(diagnostic.RECEIPT_SCOPE)
     write_receipt(receipt_path, receipt)
 
     capture = None
@@ -142,6 +147,8 @@ def run(image, output, capture_seconds):
                 receipt['capture_ready_after_launch_s'] = time.monotonic() - capture_started
                 write_receipt(receipt_path, receipt)
 
+                if identify(image) != identity:
+                    raise ValueError('image changed after capture started')
                 boot_started = time.monotonic()
                 receipt['boot_started_after_capture_s'] = boot_started - capture_started
                 receipt['boot_attempt_count'] = 1
@@ -164,7 +171,11 @@ def run(image, output, capture_seconds):
             finally:
                 if capture.poll() is None:
                     capture.terminate()
-                    capture.wait(timeout=10)
+                    try:
+                        capture.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        capture.kill()
+                        capture.wait(timeout=10)
 
         receipt['capture'] = {'command': capture_command, 'returncode': capture.returncode,
                               'log': str(capture_log)}
@@ -173,16 +184,16 @@ def run(image, output, capture_seconds):
         receipt['capture']['evidence'] = validate_capture(
             capture_dir, receipt['boot_started_after_capture_s'], capture_seconds)
 
-        analysis_command = [sys.executable, str(ROOT / 'scripts/analyze-scm-pair-log.py'),
+        analysis_command = [sys.executable, str(ROOT / 'scripts' / analyzer),
                             str(capture_dir / 'boot.log'), '--output', str(analysis_path)]
         analyze = subprocess.run(analysis_command, capture_output=True, text=True, timeout=60)
         receipt['analysis'] = {'command': analysis_command, 'returncode': analyze.returncode,
                                'stdout': analyze.stdout, 'stderr': analyze.stderr}
         if analyze.returncode:
-            receipt.update(result='FAIL', reason='SCM-pair diagnostic incomplete or rejected')
+            receipt.update(result='FAIL', reason='diagnostic incomplete or rejected')
             write_receipt(receipt_path, receipt)
             return 1
-        code = accept_analysis(receipt, analysis_path)
+        code = accept(receipt, analysis_path)
         write_receipt(receipt_path, receipt)
         return code
     except (OSError, ValueError, subprocess.SubprocessError) as error:

@@ -12,6 +12,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Integration(unittest.TestCase):
+    def test_smem_map_device_runner_is_scoped_and_mock_tested(self):
+        source = (ROOT / 'scripts/run-smem-map-device.py').read_text()
+        self.assertIn('diagnostic=Diagnostic', source)
+        self.assertIn("'mapping_diagnostic_pass': None", source)
+        self.assertIn("analysis == LOG.analyze(raw)", source)
+        self.assertIn("analysis.get('build_metadata') == EXPECTED_BUILD_METADATA", source)
+        for command in ('flash', 'erase', 'reboot', 'set_active', 'format'):
+            self.assertNotIn(f"'{command}'", source)
+        subprocess.run(['python3', str(ROOT / 'scripts/test-run-smem-map-device.py')], check=True)
+
     def test_rpmh_tail_device_runner_is_boot_only(self):
         source = (ROOT / 'scripts/run-rpmh-tail-device.py').read_text()
         self.assertIn("['fastboot', '-s', serial, 'boot', str(image)]", source)

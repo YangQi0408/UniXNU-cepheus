@@ -1,5 +1,22 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 07:01 +08:00：专用run-smem-map-device.py离线完成。复用bounded
+host生命周期但独立profile/analyzer，exact候选SHA/size与READY后再次hash；
+逐字节重建4576B并绑定3份embedded source metadata，不当作身份认证。
+完整mapping FAIL仍保存为evidence_complete=true/mapping_diagnostic_pass=false，
+receipt PASS仅完整性；不完整为FAIL/unknown。失败raw保留、最多1boot、
+错误产品/多设备/output/port/镜像变化先拒绝，capture超时terminate/kill清理。
+新runner6tests含13生命周期模式普通/-O PASS；integration16项15PASS/1
+optional reference SKIP；actual firmware adapter→XNU→host→runner普通/-O
+roundtrip/512partial/1144mutations PASS。focused6checks receipt
+out/smem-device-runner-offline-20261112-v1/receipt.json SHA
+a210e073c232741233512e5e0ba6c3b96a3de6fe56763ddca8897bff9b635e74。
+真实候选SHA005b64524421ab90fa6d2b991d2e8cd298d19aee48e64b0d0c08cc4a1d2e2091
+复核不变；生产xnu/firmware/workflow不改，不新fullCI。不运行专用runner，
+phone保持现场，无boot/flash/reboot/SMEM内容/SCM/GPU操作。下一明确硬件
+决策后才跑该mapping候选；PAS13=false/CP halted、真owner/secure PA cache/
+crypto/auth缺失，GPU/Metal未执行，完整目标active。此前06:18为已接受构建。
+
 2026-11-12 06:18 +08:00：CI43103322477@13a975c completed SUCCESS，full
 XNU13m31s/最终验收/正式kernel及build.log上传均success；watch78069自然
 exit0。实际kernel17597848B SHA6521a88f9d576445a105fc07a8004a97dd6d78528afb7e724e66abe6fcce09f6，

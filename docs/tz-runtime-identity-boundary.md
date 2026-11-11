@@ -162,6 +162,26 @@ Even a live passing diagnostic does not establish EL2/XPU/bus-abort containment
 or authorize content acquisition. PAS13=false, CP halted, real ownership,
 secure PA/cache, crypto and authentication blockers remain unchanged.
 
+On2026-11-12 the distinct mapping device runner was completed offline:
+`scripts/run-smem-map-device.py`. It reuses only the bounded host lifecycle,
+not the SCM analyzer or query profile, and permits at most one temporary boot.
+Exact image identity is rechecked after capture readiness; copied-record
+analysis is independently reconstructed and all three embedded build hashes
+must match this candidate. Metadata matching is not authentication. The runner
+retains complete failed mapping evidence separately from incomplete collection:
+`evidence_complete=true` may coexist with `mapping_diagnostic_pass=false`.
+Its top-level PASS refers only to evidence completeness, never access or GPU
+admission. Raw evidence survives refusal/failure and capture timeout cleanup
+has a kill fallback. Six focused checks (normal and optimized lifecycle,
+integration, actual host-adapted producer/XNU round trip) passed, with one
+optional reference-source skip per integration run. Receipt
+`out/smem-device-runner-offline-20261112-v1/receipt.json`, SHA256
+`a210e073c232741233512e5e0ba6c3b96a3de6fe56763ddca8897bff9b635e74`.
+The real image identity and producer manifest were verified offline. This
+runner has not been used on a phone; no new kernel, EFI execution, SMEM load,
+SCM call or GPU execution occurred. The explicit hardware decision remains
+pending; preserve the current device state.
+
 ```sh
 bash scripts/build-smem-handoff-firmware.sh NEW_BUILD ../unixnu/drivers/DarwinBoot ../uefi ../unixnu/package > NEW_BUILD-build.log 2>&1
 python3 scripts/validate-smem-handoff.py --build NEW_BUILD --repository ../unixnu/drivers/DarwinBoot --uefi ../uefi --output NEW_CHECKS
