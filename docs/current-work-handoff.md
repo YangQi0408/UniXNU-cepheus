@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11：secure resource evidence 批次已提交并完成完整 CI。commit
+`6a4c732`，run `43002894731` 全成功，37m0s；artifact 为
+`../inputs/ci-43002894731/cepheus-touch-kernel/`，kernel 17564792B，
+SHA256 `870092bcf24fc00337e1ae8ea2bdbb538d69df8b50ffd3738e004fb079e88450`，
+`device-commit.txt` 精确匹配。`llvm-nm -u` 为 0；从该 commit archive 独立
+staging 后 verifier PASS：116 core entrypoints/49 memory/firmware APIs。
+ZAP load/stop/status 与 owner admission 已链接，staged
+`cepheus_zap_resource_evidence.h` 与源码逐字节一致。build log 仍有 XNU 的
+`-Wdeclaration-after-statement` 警告，未作为错误或验收豁免。
+该 artifact 仍未打包、未 boot；PAS13=false/supported=false、CP halted 不变。
+
 2026-11-11：PAS secure resource evidence 合同离线完成。新增
 `xnu/cepheus_zap_resource_evidence.h` 与 focused test，把 secure PA/XPU/cache、
 crypto route/BCM/ledger/ACK、owner gate/epoch 和年龄窗口绑定；PAS start/lease
