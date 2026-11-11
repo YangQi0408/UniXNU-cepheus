@@ -14,6 +14,33 @@ ROOT=Path(__file__).resolve().parents[1]
 def run(command):return subprocess.check_output(command,cwd=ROOT,text=True,timeout=60)
 
 
+def validate_ci_state(ci,pin):
+    def require(condition,reason):
+        if not condition:raise ValueError(reason)
+    require(ci.get('headSha')==pin and ci.get('status')=='completed' and ci.get('conclusion')=='success',
+            'exact CI run must be completed and successful')
+    jobs=ci.get('jobs',[])
+    require(len(jobs)==1 and jobs[0].get('name')=='kernel' and jobs[0].get('status')=='completed' and
+            jobs[0].get('conclusion')=='success','missing completed kernel job')
+    steps=jobs[0].get('steps',[])
+    required={'Build XNU','Fail if required patches or cepheus source were skipped'}
+    require(required<={step.get('name') for step in steps},'missing required build/verification step')
+    require(any(step.get('number')==11 and step.get('name')=='Run actions/upload-artifact@v4' and
+                step.get('conclusion')=='success' for step in steps),'missing successful kernel artifact upload')
+    skipped=[]
+    expected={12:'Retain unaccepted kernel and disassembly after verification failure',
+              13:'Run actions/upload-artifact@v4'}
+    for step in steps:
+        require(step.get('status')=='completed','nonterminal CI step')
+        if step.get('conclusion')=='skipped':
+            require(expected.get(step.get('number'))==step.get('name'),'unexpected skipped CI step')
+            skipped.append(step['number'])
+        else:
+            require(step.get('conclusion')=='success','failed CI step')
+    require(skipped in ([],[12,13]),'failure-evidence steps must be skipped together')
+    return skipped
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--run',required=True,type=int);p.add_argument('--commit',required=True)
@@ -22,11 +49,11 @@ def main():
     p.add_argument('--rpmh-tail',action='store_true',help='also verify this commit\'s tail ABI, native helper and linked caller')
     p.add_argument('--smem-map',action='store_true',help='verify copied mapping receiver and its linked thread')
     a=p.parse_args();assert not a.output.exists()
+    if a.smem_map and not __debug__:raise ValueError('SMEM kernel receipt requires normal Python; assertion checks must run')
     pin=run(['git','rev-parse',a.commit]).strip()
     ci=json.loads(run(['gh','run','view',str(a.run),'--repo','YangQi0408/UniXNU-cepheus',
                        '--json','headSha,status,conclusion,jobs']))
-    assert ci['headSha']==pin and ci['status']=='completed' and ci['conclusion']=='success'
-    assert all(step['conclusion']=='success' for job in ci['jobs'] for step in job['steps'])
+    skipped=validate_ci_state(ci,pin)
     kernel=a.input/'kernel.macho';data=kernel.read_bytes();sha=hashlib.sha256(data).hexdigest()
     assert sha==(a.input/'SHA256SUMS').read_text().split()[0]
     assert (a.input/'device-commit.txt').read_text().strip()==pin
@@ -93,7 +120,8 @@ def main():
         'unresolved_symbols':[],'checks':checks,'native_cpu_capture_and_smc_verified':True,
         'ci_staged_source_comparisons_passed':True,'source_sha256':source_identity,
         'build_log_sha256':hashlib.sha256(a.log.read_bytes()).hexdigest(),
-        'phone_operations':False,'gpu_execution':False,'run_state':ci}
+        'phone_operations':False,'gpu_execution':False,'run_state':ci,
+        'expected_failure_evidence_steps_skipped':skipped}
     if a.rpmh_tail:result.update(tail_abi_source_verified=True,native_tail_hook_and_caller_verified=True)
     if a.smem_map:result.update(smem_map_abi_source_verified=True,native_smem_receiver_and_thread_verified=True,smem_map_verification=smem)
     a.output.parent.mkdir(parents=True,exist_ok=True)

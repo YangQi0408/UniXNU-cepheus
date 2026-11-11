@@ -53,7 +53,11 @@ def main():
         report = {'status':'PASS','kernel_sha256':digest,'kernel_bytes':kernel.stat().st_size,
                   'smem_map_abi_source_verified':True,'native_smem_receiver_and_thread_verified':True,
                   'ci_staged_source_comparisons_passed':True,'unresolved_symbols':[],
-                  'commit':'fixture-not-ci','run_state':{'headSha':'fixture-not-ci','status':'completed','conclusion':'success'},
+                  'commit':'fixture-not-ci','run_state':{'headSha':'fixture-not-ci','status':'completed','conclusion':'success',
+                      'jobs':[{'name':'kernel','status':'completed','conclusion':'success','steps':[
+                          {'name':name,'number':number,'status':'completed','conclusion':'success'}
+                          for number,name in ((9,'Build XNU'),(10,'Fail if required patches or cepheus source were skipped'),
+                                              (11,'Run actions/upload-artifact@v4'))]}]},
                   'source_sha256':{path.name:hashlib.sha256(path.read_bytes()).hexdigest()
                                    for path in (PACK.smem.ROOT/'xnu').iterdir()
                                    if path.is_file() and not path.name.startswith('test_')},

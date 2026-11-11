@@ -9,6 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('smem_packaging_kernel', ROOT / 'scripts/verify-smem-map-kernel.py')
 NATIVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(NATIVE)
+CI_SPEC = importlib.util.spec_from_file_location('smem_packaging_ci', ROOT / 'scripts/verify-ci-scm-pair.py')
+CI = importlib.util.module_from_spec(CI_SPEC)
+CI_SPEC.loader.exec_module(CI)
 
 
 def require(condition, reason):
@@ -31,6 +34,7 @@ def validate(kernel, receipt):
     state = report.get('run_state', {})
     require(state.get('headSha') == report.get('commit') and state.get('status') == 'completed' and
             state.get('conclusion') == 'success', 'missing exact successful CI identity')
+    CI.validate_ci_state(state,report.get('commit'))
     sources = report.get('source_sha256', {})
     for source in sorted((ROOT / 'xnu').iterdir()):
         if source.is_file() and not source.name.startswith('test_'):

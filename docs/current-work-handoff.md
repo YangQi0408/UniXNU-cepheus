@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 04:07 +08:00：CI43092532358@2ecdfb1仍toolchain regression live。
+下载验收修复只允许failure-only步骤12/13成对skipped，构建/正式验收/
+artifact upload仍要求success；11状态拒绝普通/-O PASS，SMEM receipt拒-O。
+本地packaging同样复用CI状态检查，三项回归PASS receipt
+out/smem-packaging-final-20261112-v4/receipt.json SHA
+64491e9d964ff507825ec31c8480243b79f9bc602de11c6d7339ed009731f61d。
+此为本地工具兼容修复，不新dispatch；旧CI失败证据保存，最新生产XNU
+仍2ecdfb1，无phone操作，下一等待同run实际产物。目标active未完成。
+
 2026-11-12 03:48 +08:00：完整基线ADT与实际DarwinBoot解析器连接验收PASS。
 旧parser测试PREAMBLE的WindowSizeValid为256MiB替身，已在SMEM固件
 verifier改用实际WindowSize.h；生产未改。完整ADT17388B/slot offset1372、
