@@ -186,6 +186,7 @@ def main():
     memory_api |= {'_cepheus_gpu_memory_abandon_workspace'}
     memory_api |= {'_ceph_memory_smmu_acquire','_ceph_memory_smmu_publish','_ceph_memory_smmu_validate','_ceph_memory_smmu_finish'}
     memory_api |= {'_ceph_memory_cp_installed','_ceph_memory_cp_ring_publish'}
+    memory_api |= {'_ceph_zap_memory_authenticated'}
     memory_api |= {'_ceph_memory_upload_acquire','_ceph_memory_upload_publish','_ceph_memory_upload_validate','_ceph_memory_upload_finish'}
     memory_api |= {'_ceph_memory_hfi_acquire','_ceph_memory_hfi_validate','_ceph_memory_hfi_publish','_ceph_memory_hfi_seal','_ceph_memory_hfi_finish'}
     memory_api |= {'_ceph_memory_cp_seal','_ceph_memory_cp_acquire','_ceph_memory_cp_validate','_ceph_memory_cp_publish','_ceph_memory_cp_finish'}

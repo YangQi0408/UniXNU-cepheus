@@ -584,6 +584,24 @@ ceph_zap_memory_finish(uint64_t handle,enum ceph_zap_memory_result result)
     ceph_zap.phase=retained?CE_ZM_KEEP:CE_ZM_NONE;
     IOLockUnlock(lock);return retained?-1:0;
 }
+extern "C" int ceph_zap_memory_authenticated(const struct ceph_zap_claim *claim)
+{
+    if(!claim)return -1;
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int e=-1;
+    const auto *v=&claim->memory;
+    if(!ceph_pool_terminal && ceph_mem_matches(&ceph_zap.state,16,claim->handle) &&
+        ceph_zap.state.state==CE_MEM_SHARED && ceph_zap.phase==CE_ZM_AUTH &&
+        !ceph_zap.state.views && !ceph_zap.snapshot &&
+        ceph_zap.mdt.published && ceph_zap.image.published &&
+        ceph_zap.mdt.prepared && ceph_zap.image.prepared &&
+        v->mdt==ceph_zap.mdt.cpu && v->image==ceph_zap.image.cpu &&
+        v->mdt_pa==ceph_zap.mdt.pa && v->image_pa==ceph_zap.image.pa &&
+        v->mdt_capacity==ceph_zap.mdt.bytes && v->image_capacity==ceph_zap.image.bytes &&
+        v->mdt_bytes==ceph_zap.layout.mdt_bytes && v->logical_bytes==ceph_zap.layout.logical_bytes &&
+        v->entry_offset==ceph_zap.layout.entry_offset)e=0;
+    IOLockUnlock(lock);return e;
+}
 
 extern "C" int
 cepheus_zap_memory_selftest(void)
@@ -736,11 +754,22 @@ extern "C" int ceph_memory_cp_output_safe(const void *out,size_t bytes)
     if(!dst || (dst&7u) || !bytes || bytes>UINTPTR_MAX-dst)return -1;
     IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
     IOLockLock(lock);int e=-1;
-    const void *records[]={ceph_pool,ceph_groups,ceph_cp_groups,&ceph_cp_build};
-    const size_t sizes[]={sizeof(ceph_pool),sizeof(ceph_groups),sizeof(ceph_cp_groups),sizeof(ceph_cp_build)};
-    for(unsigned n=0;n<4;++n) {
+    const void *records[]={ceph_pool,ceph_groups,ceph_cp_groups,&ceph_cp_build,&ceph_zap};
+    const size_t sizes[]={sizeof(ceph_pool),sizeof(ceph_groups),sizeof(ceph_cp_groups),sizeof(ceph_cp_build),sizeof(ceph_zap)};
+    for(unsigned n=0;n<5;++n) {
         uintptr_t base=(uintptr_t)records[n];
         if(dst<base+sizes[n] && base<dst+bytes)goto done;
+    }
+    /* ZAP allocations use a separate budget and can be mutated outside the
+     * mutex while ALLOCATING/COPYING. Refuse without reading those fields. */
+    if(ceph_zap.state.state==CE_MEM_ALLOCATING || ceph_zap.phase==CE_ZM_COPYING)goto done;
+    if(ceph_zap.state.state!=CE_MEM_FREE && ceph_zap.state.state!=CE_MEM_RETIRED) {
+        const struct ceph_gpu_buffer *buffers[]={&ceph_zap.mdt,&ceph_zap.image};
+        for(unsigned n=0;n<2;++n) {
+            uintptr_t base=(uintptr_t)buffers[n]->cpu;
+            if(base && (buffers[n]->bytes>UINTPTR_MAX-base ||
+                (dst<base+buffers[n]->bytes && base<dst+bytes)))goto done;
+        }
     }
     for(unsigned n=0;n<16;++n) {
         const auto *slot=&ceph_pool[n];

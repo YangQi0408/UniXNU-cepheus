@@ -13,6 +13,7 @@
 extern "C" {
 #include "cepheus_gmu_workspace.h"
 #include "cepheus_smmu_plan.h"
+#include "cepheus_cp_memory_api.h"
 }
 static uint64_t snapshot;
 static ceph_gmu_workspace gpu={};
@@ -23,6 +24,7 @@ static std::vector<uint8_t> read_file(const char *path)
 }
 static void during_allocation()
 {
+    alignas(8) uint64_t out=123;assert(ceph_memory_cp_output_safe(&out,sizeof(out))<0);
     assert(cepheus_gpu_memory_release_cpu(snapshot)<0);
     unsigned before=mock_io::alloc_calls;uint64_t other=123;
     assert(cepheus_zap_memory_prepare(snapshot,&other)<0 && !other);
@@ -104,6 +106,10 @@ int main(int argc,char **argv)
     mock_io::after_allocate=nullptr;
     assert(!cepheus_gpu_memory_release_cpu(snapshot));
     assert(!cepheus_zap_memory_get(h,&v));
+    alignas(8) uint64_t out=123;
+    assert(!ceph_memory_cp_output_safe(&out,sizeof(out)));
+    assert(ceph_memory_cp_output_safe(const_cast<const uint8_t *>(v.mdt),8)<0 && ceph_memory_cp_output_safe(v.image,8)<0);
+    assert(ceph_memory_cp_output_safe(v.image+v.image_capacity-8,8)<0);
     assert(v.image_capacity==1048576 && !(v.image_pa&1048575));
     assert(v.mdt_capacity==16384 && v.mdt_bytes==6860 && v.logical_bytes==4096 && !v.entry_offset);
     std::string base=argv[1];base.resize(base.size()-4);

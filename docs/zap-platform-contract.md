@@ -1,5 +1,28 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-11：authenticated allocator binding，仍无运行态准入
+
+`ceph_zap_memory_authenticated` is an allocator-record check, not an owner or
+PAS proof. It succeeds only after the fixed lifecycle reaches AUTH, with the
+same handle/claim, released source snapshot, no CPU views, both buffers
+published, and exact MDT/image PA, capacity and layout identity. A forged or
+stale claim, copied VA alias or changed capacity is refused. It returns no
+caller-facing VA and cannot authorize CP unhalt, PAS mutation or GPU admission.
+
+CP output-safety checks now cover the separate ZAP workspace. While ZAP is
+ALLOCATING or COPYING, they fail closed without reading fields mutated outside
+the pool mutex. Once stable, MDT/image backing aliases are refused together
+with the ordinary GPU pool and metadata records. ZAP keeps handle index16,
+separate accounting and an irreversible KEEP path on uncertain completion.
+
+Actual firmware validation passes 24 PAS transport modes, five memory modes
+and ten original-SQE CP build-pool modes under ASan/UBSan with no report. The
+receipt is `out/zap-live-boundary-receipt-20261111-v1/receipt.json`, SHA256
+`9825d5bce9ffb63ed2b7896bf3f26eab268e60122dbf6a029c378ec02749811a`.
+This uses host IOKit doubles; no phone, SMC/PAS call, CP unhalt or GPU code ran.
+Real owner/inherited ledger, TBU0/1, secure PA/crypto, runtime PAS permission
+and ACK remain independent unresolved gates. `supported=false` still refuses.
+
 ## 2026-11-10：PAS13 内存条件收窄，未取得运行态准入
 
 本机TZ静态PAS13 flags+20c=0/+20d=1、callback+228=0：mem_setup跳过一般

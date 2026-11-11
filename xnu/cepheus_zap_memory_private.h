@@ -17,6 +17,9 @@ int ceph_zap_memory_reload(uint64_t handle);
 /* AUTHENTICATED/STOPPED require actual protocol success in the orchestrator.
  * A failed or interrupted protocol goes to KEEP, never CPU_ABORT/STOPPED. */
 int ceph_zap_memory_finish(uint64_t handle,enum ceph_zap_memory_result);
+/* Actual authenticated allocator record only, not a PAS or owner proof.
+ * Requires exact retained claim identity; never returns caller-facing VAs. */
+int ceph_zap_memory_authenticated(const struct ceph_zap_claim *);
 #ifdef __cplusplus
 }
 #endif

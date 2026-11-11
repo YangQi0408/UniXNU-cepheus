@@ -1,5 +1,24 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 12:20：ZAP authenticated binding/alias批次本地验收PASS。
+`ceph_zap_memory_authenticated`只认证allocator记录：必须处于PAS成功后的
+AUTH相位，handle/claim一致，snapshot已释放、无CPU view，双buffer已发布且
+PA/容量/布局完全匹配；不提供owner、PAS或GPU admission证明。CP output
+checks拒绝ZAP ALLOCATING/COPYING的不稳定字段及MDT/image backing alias，
+普通GPU/ZAP handle、预算和生命周期保持隔离。真实a640_zap的24 PAS transport
+modes、5 memory modes及原厂a630_sqe 10 build-pool modes全PASS，无sanitizer
+report；receipt out/zap-live-boundary-receipt-20261111-v1/receipt.json
+SHA9825d5bc...，记录ca9b010并证明验收期间源码未变。范围仅为host IOKit
+doubles和真实固件字节，无phone/SMC/PAS mutation/CP unhalt/GPU执行。
+CI42939546189 @78d34a8完整成功，kernel17546448B SHA358faebd...，source.tar
+SHA472b5af5...；用archived tree独立staged链接PASS，112 core/45 memory APIs、
+无unresolved，touch ordered contacts及16KiB PA64 callback PASS。该核不含
+ring/ZAP，不冒充HEAD。准备提交/push本批并派发唯一包含ring/ZAP的完整CI；
+下一native CP execution admission，将ring、CP snapshot、live SMMU和
+authenticated ZAP epoch绑定真实pin/lease。PAS13=false/supported=false、
+真owner/继承ledger/双TBU/secure PA+crypto/真实ACK仍缺，CP halt/GPU/Metal
+未执行，目标active不停工。
+
 2026-11-11 10:00：78d34a8已推送，唯一CI42939546189前置全PASS/Build XNU
 进行中，不含后续ring。native halted ring/SQE七fixed stores后端已完成，
 实际enabled GX SMMU/CP provenance/installed pool绑定，逐访问owner/halt检查、

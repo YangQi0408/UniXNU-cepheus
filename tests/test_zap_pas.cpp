@@ -11,6 +11,7 @@
 #include "cepheus_gpu_firmware.h"
 extern "C" {
 #include "cepheus_zap_pas.h"
+#include "cepheus_cp_memory_api.h"
 }
 static int mode;
 static uint64_t snapshot;
@@ -35,6 +36,9 @@ static void inaccessible()
 static int acquire(void *,const ceph_zap_claim *c,uint64_t *epoch)
 {
     ++acquired;claim=*c;inaccessible();
+    assert(ceph_zap_memory_authenticated(c)<0);
+    assert(ceph_memory_cp_output_safe(const_cast<const uint8_t *>(c->memory.mdt),8)<0 &&
+        ceph_memory_cp_output_safe(c->memory.image,8)<0);
     std::thread reader(inaccessible);reader.join();
     for(size_t i=0;i<mdt.size();++i)assert(c->memory.mdt[i]==mdt[i]);
     assert(!memcmp(c->memory.image,load.data(),load.size()));
@@ -139,11 +143,19 @@ int main(int argc,char **argv)
         assert(!cepheus_gpu_memory_release_cpu(snapshot));snapshot=0;
         assert(cepheus_zap_memory_release_cpu(claim.handle)<0);
         assert(ceph_zap_memory_reload(claim.handle)<0);
+        assert(!ceph_zap_memory_authenticated(&claim));
+        auto changed=claim;changed.handle^=256;assert(ceph_zap_memory_authenticated(&changed)<0);
+        changed=claim;changed.memory.mdt_pa+=4096;assert(ceph_zap_memory_authenticated(&changed)<0);
+        changed=claim;changed.memory.image++;assert(ceph_zap_memory_authenticated(&changed)<0);
+        changed=claim;changed.memory.logical_bytes=1048576;assert(ceph_zap_memory_authenticated(&changed)<0);
+        std::thread check([&]{for(unsigned n=0;n<100;++n)assert(!ceph_zap_memory_authenticated(&claim));});
+        check.join();
         if(mode==16)mock_io::fail_complete=1;
         e=ceph_zap_pas_stop(&state,&transport);
         mock_io::fail_complete=0;
     }
     if(snapshot)assert(!cepheus_gpu_memory_release_cpu(snapshot));
+    assert(ceph_zap_memory_authenticated(&claim)<0);
     if(mode==0 || mode==11) {
         assert(!e && state.phase==CE_ZP_STOPPED && !mock_io::live && releases==1 && !kept);
         assert(commands==std::vector<unsigned>({1,2,5,6}));
