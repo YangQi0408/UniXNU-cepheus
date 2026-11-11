@@ -1,5 +1,21 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 23:20 +08:00：普通SMC入口/dispatcher/返回字段有界回放完成，
+最终312-record REA bundle/snapshot保存、session关闭。原入口切工作SP及9项
+CPU调用槽不等于切scheduler thread；9/1/4参数为DAIF mask，不是priority。
+执行原dispatcher PAS7正常分支、参数校验/trampoline/lookup及返回envelope，
+再独立调用monitor四字段复制helper；SMC前停，调度task handoff明确模拟。
+frame+0xf8结果指针由原dispatcher写，替身不补写。1870静态原指令，四场景
+PASS：固定count15 CPU0/MT CPU7均monitor-context[0,1,0,0]；假设count0为
+[0,0,0,0]；三不同哨兵完整保留（未执行handler），后两者非live。正常/-O
+cases/bindings一致、LLVM临时listing SHA不同；最终receipt SHAa552f17c...，
+脚本/新bundle hashes匹配。降低正常返回错位/清零嫌疑，不定位live false。
+首跑fixture4B槽遇原8B store被拒，修正8B后通过；中间v1不追认为v2。
+详见pas13-continuation-audit.md顶部。下一current-thread/priority修改者及
+secure返回再进入约束，不追加等价合成/配对/触摸轮。无生产改动/CI/phone，
+实际线程/TZ身份及真owner/secure PA/crypto仍缺；supported=false、CP halt，
+GPU/Metal未执行，目标active不停工。
+
 2026-11-11 22:52 +08:00：PAS13有界调度整段回放完成。新202-record REA
 bundle/snapshot已保存，check-tz-scheduler-20261111.py共1132静态原指令，
 包含真实native寄存器/栈切换、转发和lookup；线程/队列/栈初态与free模拟，

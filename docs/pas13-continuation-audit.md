@@ -1,5 +1,76 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+## 2026-11-11：普通入口、dispatcher与返回字段
+
+同一固定TZ原件的入口/返回续查已保存，未执行手机或SMC。旧原生证据已含
+`0x1c102f80..1c103003`；本次复核其缺少Ghidra function归属的直接调用边，
+不把它误报为新发现的函数。普通路径保存x0..x13为0x70B输入，经
+`0x1c03b8b4`未命中resume后，由`0x1c03b68c`取得空闲调用槽；
+`0x1c102fb4..bc`读取slot首项工作栈顶并切SP，**不等于切调度线程**，
+随后`0x1c102fc0`直接调用`0x1c03ae6c`→`0x1c0574d0`→dispatcher。
+调用槽表`0x1c161aa8`有9项、步长0x160，状态/CPU字段和工作栈由
+`0x1c03b5b0`初始化；这是另一结构，不能混同scheduler current thread
+`[0x1c161828]`或把slot状态当优先级。
+
+入口`1c0532d4(9/1)`及返回`1c0532c0(4)`经`1c050770`转换为DAIF位，
+分别清除/设置中断屏蔽，**不是线程优先级设置**。初始化
+`1c04c9dc`→`1c0562e8`先bootstrap、注册3个service worker、后降idle/yield；
+worker29/bootstrap31→idle0仍仅静态成立。普通入口实际任务/优先级、其他
+修改者、resume与interrupt影响尚未建立，不能据此认定live caller一定为0。
+
+新增私有`check-tz-smc-entry-return-20261111.py`在有界主机RAM执行原始入口、
+slot取得/状态/释放、wrapper、完整dispatcher原字节的PAS7正常分支、参数
+校验、trampoline和lookup，再执行响应帧组织/复制/恢复；在`smc #0`前停止。
+dispatcher从固定注册表选中原PAS7项（ID`0x02000207`、arginfo1、flags1、
+handler`0x1c04f444`），将ID13送到调度边界。调度调用是**明确替身**，不执行
+allocation/enqueue/wait/context-switch，直接转交原trampoline；结果指针
+`frame+0xf8`由**原dispatcher**写入，替身只验证它，不补写。结果scratch/
+初始CPU/栈/调用槽/锁/current pointer均合成，无bootstrap或运行身份观察。
+
+wrapper status0时保留结果字段；service构建
+`[1,0x83,status,result0,result1,result2,0..0]`，复制到
+`1c103004()`返回的CPU帧顶减0x70。原restore恢复x0..x13，仍是交给monitor
+的内部响应，不直接等同正常世界寄存器。随后另一次有界调用原monitor
+helper`0x1c01c5e0`，把envelope+0x10/+0x18/+0x20/+0x28复制到合成context
+的x0..x3存储字段；未执行完整monitor路由、context restore或EL3返回。
+
+| 合成初始状态/结果 | 内部响应开头 | monitor context x0..x3 | 原指令执行条数 |
+|---|---|---|---|
+| 固定count15、CPU0 | `[1,0x83,0,1,0,0]` | `[0,1,0,0]` | 2224 |
+| 固定count15、MT置位CPU7 | 同上 | 同上 | 2224 |
+| 假设count0 | `[1,0x83,0,0,0,0]` | `[0,0,0,0]` | 1969 |
+| 三个不同64位哨兵结果（handler未执行） | status0、三哨兵原样 | status0、三哨兵原样 | 1845 |
+
+四场景PASS，1870条静态原指令由Capstone及LLVM解码核对，原byte records
+绑定固定原件；预算20000条/3秒，禁exception/范围外执行访存/代码写。
+CPU帧、当前FNID及调用槽清理匹配，非结果monitor字段未变，current pointer
+未被这些执行路径改写；**调度器是替身，因此不证明调度前后live线程不变**。
+这降低所覆盖正常路径的结果错位/清零解释，不定位真机false；count0和哨兵
+不是live证据。首跑fixture把`1c180bc8`清理槽误声明4B，原`str xzr`为8B而
+被访存门禁拒绝；修正fixture后通过，不追认首跑。v1替身曾冗余补写结果
+指针，仅作中间材料；v2移除该写入、要求原dispatcher绑定，不追认v1范围。
+
+最终REA bundle（312 records）
+`../logs/pas13-instruction-replay-20261110/tz-smc-entry-return-20261111-v3-evidence.json`
+SHA256`4e1ec9a3ba36804b9fa983284f72ffa5bf097b328a9c0ddd184e3b0af110c863`；
+匹配snapshot SHA256`bcc3c356daf52bf7decfaeaa6361d050ea9a524c4a15a6018b4746a00e7387fe`。
+关键Evidence：工作栈切换
+`ev_a980b5a807bf9d12d40306879545bd31df13bc80d53455c70a104539af887078`，
+直接call `ev_8a363abb4524c17b488071f458afe406b274c0202d9b594c47a8918f78a751a7`，
+普通slot获取 `ev_1be9f20db3122bdedce68811f62c06ae9af6652a8fdb7c994a4bdae3203c83b7`，
+monitor字段 `ev_1062c9f34ca7d02ebdb1136260134658a9adb2aad385f7854352fe7ddb88f6c5`。
+最终receipt `tz-smc-entry-return-validation-20261111-v2.json` SHA256
+`a552f17cd4afb9a7c0457ade318d77c936689a85c945a4f4788abc67a650c3f8`，
+绑定script SHA256`3e1d195036c0df6bf7d8cc17e513f3d911865f5935e81ea5ebb04faf322fc1ad`。
+普通/python -O的cases及bindings一致；完整receipt的LLVM临时listing SHA不同，
+不声称逐字节一致。v1/v2 bundle及中间receipts保留；session已保存并关闭。
+
+下一只追scheduler current pointer与priority修改者/secure返回再进入约束，
+确认普通caller是否可能压过worker；完整monitor路由和实际运行TZ身份仍未知。
+没有独立live区分手段时不追加等价合成场景，也不重复已完成的UEFI/XNU配对。
+真实owner/secure PA/crypto仍独立缺口，supported=false、CP halt不变；
+无生产源码改动/新CI/phone/SMC/PAS/GPU，GPU scratch/fence/Metal未执行。
+
 ## 2026-11-11：有界调度整段回放
 
 继续同一固定TZ原件，新增wait/wake/context-switch与初始化证据。三个service
