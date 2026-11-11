@@ -21,6 +21,11 @@ class Integration(unittest.TestCase):
             self.assertNotIn(call, source)
         subprocess.run(['python3', str(ROOT / 'scripts/test-run-rpmh-tail-device.py')], check=True)
 
+    def test_offline_preflight_allows_measured_sanitizer_runtime(self):
+        source = (ROOT / 'scripts/validate-gpu-offline.py').read_text()
+        self.assertIn("CHECK_TIMEOUT_SECONDS={'sanitizers':900}", source)
+        self.assertIn("timeout=CHECK_TIMEOUT_SECONDS.get(name,DEFAULT_CHECK_TIMEOUT_SECONDS)", source)
+
     def test_workflow_copies_every_statically_staged_source(self):
         stage = (ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh').read_text()
         workflow = (ROOT / '.github/workflows/touch-kernel.yml').read_text()

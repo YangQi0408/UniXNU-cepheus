@@ -1,5 +1,28 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 17:30 离线收紧RPMh尾诊断设备入口。`run-rpmh-tail-device.py`现除
+唯一cepheus设备、精确镜像哈希和仅`fastboot boot`外，还会在分析前验证
+`capture.json`/`packets.jsonl`/`boot.log`三者一致：UDP正常跑满请求时长、
+原始字节数与SHA匹配、accepted包数和总字节一致、来源全为`192.168.7.2`、
+首包晚于本次boot命令。空/截断/旧包/混源/信号提前结束均FAIL；`TAIL_COMPLETE`
+但collector error非0也FAIL，分析若声称GPU执行或admission变化亦拒绝。
+新增fixture覆盖上述路径，`test-run-rpmh-tail-device.py`、12项integration
+（1项可选reference SKIP）及O0/O2 ASan/UBSan尾hook测试PASS。此改动只验证
+本地采集轮次身份，UDP仍不能认证设备来源或证明无丢包。手机当前仍未被
+`adb`/`fastboot`/`lsusb`枚举，因此没有boot、重启、刷写、PAS/CP/GPU操作；
+真机下一步仍是手动进入fastboot后运行同一镜像。17:33完整离线preflight为
+`PASS_WITH_SKIPS`：26 PASS、0 FAIL、6项可选输入SKIP；receipt
+`/tmp/gpu-offline-tail-runner-20261111-v2/receipt.json` SHA
+`ddba0ed160b1133ceda3457861c8ef327d989f4d50e87dd69523575a4e2e6524`。
+先前v1 receipt
+`/tmp/gpu-offline-tail-runner-20261111-v1/receipt.json` SHA
+`c97c97505a627687cbe3ef0ec44aee3b65fd797591dbb51d139d79a689295fe3`
+仍为FAIL：sanitizer在旧240秒限制退出124，log SHA
+`ff642f64c4e60205d4989e4017324025e6a317f407fd38744d5d405cd16d55f9`；
+该失败保留。v2只把sanitizer有界限制调到900秒，实测log SHA
+`61a376a85648db4314d882d1da8b1a751d493a9aa8704203589e4940d68040c8`，
+其余检查仍为240秒，未放宽行为断言。
+
 2026-11-11 17:05 owner-evidence完整链接与退出尾诊断包验收PASS，真机未启动。
 commit`c9306124818aab7b0e005fad1b52deda98703863`的唯一完整CI42987126144
 SUCCESS（33m23s），artifact `cepheus-touch-kernel`及build log已下载。

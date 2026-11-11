@@ -15,6 +15,8 @@ import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
+DEFAULT_CHECK_TIMEOUT_SECONDS=240
+CHECK_TIMEOUT_SECONDS={'sanitizers':900}
 
 
 def identity(path):
@@ -115,14 +117,15 @@ def main():
     failed=False
     for name,command,extra in checks:
         run_env=env|extra
+        timeout=CHECK_TIMEOUT_SECONDS.get(name,DEFAULT_CHECK_TIMEOUT_SECONDS)
         with (out/(name+'.log')).open('wb') as log:
             try:
-                result=subprocess.run(command,cwd=ROOT,env=run_env,stdout=log,stderr=subprocess.STDOUT,timeout=240)
+                result=subprocess.run(command,cwd=ROOT,env=run_env,stdout=log,stderr=subprocess.STDOUT,timeout=timeout)
                 code=result.returncode
             except subprocess.TimeoutExpired:code=124
         status='PASS' if code==0 else 'FAIL';failed|=code!=0
         receipt['checks'].append({'name':name,'status':status,'exit_code':code,'log':name+'.log',
-                                  'command':command,'environment':extra})
+                                  'command':command,'environment':extra,'timeout_s':timeout})
         print(name,status,flush=True)
         # Persist after every completed check, including failures/timeouts.
         (out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')

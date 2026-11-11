@@ -54,6 +54,17 @@ Missing chunks or transport/collector failure are recorded as such, not replaced
 with assumed votes. Ask for just one brief touch/wake confirmation afterward.
 A valid software request snapshot is still not global ownership or hardware ACK.
 
+The controlled runner now also authenticates the local capture record before it
+accepts a tail result. It requires the bounded UDP capture to finish normally,
+the raw `boot.log` byte count and SHA256 to match `capture.json`, accepted
+packets to match both the receipt and log length, every packet to come from the
+SWEET device address, and the first accepted packet to arrive after the
+`fastboot boot` command. Empty, truncated, stale, mixed-source or pre-boot logs
+fail closed. A complete envelope with a nonzero collector error is also a
+failure, and the runner refuses any analysis that claims GPU execution or an
+admission mutation. These checks bind the saved log to one local capture round;
+UDP still cannot authenticate the device or prove delivery of every line.
+
 22:50 correction: the earlier 422400-byte isolated core lacks the accepted
 boot core's LZMA/CRC registration libraries and uses different RELEASE PCDs.
 It remains host/isolated evidence and must not be used as a phone replacement.
