@@ -70,6 +70,7 @@ static int ceph_scm_info_context(void *unused)
 #include "cepheus_cp_native_private.h"
 #include "cepheus_gx_smmu_native_private.h"
 #include "cepheus_cp_ring_native_private.h"
+#include "cepheus_cp_execution_admission_private.h"
 static int ceph_scm_info_invoke(void *unused,struct ceph_scm_regs *r)
 {
     if(!r || ceph_scm_info_context(NULL))return -1;
@@ -153,6 +154,20 @@ int cepheus_gpu_zap_status(uint64_t epoch,enum ceph_zap_pas_phase *phase)
     if(!phase || !epoch || ceph_scm_info_context(NULL))return -1;
     lck_mtx_lock(&ceph_scm_info_lock);int e=-1;
     if(epoch==ceph_zap_native.epoch){*phase=ceph_zap_native.phase;e=0;}
+    lck_mtx_unlock(&ceph_scm_info_lock);return e;
+}
+int cepheus_gpu_zap_authenticated_status(uint64_t epoch,struct ceph_zap_claim *claim,uint64_t *token)
+{
+    if(!claim || !token || !epoch || ceph_scm_info_context(NULL))return -1;
+    *claim=(struct ceph_zap_claim){0};*token=0;
+    lck_mtx_lock(&ceph_scm_info_lock);int e=-1;
+    if(!__atomic_exchange_n(&ceph_gpll0_lock,1,__ATOMIC_ACQUIRE)) {
+        if(epoch==ceph_zap_native.epoch && ceph_zap_native.phase==CE_ZP_LIVE &&
+            ceph_zap_memory_authenticated_unlocked(&ceph_zap_native.claim)) {
+            *claim=ceph_zap_native.claim;*token=ceph_zap_native.epoch;e=0;
+        }
+        __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);
+    }
     lck_mtx_unlock(&ceph_scm_info_lock);return e;
 }
 #endif

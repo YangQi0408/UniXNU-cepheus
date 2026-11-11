@@ -12,6 +12,7 @@ static struct {
     struct ceph_smmu_install *output;
     unsigned attempted,acquired,pinned,failed,finished,output_safe,uncertain;
 } ceph_gx_smmu_native;
+static int ceph_gx_smmu_native_check_locked(void);
 static int ceph_gx_smmu_native_record(void)
 {
     return !ceph_gx_native.attempted || !ceph_gx_native.acquired || ceph_gx_native.failed ||
@@ -33,6 +34,10 @@ static int ceph_gx_smmu_native_access(void *unused)
         ceph_gx_smmu_native.failed=1;return -1;
     }
     return 0;
+}
+static inline int ceph_gx_smmu_native_check_locked(void)
+{
+    return ceph_gx_smmu_native_access(NULL);
 }
 static int ceph_gx_smmu_native_raw_read(uint32_t offset,uint32_t *out)
 {

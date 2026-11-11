@@ -1,5 +1,16 @@
 # Local build workflow
 
+2026-11-11: CP execution admission identity/native wrapper passes focused and
+full local preflight with unchanged source hashes. Receipt is
+`/tmp/gpll0-admission-final-v2/receipt.json`, SHA256
+`17e29e90417fb50bdddf6751937838effbe83dbe977de9e1cd8d7ce79aecd60d`.
+Original GMU/SQE GX SMMU modes0..24 and ring modes25..31 pass ASan/UBSan with
+emulated MMIO/ACK/IOKit/owners. CI42959844615 at `a538e53` succeeded; its
+downloaded artifact is17563504 bytes, SHA256
+`0758ee753fa10f0c366a9b29bac339816efdf7f6ba884a89367533ee7f5df229`.
+It links ring/CP/ZAP but not the subsequent admission. See
+`cp-execution-admission.md`. No phone operation or GPU execution.
+
 2026-11-11: native CP/atomic pool sealing committed/pushed as78d34a8 after
 frozen153-step focused and four-step83-host/seven-analysis acceptance. Single
 replacement complete XNU CI42939546189 is in progress, not yet an accepted

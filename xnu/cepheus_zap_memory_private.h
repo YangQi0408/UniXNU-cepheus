@@ -20,6 +20,9 @@ int ceph_zap_memory_finish(uint64_t handle,enum ceph_zap_memory_result);
 /* Actual authenticated allocator record only, not a PAS or owner proof.
  * Requires exact retained claim identity; never returns caller-facing VAs. */
 int ceph_zap_memory_authenticated(const struct ceph_zap_claim *);
+/* Caller holds the SCM/GPLL0 admission lock order and serializes the ZAP
+ * engine; checks the same allocator record without acquiring pool lock. */
+int ceph_zap_memory_authenticated_unlocked(const struct ceph_zap_claim *);
 #ifdef __cplusplus
 }
 #endif

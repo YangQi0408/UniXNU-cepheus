@@ -11,6 +11,7 @@ static struct {
     uint32_t snapshot[CE_CP_REGLIST_WORDS];
     unsigned attempted,acquired,pinned,failed,sealed;
 } ceph_cp_native;
+static int ceph_cp_native_check_locked(void);
 static int ceph_cp_native_record(void)
 {
     return !ceph_gx_native.acquired || ceph_gx_native.failed || !ceph_gx_native.result.configured ||
@@ -29,6 +30,10 @@ static int ceph_cp_native_access(void)
         ceph_cp_native.failed=1;return -1;
     }
     return 0;
+}
+static inline int ceph_cp_native_check_locked(void)
+{
+    return ceph_cp_native_access();
 }
 static int ceph_cp_native_load(uint32_t word,uint32_t *out)
 {

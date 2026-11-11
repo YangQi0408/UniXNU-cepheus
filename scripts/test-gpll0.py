@@ -85,6 +85,8 @@ def main():
               'tests/test_cp_build_pool.cpp','scripts/test-cp-build-pool.sh')
     names += ('xnu/cepheus_cp_ring_native.h','xnu/cepheus_cp_ring_native_private.h','xnu/test_cp_ring_native.c',
               'scripts/test-cp-ring-native-pool.sh')
+    names += ('xnu/cepheus_cp_execution_admission.h','xnu/cepheus_cp_execution_admission_private.h',
+              'tests/test_cp_execution_admission.c','tests/test_cp_execution_admission_native.c')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -225,6 +227,14 @@ def main():
             exe=out/(name+'-'+sensor)
             run(name+'-'+sensor+'-compile', [compiler,*common,*flags,str(ROOT/'xnu'/('test_'+sensor+'.c')),'-o',str(exe)])
             run(name+'-'+sensor+'-run',[str(exe)],env)
+        exe=out/(name+'-cp-execution-admission')
+        run(name+'-cp-execution-admission-compile',[compiler,*common,*flags,
+            str(ROOT/'tests/test_cp_execution_admission.c'),'-o',str(exe)])
+        run(name+'-cp-execution-admission-run',[str(exe)],env)
+        exe=out/(name+'-cp-execution-admission-native')
+        run(name+'-cp-execution-admission-native-compile',[compiler,*common,*flags,
+            str(ROOT/'tests/test_cp_execution_admission_native.c'),'-o',str(exe)])
+        run(name+'-cp-execution-admission-native-run',[str(exe)],env)
         exe=out/(name+'-hfi-link-access')
         run(name+'-hfi-link-access-compile',[compiler,*common,*flags,
             str(ROOT/'tests/test_hfi_link_access.c'),str(ROOT/'xnu/cepheus_gmu_hfi_link.c'),'-o',str(exe)])
@@ -291,6 +301,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gpu_gx_smmu_install_native:',
                    'cepheus_gpu_cp_prepare_native:',
                    'cepheus_gpu_cp_ring_native:',
+                   'cepheus_gpu_cp_execution_admit:','cepheus_gpu_cp_execution_check:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)
@@ -309,6 +320,10 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
         str(ROOT/'xnu/test_gmu_hfi_native.c'),'-o',os.devnull])
     run('hfi-native-pool-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
         str(ROOT/'xnu/test_gmu_hfi_native_pool.c'),'-o',os.devnull])
+    run('cp-execution-admission-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
+        str(ROOT/'tests/test_cp_execution_admission.c'),'-o',os.devnull])
+    run('cp-execution-admission-native-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
+        str(ROOT/'tests/test_cp_execution_admission_native.c'),'-o',os.devnull])
     # Stage exactly as the existing local/CI copy manifests do, then compile
     # only from that tree. This catches missing transitive header copies.
     module_spec = importlib.util.spec_from_file_location('verification', ROOT/'scripts/verify-gpu-kernel.py')

@@ -52,6 +52,10 @@ static int ceph_cp_ring_native_access(void)
     }
     return 0;
 }
+static inline int ceph_cp_ring_native_check_locked(void)
+{
+    return ceph_cp_ring_native_access();
+}
 static int ceph_cp_ring_native_load(uint32_t word,uint32_t *out)
 {
     if(!out || word>=0x10000 || ceph_cp_ring_native_live())return -1;

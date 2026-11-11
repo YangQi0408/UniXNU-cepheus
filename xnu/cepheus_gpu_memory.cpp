@@ -584,11 +584,10 @@ ceph_zap_memory_finish(uint64_t handle,enum ceph_zap_memory_result result)
     ceph_zap.phase=retained?CE_ZM_KEEP:CE_ZM_NONE;
     IOLockUnlock(lock);return retained?-1:0;
 }
-extern "C" int ceph_zap_memory_authenticated(const struct ceph_zap_claim *claim)
+static int ceph_zap_memory_authenticated_record(const struct ceph_zap_claim *claim)
 {
     if(!claim)return -1;
-    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
-    IOLockLock(lock);int e=-1;
+    int e=-1;
     const auto *v=&claim->memory;
     if(!ceph_pool_terminal && ceph_mem_matches(&ceph_zap.state,16,claim->handle) &&
         ceph_zap.state.state==CE_MEM_SHARED && ceph_zap.phase==CE_ZM_AUTH &&
@@ -600,7 +599,16 @@ extern "C" int ceph_zap_memory_authenticated(const struct ceph_zap_claim *claim)
         v->mdt_capacity==ceph_zap.mdt.bytes && v->image_capacity==ceph_zap.image.bytes &&
         v->mdt_bytes==ceph_zap.layout.mdt_bytes && v->logical_bytes==ceph_zap.layout.logical_bytes &&
         v->entry_offset==ceph_zap.layout.entry_offset)e=0;
-    IOLockUnlock(lock);return e;
+    return e;
+}
+extern "C" int ceph_zap_memory_authenticated(const struct ceph_zap_claim *claim)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int e=ceph_zap_memory_authenticated_record(claim);IOLockUnlock(lock);return e;
+}
+extern "C" int ceph_zap_memory_authenticated_unlocked(const struct ceph_zap_claim *claim)
+{
+    return ceph_zap_memory_authenticated_record(claim);
 }
 
 extern "C" int

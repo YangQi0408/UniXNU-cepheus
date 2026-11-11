@@ -138,5 +138,7 @@ static inline int ceph_zap_pas_stop(struct ceph_zap_pas *s,struct ceph_zap_pas_t
 int cepheus_gpu_zap_load(uint64_t,const struct ceph_zap_pas_resources *,uint64_t *);
 int cepheus_gpu_zap_stop(uint64_t);
 int cepheus_gpu_zap_status(uint64_t,enum ceph_zap_pas_phase *);
+/* Private admission snapshot: requires exact LIVE epoch and copied claim. */
+int cepheus_gpu_zap_authenticated_status(uint64_t,struct ceph_zap_claim *,uint64_t *);
 #endif
 #endif

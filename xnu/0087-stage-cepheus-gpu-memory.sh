@@ -59,6 +59,7 @@ install -m 0644 "$here/cepheus_gx_smmu_install.h" "$here/cepheus_gx_smmu_native.
 install -m 0644 "$here/cepheus_cp_memory_api.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_native.h" "$here/cepheus_cp_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_ring_native.h" "$here/cepheus_cp_ring_native_private.h" bsd/dev/
+install -m 0644 "$here/cepheus_cp_execution_admission.h" "$here/cepheus_cp_execution_admission_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_memory_api.h" iokit/Kernel/arm/
 for header in cepheus_cp_memory_private.h cepheus_cp_workspace.h cepheus_gpu_vm39.h \
     cepheus_sqe.h cepheus_gx_smmu_plan.h cepheus_smmu_plan.h cepheus_smmu_geometry.h \
