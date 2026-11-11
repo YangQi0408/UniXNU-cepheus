@@ -77,6 +77,77 @@ resource owner and secure PA/cache/crypto/authentication remain unresolved.
 
 ## Independent Metadata Route
 
+### Standalone Diagnostic Link (02:21)
+
+The mapping probe now has an isolated native driver entry and complete local
+EDK2 link. `CepheusSmemMapDriver.c` requires the exact UTF-16 load option
+`cephsmemmap=1` including its terminator and exact length; absent, duplicated,
+extended or foreign options do not probe. It selects the unique SMEM entry from
+the compiled, hash-bound Cepheus platform table, then prepares/probes/closes
+once. The diagnostic entry calls the real probe; it is not integrated into
+DarwinBoot, any accepted firmware volume or the current phone boot path.
+
+Event-cleanup failure keeps the driver loaded, so no live callback points to
+unloaded code; Unload may retry pre-EBS cleanup. After the probe's EBS event,
+neither console output nor event cleanup runs. The initial v1 local build used
+UefiDebugLibStdErr, whose constructor/destructor creates/closes an implicit EBS
+event without propagating errors. That build is historical, not final. V2 uses
+BaseDebugLibNull and explicit AsciiPrint instead, removing the implicit event.
+AsciiPrint allocates/frees a temporary ordinary-RAM formatting buffer and calls
+the UEFI console; this is not a silent or allocation-free diagnostic and does
+not promise persistent or USB output. The current source-tree dependencies are
+explicit; sibling UEFI and DarwinBoot trees were not changed.
+
+Local build `out/smem-map-firmware-20261112-v2/` completed in six seconds.
+`build/SmemMapProbe/RELEASE_CLANGPDB/AARCH64/CepheusSmemMapProbe.efi` is19456B,
+SHA256 `5e213732875fb97f7cf5fd8344a8774f4e6bb1781505ea0cb92f585df83d9af1`.
+It is PE32+ ARM64/EFI_BOOT_SERVICE_DRIVER with no import table. Its linked
+native AT is RVA0x16d8, with PAR/DAIF save and restore checked against original
+code bytes; 1889 code instructions decoded. No SMC/HVC/TLBI/cache-maintenance
+instructions or additional system-register stores were found in that code.
+This limited static check is not a complete indirect-call or bus-abort proof.
+Analysis of both actual source files using native build flags reports no
+warnings; reconstructed staging bytes and the exact build manifest match.
+EDK2's ignored missing optional PDB copy message is retained in the build log;
+it does not substitute for a PDB artifact or invalidate the produced EFI link.
+
+`analyze-smem-map-log.py` accepts one saved diagnostic transcript, including
+failed/partial probe records only when they are structurally complete. Missing
+or reordered pages, duplicates, foreign profile, malformed numbers, incomplete
+success or missing terminator are rejected. The complete success verdict is
+`MAPPING_DIAGNOSTIC_PASS`, never SMEM/GPU authorization. All access/authentication
+and GPU flags stay false. CLI refuses overwriting existing evidence and writes
+no result for malformed input. Original source and log bytes stay external.
+Unterminated or missing-end partial logs must be preserved as raw evidence,
+not treated as successful acquisition.
+
+Final eight-check receipt `out/smem-map-driver-final-20261112-v1/receipt.json`,
+SHA256 `2aca4baa325f52bff1f709a0e2ed9ab601a16fd0a74a10cc894cafa4456b6515`,
+binds ordinary/-O probe tests, actual driver entry with mocked services/CPU/AT,
+strict parser/CLI (518 truncation points), 18 linked/staging verifier rejection
+cases, and the two native linked/static-analysis verifications. Source hashes
+were unchanged after validation. No full GPU suite or XNU/firmware-volume build
+was needed, and no EFI execution, boot package, phone operation, SMEM content
+read, PAS query/mutation or GPU execution occurred.
+
+Reproduction from `gpu-work` (new output directories only):
+
+```sh
+bash scripts/build-smem-map-firmware.sh NEW_BUILD ../uefi
+python3 scripts/verify-smem-map-firmware.py --build NEW_BUILD --uefi ../uefi --output NEW_RECEIPT.json
+python3 scripts/test-smem-map-driver.py --uefi ../uefi
+python3 scripts/test-smem-map-firmware.py --build NEW_BUILD --uefi ../uefi
+python3 scripts/analyze-smem-map-log.py SAVED_LOG --output NEW_RESULT.json
+```
+
+Next prepare a versioned same-boot persistent handoff/transport for this evidence,
+with the same isolated profile and no extra SCM/PAS queries. Do not schedule a
+console-only phone test or assume the iOS USB logger receives UEFI console
+output. Real mapping observations are still absent; even a future successful
+mapping diagnostic will not alone prove EL2/XPU read permission or safe bus
+access. Actual SMEM acquisition and running-image identity remain unverified.
+GPU admission remains false and CP halted.
+
 The local SM8150 kernel at commit
 `36f369fdb77319a2984a48b89f025ac3e5f97386` supplies a source-level alternative
 to repeating PAS7. `drivers/soc/qcom/socinfo.c:752` gets SMEM item469;

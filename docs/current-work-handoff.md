@@ -1,5 +1,22 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 02:21 +08:00：独立SMEM mapping driver native本地完整链接及验收
+完成。v2 EFI19456B SHA5e213732875fb97f7cf5fd8344a8774f4e6bb1781505ea0cb92f585df83d9af1，
+六秒/ARM64 BootService driver/no imports；原字节AT RVA16d8/PAR/DAIF恢复、
+1889代码指令检查、native两源码分析零warning/staging一致PASS。v1隐式
+DebugLib事件版本为历史；v2 BaseDebugLibNull+显式AsciiPrint，输出会普通
+pool分配/console调用，不是silent/USB/persistent transport。exact UTF16
+load option唯一SMEM compiled profile/one-shot，事件close失败retain/unload
+可清理，EBS后无log/services。实际entry/mocked CPU/AT/services及parser518
+truncations、CLI拒覆盖/坏输入无输出、18linked/staging拒绝普通/-O PASS。
+final8checks receipt out/smem-map-driver-final-20261112-v1/receipt.json SHA
+2aca4baa325f52bff1f709a0e2ed9ab601a16fd0a74a10cc894cafa4456b6515，source hash
+未变。无DarwinBoot/FV/boot集成、无phone/kernel CI/EFI execution/SMEM load/PAS。
+下一same-boot versioned persistent handoff/transport，不安排console-only手机
+轮，不假设UEFI日志进iOS USB。live mapping/access/identity及owner/secure PA/
+crypto/auth仍缺，PAS13=false/CP halted/GPU scratch/fence/Metal未执行保持。
+本批准备提交。详见tz-runtime-identity-boundary.md。
+
 2026-11-12 01:59 +08:00：SMEM copied-view及native pre-EBS map diagnostic
 离线完成。final-v1 receipt out/smem-copy-final-20261112-v1/receipt.json SHA
 5deace4772c6e477ac0b8574c6a7fbf05575ecce6b56d5ce3afd704944b9e4e6，六项

@@ -1,0 +1,11 @@
+[Defines]
+  DEC_SPECIFICATION = 0x00010005
+  PACKAGE_NAME = SmemMapProbePkg
+  PACKAGE_GUID = 527998A3-397B-4FAA-8216-5DEDB2484222
+  PACKAGE_VERSION = 0.1
+
+[Includes]
+  Include
+
+[LibraryClasses]
+  PlatformMemoryMapLib|Include/Library/PlatformMemoryMapLib.h
