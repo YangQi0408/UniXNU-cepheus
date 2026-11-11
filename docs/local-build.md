@@ -334,6 +334,25 @@ including its real WindowSize.h, unique SMEM slot and unchanged 3GiB window.
 A PASS is offline package
 acceptance, not a boot, mapping-access authorization or GPU result.
 
+On 2026-11-12, full XNU CI `43103322477 @13a975c` and independent receipt
+`out/kernel-verification-ci-43103322477-smem-v1.json` passed. The real kernel is
+`../inputs/ci-43103322477/cepheus-touch-kernel/kernel.macho`, 17597848 bytes,
+SHA256 `6521a88f9d576445a105fc07a8004a97dd6d78528afb7e724e66abe6fcce09f6`.
+The native receiver, outlined validation helper, fortified copy size guard and
+copy implementation passed inspection, alongside touch and pmap cache checks.
+
+The genuine local candidate passed all five packaging steps and cross-receipt
+identity checks: `out/smem-map-real-43103322477-v1/boot-smem-map.img`, 70684672
+bytes, SHA256
+`005b64524421ab90fa6d2b991d2e8cd298d19aee48e64b0d0c08cc4a1d2e2091`.
+Only DarwinBoot changed among 197 nested firmware files; DxeCore, shim, DTB and
+other FAT files remain unchanged. The actual parser accepted the complete
+17388-byte ADT, zero 4576-byte slot at offset1372 and unchanged 3GiB window.
+This candidate has not been booted. Do not use either existing SCM-pair or
+RPMh-tail device runner for this distinct profile. Phone testing and any SMEM
+content acquisition require a separate explicit decision; no GPU execution or
+PAS admission has been established.
+
 ## Full Linux XNU
 
 On 2026-11-09 the host dependency check reported missing `tcsh`, `unifdef`,

@@ -1,5 +1,30 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 06:18 +08:00：CI43103322477@13a975c completed SUCCESS，full
+XNU13m31s/最终验收/正式kernel及build.log上传均success；watch78069自然
+exit0。实际kernel17597848B SHA6521a88f9d576445a105fc07a8004a97dd6d78528afb7e724e66abe6fcce09f6，
+build.log SHA74fc4769f338d18ca2b7a23be83a4ab2334b772885605f4230ab04be9ed487d4，
+位于inputs/ci-43103322477（相对项目根）。本地独立receipt
+out/kernel-verification-ci-43103322477-smem-v1.json SHA
+7d5248d599c1d16016fb02ded35ad714808fa9e32a42f9a8c49aa6f19ba12cc6：
+116core49memory/无unresolved/touch/pmap/source/native receiver/outlined/
+checked-copy全部PASS；实际chunk call count<=64/object64，copy helper
+size guard/direct copy tail/overflow panic与纯copy实现确认，非runtime证明。
+本地真实候选out/smem-map-real-43103322477-v1/boot-smem-map.img 70684672B
+SHA005b64524421ab90fa6d2b991d2e8cd298d19aee48e64b0d0c08cc4a1d2e2091，
+五步及cross-receipt/source/artifact hash复验PASS。receipt SHA
+81c4c68cf9682d020e781a9940e12a30a76937bbc65b83d6526f7a9997642ef1，
+boot-verification SHA93e5deaec98c778ebc4be6e1df8c4e9b66fde7c905004270549843e984a13743。
+baseline复现、197nested仅DarwinBoot改/DxeCore不改/shimDTB及其他FAT不变。
+完整ADT17388B/slot1372 zero4576/3GiB窗口/无RAMDisk TrustCache actual
+parser PASS，receipt SHAf299bc573f2e00c22c07fe26dc792e7a41aa031d251bac65561c3be5e7113215。
+EFI32256B SHA02badcc35f6cb50c29c5dba412683cdf63796969496313749d6e6b62b340ae8a；
+FD3145728B SHAa6716e30a94d0768be69079d51abdc9a59155a1c954c914a7d35b7287cc7fa8a。
+本批到真机测试前停下，不执行现有SCM/tail runner（profile不同），无boot/
+flash/reboot/SMEM内容读取/SMC/GPU操作。候选是映射证据轮，不是GPU演示。
+PAS13=false/CP halted、owner secure PA cache crypto auth缺失保持；完整
+GPU/Metal目标active未完成。下一明确硬件决策后才测试该隔离候选。
+
 2026-11-12 05:28 +08:00：CI43101862468@3258922 terminal FAILURE，
 stage成功，但macOS ARM64 linked fixture在checked-copy overflow末尾
 校验失败，XNU未开始。没有对应listing，根因尚未证实；测试替身增加

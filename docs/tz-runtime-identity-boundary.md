@@ -141,10 +141,23 @@ UDP delivery and ring concurrency are not authenticated or guaranteed. A
 fixed90s wait does not establish logger readiness. Original raw logs must be
 preserved even when the strict analyzer rejects them.
 
-No full XNU link including this receiver, FV/boot package, EFI execution,
-device operation, SMEM content capture, PAS mutation/query or GPU execution
-has occurred in this batch. Next independently verify/link the changed XNU
-receiver and bounded boot packaging before proposing any hardware test.
+Full XNU CI `43103322477 @13a975c` and independent native/source verification
+passed on2026-11-12. The receiver's fortified copy helper checks x3 against x2,
+tails to the inspected pure copy implementation on success and panics on
+overflow. The actual chunk call supplies a64-byte object size and selects at
+most64 bytes, with final32-byte padding zeroed. No new production call or
+security gate was added to fix the verifier's earlier copy-name rejection.
+
+Local candidate `out/smem-map-real-43103322477-v1/boot-smem-map.img` passed all
+five packaging steps, nested firmware/FAT equality, actual full-ADT parsing and
+cross-receipt identity checks. Its SHA256 is
+`005b64524421ab90fa6d2b991d2e8cd298d19aee48e64b0d0c08cc4a1d2e2091`.
+Only DarwinBoot changed among197 nested files, not DxeCore; shim/DTB and other
+FAT files remain unchanged. These are offline link/package results. No EFI
+execution, phone operation, live mapping observation, SMEM content capture,
+PAS mutation/query or GPU execution occurred. The user requested stopping
+before phone testing; preserve the current phone state. The next hardware
+decision is this isolated mapping diagnostic, not a GPU submission test.
 Even a live passing diagnostic does not establish EL2/XPU/bus-abort containment
 or authorize content acquisition. PAS13=false, CP halted, real ownership,
 secure PA/cache, crypto and authentication blockers remain unchanged.
