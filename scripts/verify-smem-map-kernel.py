@@ -60,6 +60,26 @@ def objdump_tool():
     return tool
 
 
+def checked_copy(assembly):
+    name = '___memcpy_chk'
+    body = function(assembly, name[1:])
+    code = instructions(body)
+    require(len(code) >= 4 and code[0][0] == 'cmp' and re.fullmatch(r'x3,\s*x2', code[0][1]) and code[1][0] == 'b.lo' and
+            re.search(r'<___memcpy_chk\+0xc>', code[1][1]), 'missing checked-copy size guard')
+    target = re.search(r'<([^>]+)>', code[2][1])
+    require(code[2][0] == 'b' and target and target.group(1) in {'_memcpy', '_memmove'},
+            'checked-copy success path is not a direct copy tail')
+    copy = target.group(1)
+    transfers(body, name, {copy, '_panic'})
+    # The fallthrough tail returns via memcpy. Only the guarded overflow path
+    # may prepare panic arguments; it cannot return or branch back to a copy.
+    require(all(opcode in {'sub', 'add', 'stp', 'str', 'mov', 'adrp', 'adr'}
+                for opcode, _ in code[3:-1]) and code[-1][0] == 'bl' and
+            re.search(r'<_panic>', code[-1][1]), 'checked-copy overflow path does not terminate at panic')
+    transfers(function(assembly, copy[1:]), copy, set())
+    return [name, copy]
+
+
 def inspect(assembly):
     receiver = function(assembly, 'soc_smem_map')
     thread = function(assembly, 'soc_thread')
@@ -70,7 +90,7 @@ def inspect(assembly):
     require('_swait' in receiver or '_clock_interval_to_deadline' in receiver,
             'missing receiver delay')
     allowed = {'_PE_boot_args', '_SecureDTLookupEntry', '_SecureDTGetProperty', '_printf',
-               '_memcpy', '_memmove', '_bcopy', '_swait', '_clock_interval_to_deadline',
+               '_memcpy', '_memmove', '_bcopy', '___memcpy_chk', '_swait', '_clock_interval_to_deadline',
                '_assert_wait_deadline', '_thread_block', '___stack_chk_fail', '_bcmp', '_memcmp',
                '_ceph_smem_map_profile', '_ceph_smem_map_valid', '_ceph_smem_map_checksum',
                '_ceph_smem_map_cpu_supported', '_ceph_smem_map_diagnostic_pass'}
@@ -79,6 +99,7 @@ def inspect(assembly):
     # Pure copied-record helpers may be outlined; inspect them as well when
     # present, so an unchecked helper cannot conceal an extra hardware call.
     checked = []
+    copy_checked = checked_copy(assembly) if '___memcpy_chk' in calls else []
     pending = [name for name in calls if name.startswith('_ceph_smem_map_')]
     while pending:
         name = pending.pop()
@@ -86,10 +107,13 @@ def inspect(assembly):
             continue
         body = function(assembly, name[1:])
         nested = transfers(body, name, allowed)
+        if '___memcpy_chk' in nested and not copy_checked:
+            copy_checked = checked_copy(assembly)
         pending.extend(name for name in nested if name.startswith('_ceph_smem_map_'))
         checked.append(name)
     return {'native_receiver_and_thread_verified': True, 'receiver_calls': sorted(set(calls)),
             'outlined_copied_helpers_checked': sorted(checked),
+            'checked_copy_helpers_verified': copy_checked,
             'scope': 'direct receiver/outlined helper disassembly; external DT/printf implementations are not runtime proof'}
 
 

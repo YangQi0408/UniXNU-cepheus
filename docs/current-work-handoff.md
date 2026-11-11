@@ -1,5 +1,25 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 05:13 +08:00：CI43092532358@2ecdfb1确认terminal FAILURE，
+full XNU8m09s成功；job日志取得，确定receiver verifier拒___memcpy_chk。
+touch/idle/staging116core49memory成功，但其后pmap验收尚未执行，不当作
+完整kernel PASS。UNACCEPTED上传CreateArtifact5次HTML/JSON错误失败，
+实际新核未取回；build.log上传最终成功。证据inputs/ci-43092532358-failure
+（相对项目根）：kernel-job.log SHA619ef9f1b209f4a316342849d00ea97776cb6360073e7dfe98d1a42b82378bb5，
+build.log SHA0a2fe0a33e7bd7f0fdcc8ea724c0429581edaf3b6f41ba41093ac96b52887c7a。
+失败日志兜底已commit/push342e21a。新增checked-copy verifier不只按名字
+放行：检查x3/x2 size guard、正常路径direct copy tail、overflow仅panic
+终止、实际copy实现无external/hardware transfer；实际旧accepted kernel
+helper核验PASS，新核仍需完整CI。actual fortified ARM64 receiver+test-only
+helper链接及26损坏拒绝普通/-O PASS；包含outlined caller检查。生产xnu/
+firmware未改。focused15PASS out/smem-kernel-prereq-20261112-v6/receipt.json
+SHA42694a20578ad0e4ead3068dd394d56ca72a084961a450b98e1e07b50834a6bc；
+packaging3PASS out/smem-packaging-final-20261112-v5/receipt.json SHA
+461e94ab72982dddc2e1b91a1dee138103f29a973474004232d2eca9859d9fc7。
+下一提交修复/唯一完整CI/下载实际产物再独立核验封装；不可复用失败核。
+无phone操作，GPU/Metal未执行，PAS13=false/CP halted及真实资源后端缺失
+保持，目标active。此前live条目均为历史。
+
 2026-11-12 04:56 +08:00：CI43092532358@2ecdfb1 full XNU成功8m09s，
 最终verification步骤10失败；原因未取得，不能当作已知memcpy_chk误拒。
 failure-only保存步骤12成功，但UNACCEPTED artifact上传步骤13于04:42:54
