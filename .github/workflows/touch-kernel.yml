@@ -292,8 +292,11 @@ jobs:
             (cd unaccepted && shasum -a 256 kernel.macho > SHA256SUMS)
             git -C cepheus rev-parse HEAD > unaccepted/device-commit.txt
             printf 'UNACCEPTED: offline debugging only; verification failed; never boot\n' > unaccepted/UNACCEPTED.txt
+            cat unaccepted/UNACCEPTED.txt unaccepted/device-commit.txt unaccepted/SHA256SUMS
             if test -n "${LLVM_OBJDUMP:-}"; then
               "$LLVM_OBJDUMP" -d --no-show-raw-insn --disassemble-symbols=_soc_smem_map,_soc_thread "$K" > unaccepted/smem-receiver.asm
+              # Retain bounded diagnostic text even if artifact upload fails.
+              cat unaccepted/smem-receiver.asm
             fi
           fi
       - uses: actions/upload-artifact@v4

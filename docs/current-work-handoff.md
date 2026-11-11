@@ -1,5 +1,18 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 04:56 +08:00：CI43092532358@2ecdfb1 full XNU成功8m09s，
+最终verification步骤10失败；原因未取得，不能当作已知memcpy_chk误拒。
+failure-only保存步骤12成功，但UNACCEPTED artifact上传步骤13于04:42:54
+失败；build.log上传步骤14仍live，run尚非terminal。多次gh download无
+valid artifact，gh log-failed因run live不可用。禁止取消或重复dispatch，
+失败kernel未下载/未封装/未boot。新增仅失败分支的job-log兜底：输出
+UNACCEPTED/commit/SHA及生成后的soc_smem_map/soc_thread反汇编，避免
+下次artifact upload失败完全丢失定位文本；未改变kernel或native admission。
+integration15项14PASS/1可选reference SKIP、tree/SMEM合同/YAML/bash-n/
+diff-check PASS。本批改动尚未提交，下一same-run终态/失败日志定位，再
+决定修复，不盲目扩展allowlist。PAS13=false/CP halted，真实owner/secure
+PA/cache/crypto/auth及GPU/Metal仍未解决，无phone操作，目标active。
+
 2026-11-12 04:07 +08:00：CI43092532358@2ecdfb1仍toolchain regression live。
 下载验收修复只允许failure-only步骤12/13成对skipped，构建/正式验收/
 artifact upload仍要求success；11状态拒绝普通/-O PASS，SMEM receipt拒-O。

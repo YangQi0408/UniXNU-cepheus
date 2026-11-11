@@ -52,6 +52,21 @@ class Integration(unittest.TestCase):
         missing = sorted(name for name in required if name not in workflow)
         self.assertEqual(missing, [], f'workflow omits staged sources: {missing}')
 
+    def test_failed_kernel_evidence_has_job_log_fallback(self):
+        workflow = (ROOT / '.github/workflows/touch-kernel.yml').read_text()
+        name = '      - name: Retain unaccepted kernel and disassembly after verification failure\n'
+        self.assertEqual(workflow.count(name), 1)
+        step = workflow.split(name, 1)[1].split('      - uses:', 1)[0]
+        self.assertIn('        if: failure()\n', step)
+        self.assertIn('UNACCEPTED: offline debugging only; verification failed; never boot', step)
+        self.assertIn('cat unaccepted/UNACCEPTED.txt unaccepted/device-commit.txt unaccepted/SHA256SUMS', step)
+        producer = '--disassemble-symbols=_soc_smem_map,_soc_thread "$K" > unaccepted/smem-receiver.asm'
+        self.assertIn(producer, step)
+        self.assertGreater(step.index('cat unaccepted/smem-receiver.asm'), step.index(producer))
+        shell = step.split('        run: |\n', 1)[1]
+        shell = '\n'.join(line[10:] for line in shell.splitlines())
+        subprocess.run(['bash', '-n'], input=shell, text=True, check=True)
+
     def test_soc_canonical_tail_headers_staged(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);patches=root/'patches';patches.mkdir()
