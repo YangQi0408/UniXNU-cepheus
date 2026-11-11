@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 10:00：78d34a8已推送，唯一CI42939546189前置全PASS/Build XNU
+进行中，不含后续ring。native halted ring/SQE七fixed stores后端已完成，
+实际enabled GX SMMU/CP provenance/installed pool绑定，逐访问owner/halt检查、
+每store完整14context核对，零继承ring/RPTR/完整tail、all-pool output拒绝。
+final focused155steps SHA55b8703f...；full四步83host/七分析 SHA096e87b7...，
+两source hash集及155log独立匹配。原厂GMU/SQE实际七新增整链25..31 PASS，
+原CP12pool PASS，无sanitizer（MMIO/ACK/IOKit/owner模拟），非GPU执行。
+早期ring v1 exit143保留不追认；见cp-ring-native-backend.md完整log hashes。
+准备此批提交，下一实际认证/执行前状态绑定。CP halt/PAS13=false保持，
+真owner/继承票/双TBU/secure PA+crypto缺，无phone操作/不重复fastboot问题。
+目标active，用户明确不停工，GPU/Metal未执行。
+
 2026-11-11 09:29：native CP/atomic build-seal/output-alias修复 frozen final-v3
 完整本地验收通过：focused153steps SHA42df3226...；full四步/83host/七分析
 SHAe4e61c8c...。完成后两source hash集与153log hashes独立匹配；原厂GMU/

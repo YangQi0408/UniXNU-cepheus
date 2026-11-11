@@ -111,6 +111,7 @@ int main(int argc,char **argv)
             assert(ceph_memory_cp_publish(&w.publication)<0 && !ceph_memory_cp_acquire(&w.publication,&pinned));
         }
         assert(!ceph_memory_cp_publish(&w.publication) && !ceph_memory_cp_publish(&w.publication));
+        assert(ceph_memory_cp_installed(&w.publication)<0 && ceph_memory_cp_ring_publish(&w.publication)<0);
         std::thread retire([&w]{for(unsigned i=0;i<1000;++i)assert(ceph_memory_retire_begin(&w.publication.memory)<0);});
         std::thread release([&w]{for(unsigned i=0;i<1000;++i)assert(cepheus_gpu_memory_release_cpu(w.handles[0])<0);});
         for(unsigned i=0;i<1000;++i)assert(!ceph_memory_cp_validate(&w.publication));
@@ -128,6 +129,15 @@ int main(int argc,char **argv)
             uint64_t refused=123;assert(cepheus_gpu_memory_alloc(4096,&refused)<0 && !refused);
         }else assert(!ceph_memory_cp_finish(&w.publication,CE_MEMORY_CP_INSTALLED) &&
             ceph_memory_cp_acquire(&w.publication,&pinned)<0 && !ceph_memory_cp_validate(&w.publication));
+        if(mode<7) {
+            assert(!ceph_memory_cp_installed(&w.publication) && !ceph_memory_cp_ring_publish(&w.publication));
+            for(unsigned role=CE_CP_RING;role<=CE_CP_RPTR;++role) {
+                auto *bytes=(uint8_t *)w.views[role].cpu;bytes[w.views[role].bytes-1]=1;
+                assert(ceph_memory_cp_ring_publish(&w.publication)<0 && !ceph_memory_cp_installed(&w.publication));
+                bytes[w.views[role].bytes-1]=0;
+            }
+            assert(!ceph_memory_cp_ring_publish(&w.publication));
+        }
         ceph_gpu_group_status status={};assert(!cepheus_gpu_memory_group_status(w.publication.memory.group,&status));
         assert(status.retained_buffers==6 && status.pool_terminal==(mode>=7) && mock_io::live==12);
         puts("Actual CP pool seal/pin: identity/SQE/PTE/restore integrity, separate GMU exclusion, no retirement/MMIO PASS");

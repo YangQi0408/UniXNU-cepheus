@@ -39,6 +39,10 @@ int ceph_memory_cp_build_seal(const struct ceph_cp_workspace *,const struct ceph
     struct ceph_cp_publication *);
 /* Reject native result storage in any live pool backing, not only CP. */
 int ceph_memory_cp_output_safe(const void *,size_t);
+/* Installed actual group only; no SMMU ownership or hardware claim. */
+int ceph_memory_cp_installed(const struct ceph_cp_publication *);
+/* Verify exact installed layout and zero ring/RPTR backing, then barrier. */
+int ceph_memory_cp_ring_publish(const struct ceph_cp_publication *);
 #ifdef __cplusplus
 }
 #endif

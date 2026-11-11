@@ -20,7 +20,7 @@ static std::vector<uint8_t> load(const char *path)
 }
 int main(int argc,char **argv)
 {
-    assert(argc==4);unsigned mode=(unsigned)std::strtoul(argv[3],nullptr,10);assert(mode<=24);
+    assert(argc==4);unsigned mode=(unsigned)std::strtoul(argv[3],nullptr,10);assert(mode<=31);
     auto gmu=load(argv[1]),sqe=load(argv[2]);uint64_t snapshot=0;
     assert(!cepheus_gpu_firmware_snapshot(0,gmu.data(),gmu.size(),&snapshot));
     struct ceph_gmu_workspace w={};assert(!cepheus_gmu_workspace_prepare(&w));
@@ -35,12 +35,13 @@ int main(int argc,char **argv)
     struct ceph_gx_smmu_plan cpplan={};
     assert(!ceph_gx_smmu_plan(streams,16,&geometry,0,1,2,cp.table.pa,0,&cpplan));
     assert(!test_gx_smmu_native_pool(snapshot,&w,&plan,&cpplan,&cp,mode));
-    bool uncertain=mode==4 || mode==5 || mode==6 || (mode>=12 && mode<=20 && mode!=15);
+    bool uncertain=mode==4 || mode==5 || mode==6 || (mode>=12 && mode<=20 && mode!=15) ||
+        mode==26 || mode==27 || mode==28 || mode==30 || mode==31;
     if(uncertain && mode>=12) {
         assert(!cepheus_gpu_memory_release_cpu(snapshot) && mock_io::live==12);
         for(auto h:cp.handles)assert(cepheus_gpu_memory_release_cpu(h)<0);
         uint64_t refused=123;assert(cepheus_gpu_memory_alloc(4096,&refused)<0 && !refused);
-        puts("Actual native CP post-write failure retains CP/HFI backing, unexposed firmware snapshot releasable PASS (synthetic hardware)");return 0;
+        puts("Actual native CP/ring uncertainty retains CP/HFI backing, unexposed firmware snapshot releasable PASS (synthetic hardware)");return 0;
     }
     assert(!cepheus_gpu_memory_release_cpu(snapshot));
     if(mode==10 || mode==11 || mode==22 || mode==24) {

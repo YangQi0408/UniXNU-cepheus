@@ -942,6 +942,26 @@ extern "C" int ceph_memory_cp_publish(const struct ceph_cp_publication *p)
     }
     IOLockUnlock(lock);return e;
 }
+extern "C" int ceph_memory_cp_installed(const struct ceph_cp_publication *p)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_CP_BUFFERS],group=ceph_memory_cp_group(p,indices);
+    int e=group>=0 && ceph_group_cp[group]==4?ceph_memory_cp_tables(p,indices,NULL):-1;
+    IOLockUnlock(lock);return e;
+}
+extern "C" int ceph_memory_cp_ring_publish(const struct ceph_cp_publication *p)
+{
+    IOLock *lock=ceph_gpu_pool_lock();if(!lock)return -1;
+    IOLockLock(lock);int indices[CE_CP_BUFFERS],e=-1,group=ceph_memory_cp_group(p,indices);
+    if(group<0 || ceph_group_cp[group]!=4 || ceph_memory_cp_tables(p,indices,NULL))goto done;
+    for(unsigned n=CE_CP_RING;n<=CE_CP_RPTR;++n) {
+        const auto *b=&ceph_pool[indices[n]].buffer;
+        const volatile uint8_t *cpu=(const volatile uint8_t *)b->cpu;
+        for(size_t i=0;i<b->bytes;++i)if(cpu[i])goto done;
+    }
+    ceph_gpu_memory_barrier();e=0;
+done:IOLockUnlock(lock);return e;
+}
 extern "C" int ceph_memory_cp_finish(const struct ceph_cp_publication *p,int result)
 {
     if(!p || (result!=CE_MEMORY_CP_REFUSED && result!=CE_MEMORY_CP_INSTALLED && result!=CE_MEMORY_CP_UNCERTAIN))return -1;

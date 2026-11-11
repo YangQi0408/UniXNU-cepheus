@@ -58,6 +58,7 @@ HEADERS += ('cepheus_gx_smmu_plan.h',)
 HEADERS += ('cepheus_gx_smmu_install.h','cepheus_gx_smmu_native.h','cepheus_gx_smmu_native_private.h')
 HEADERS += ('cepheus_cp_memory_api.h',)
 HEADERS += ('cepheus_cp_native.h','cepheus_cp_native_private.h')
+HEADERS += ('cepheus_cp_ring_native.h','cepheus_cp_ring_native_private.h')
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -169,6 +170,7 @@ def main():
     required |= {'_cepheus_cp_workspace_restore'}
     required |= {'_cepheus_cp_workspace_seal'}
     required |= {'_cepheus_gpu_cp_prepare_native'}
+    required |= {'_cepheus_gpu_cp_ring_native'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
     required |= {'_cepheus_gmu_hfi_version_native','_cepheus_gmu_hfi_boot_native',
@@ -183,6 +185,7 @@ def main():
                    '_cepheus_gmu_workspace_share','_cepheus_gmu_workspace_retire','_cepheus_gpu_memory_group_status'}
     memory_api |= {'_cepheus_gpu_memory_abandon_workspace'}
     memory_api |= {'_ceph_memory_smmu_acquire','_ceph_memory_smmu_publish','_ceph_memory_smmu_validate','_ceph_memory_smmu_finish'}
+    memory_api |= {'_ceph_memory_cp_installed','_ceph_memory_cp_ring_publish'}
     memory_api |= {'_ceph_memory_upload_acquire','_ceph_memory_upload_publish','_ceph_memory_upload_validate','_ceph_memory_upload_finish'}
     memory_api |= {'_ceph_memory_hfi_acquire','_ceph_memory_hfi_validate','_ceph_memory_hfi_publish','_ceph_memory_hfi_seal','_ceph_memory_hfi_finish'}
     memory_api |= {'_ceph_memory_cp_seal','_ceph_memory_cp_acquire','_ceph_memory_cp_validate','_ceph_memory_cp_publish','_ceph_memory_cp_finish'}

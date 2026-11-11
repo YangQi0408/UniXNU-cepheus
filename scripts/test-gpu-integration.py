@@ -75,6 +75,8 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_gx_smmu_native_private.h'),
                                 ('bsd/dev', 'cepheus_cp_native.h'),
                                 ('bsd/dev', 'cepheus_cp_native_private.h'),
+                                ('bsd/dev', 'cepheus_cp_ring_native.h'),
+                                ('bsd/dev', 'cepheus_cp_ring_native_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_api.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_workspace.h'),

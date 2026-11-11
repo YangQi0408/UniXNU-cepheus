@@ -1,5 +1,13 @@
 # Local build workflow
 
+2026-11-11: native CP/atomic pool sealing committed/pushed as78d34a8 after
+frozen153-step focused and four-step83-host/seven-analysis acceptance. Single
+replacement complete XNU CI42939546189 is in progress, not yet an accepted
+artifact. Committed source is archived at `out/ci-source-78d34a8/` so later
+ring edits do not invalidate independent kernel/source comparison. No phone
+operation or GPU execution. See `cp-native-backend.md` for exact receipts;
+`cp-ring-native-backend.md` describes the subsequent uncommitted batch.
+
 2026-11-11: CI42907357305 @31215d3 accepted using archived-source scripts:
 106 core/35 memory/no unresolved, touch/PA64/SCM/tail/RPMh/idle pass. The
 native config/HFI kernel excludes later ceaa736 CM3/QMP and new GX edits.
