@@ -15,6 +15,9 @@ import zlib
 
 import adt
 
+spec=importlib.util.spec_from_file_location('smem_boot_evidence',Path(__file__).with_name('smem-packaging-evidence.py'))
+smem=importlib.util.module_from_spec(spec);spec.loader.exec_module(smem)
+
 spec=importlib.util.spec_from_file_location('fv',Path(__file__).with_name('repack-scm-pair-fv.py'))
 fv=importlib.util.module_from_spec(spec);spec.loader.exec_module(fv)
 BASE_SHA='1f986169db84c5a7eec8cd1b208f70811a676aa2bb26a8a5e071b510d663c95d'
@@ -60,12 +63,13 @@ def inner_files(fd):
     return outer,fv.files(sections[1][1])
 
 
-def validate_config(old,new,rpmh_tail=False):
+def validate_config(old,new,rpmh_tail=False,smem_map=False):
+    if smem_map:smem.require(__debug__ and not rpmh_tail, 'SMEM requires isolated, nonoptimized validation')
     old=tomllib.loads(old.decode());new=tomllib.loads(new.decode())
     assert len(old['entry'])==len(new['entry'])==1
     before=old['entry'][0]['args'].split();after=new['entry'][0]['args'].split()
     assert [t for t in before if t.startswith('ceph')]==['cephzapmem=1']
-    profile='cephrpmhtail=1' if rpmh_tail else 'cephscmpair=1'
+    profile='cephsmemmap=1' if smem_map else ('cephrpmhtail=1' if rpmh_tail else 'cephscmpair=1')
     assert [t for t in after if t.startswith('ceph')]==[profile]
     assert len(after)==len({t.split('=',1)[0] for t in after})
     assert [t if t!=profile else 'cephzapmem=1' for t in after]==before
@@ -74,14 +78,15 @@ def validate_config(old,new,rpmh_tail=False):
     return line
 
 
-def validate_adt(old,new,rpmh_tail=False):
-    slot='cepheus-rpmh-tail' if rpmh_tail else SLOT
-    size=1128 if rpmh_tail else 2656
+def validate_adt(old,new,rpmh_tail=False,smem_map=False):
+    if smem_map:smem.require(__debug__ and not rpmh_tail, 'SMEM requires isolated, nonoptimized validation')
+    slot='cepheus-smem-map' if smem_map else ('cepheus-rpmh-tail' if rpmh_tail else SLOT)
+    size=4576 if smem_map else (1128 if rpmh_tail else 2656)
     tree,end=adt.parse(new);assert end==len(new) and adt.serialize(tree)==new
     slots=[]
     def scan(node,path):
         for name,flags,data in node.props:
-            if name in (SLOT,'cepheus-rpmh-tail','cepheus-rpmh-snapshot'):
+            if name in (SLOT,'cepheus-rpmh-tail','cepheus-rpmh-snapshot','cepheus-smem-map'):
                 assert name==slot
                 slots.append((node,path,flags,data))
         for child in node.children:scan(child,path+'/'+child.name)
@@ -93,8 +98,13 @@ def validate_adt(old,new,rpmh_tail=False):
     assert adt.serialize(tree)==old
 
 
-def verify(image,reference,kernel,fd,efi,receipt,core=None):
+def verify(image,reference,kernel,fd,efi,receipt,core=None,smem_map=False,kernel_receipt=None):
     rpmh_tail=core is not None
+    if smem_map:
+        smem.require(not rpmh_tail, 'mixed diagnostic modes')
+        smem.validate(kernel,kernel_receipt)
+    elif kernel_receipt is not None:
+        raise ValueError('kernel receipt option requires SMEM mode')
     before=reference.read_bytes();after=image.read_bytes();assert sha(before)==BASE_SHA
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)
@@ -110,13 +120,13 @@ def verify(image,reference,kernel,fd,efi,receipt,core=None):
     for name in old.keys()-mutable:assert old[name]==new[name],name
     data=kernel.read_bytes();assert data==new[KERNEL]
     assert data[:8]==bytes.fromhex('cffaedfe0c000001') and len(data)>2000000
-    markers=(b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail') if rpmh_tail else (
+    markers=smem.NATIVE.MARKERS if smem_map else ((b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail') if rpmh_tail else (
              b'CEPHEUS SCM PAIR: UEFI',b'CEPHEUS SCM PAIR: XNU begin',
-             b'CEPHEUS SCM PAIR: end',b'cepheus-scm-handoff',b'CEPHEUS SCM %s CPU:')
+             b'CEPHEUS SCM PAIR: end',b'cepheus-scm-handoff',b'CEPHEUS SCM %s CPU:'))
     for marker in markers:
         assert marker in data,marker
-    line=validate_config(old[CONFIG],new[CONFIG],rpmh_tail)
-    validate_adt(old[KERNEL+'.adt'],new[KERNEL+'.adt'],rpmh_tail)
+    line=validate_config(old[CONFIG],new[CONFIG],rpmh_tail,smem_map)
+    validate_adt(old[KERNEL+'.adt'],new[KERNEL+'.adt'],rpmh_tail,smem_map)
     report=json.loads(receipt.read_text())
     assert report['baseline_fd_sha256']==sha(oldfd) and report['baseline_reproduced'] is True
     assert report['fd_sha256']==sha(newfd) and report['fd_bytes']==len(newfd)
@@ -147,11 +157,13 @@ def verify(image,reference,kernel,fd,efi,receipt,core=None):
         assert core_data[offset:offset+4]==b'PE\0\0' and struct.unpack_from('<H',core_data,offset+4)[0]==0xaa64
     result={'status':'PASS','image':str(image),'bytes':len(after),'sha256':sha(after),
         'baseline_sha256':BASE_SHA,'kernel_sha256':sha(data),'fd_sha256':sha(newfd),
-        'efi_sha256':sha(pe),'args':line,'zero_handoff_bytes':1128 if rpmh_tail else 2656,
+        'efi_sha256':sha(pe),'args':line,'zero_handoff_bytes':4576 if smem_map else (1128 if rpmh_tail else 2656),
         'nested_files_checked':len(inner),'shim_dtb_unchanged':True,
         'other_fat_files_unchanged':True,'actual_embedded_efi_equal':True,
         'phone_operations':False,'gpu_execution':False}
     if rpmh_tail:result.update(profile='rpmh-exit-tail',core_sha256=sha(core_data),actual_embedded_core_equal=True)
+    if smem_map:result.update(profile='smem-map-handoff',kernel_receipt_sha256=sha(Path(kernel_receipt).read_bytes()),
+        smem_bytes_acquired=False,smem_access_authorized=False,firmware_execution=False)
     return result
 
 
@@ -159,6 +171,10 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('image','reference','kernel','fd','efi','receipt','output'):p.add_argument(name,type=Path)
     p.add_argument('--core',type=Path,help='verify the isolated exit-tail profile and exact embedded core')
+    p.add_argument('--smem-map',action='store_true')
+    p.add_argument('--kernel-receipt',type=Path)
     a=p.parse_args();assert not a.output.exists()
-    result=verify(*(getattr(a,n) for n in ('image','reference','kernel','fd','efi','receipt')),core=a.core)
+    if a.smem_map:smem.require(__debug__ and not a.output.exists(), 'preserve prior verification; no optimization')
+    result=verify(*(getattr(a,n) for n in ('image','reference','kernel','fd','efi','receipt')),core=a.core,
+                  smem_map=a.smem_map,kernel_receipt=a.kernel_receipt)
     a.output.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))

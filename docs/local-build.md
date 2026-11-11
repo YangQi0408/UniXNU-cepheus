@@ -303,6 +303,34 @@ The real-kernel local candidate now passes all five packaging steps:
 The `receipt.json` and independent `boot-verification.json` in that directory
 pass. It has not been booted; earlier synthetic fixtures are never candidates.
 
+## SMEM Mapping Handoff
+
+The isolated `cephsmemmap=1` package replaces DarwinBoot but not DxeCore,
+preserves the accepted shim/DTB and other FAT files, and adds one zero-filled
+4576-byte `/chosen/cepheus-smem-map` property. It does not collect SMEM content,
+call SCM or execute the GPU. A completed full-kernel CI receipt must include
+`verify-ci-scm-pair.py --smem-map`; packaging independently checks the native
+receiver again and matches every production XNU source hash. A marker-only
+synthetic kernel is refused. Assertion-based legacy packaging requires normal
+Python; `-O` is explicitly refused for the new profile.
+
+After downloading and independently verifying the real kernel:
+
+```sh
+python3 scripts/build-scm-pair-local.py \
+  --kernel PATH_TO_VERIFIED_KERNEL \
+  --kernel-receipt PATH_TO_VERIFIED_KERNEL_RECEIPT \
+  --output out/smem-map-NEW --smem-map \
+  --firmware-build out/smem-handoff-firmware-20261112-v2 \
+  --container cepheus-build:latest
+```
+
+The local container needs Python 3.11+, mtools and LLVM objdump; it runs with
+network disabled and the invoking UID/GID. Firmware native verification stays
+on the host, followed by baseline-reproduced FV rebuilding, boot packaging and
+independent nested-FV/EFI/FAT equality verification. A PASS is offline package
+acceptance, not a boot, mapping-access authorization or GPU result.
+
 ## Full Linux XNU
 
 On 2026-11-09 the host dependency check reported missing `tcsh`, `unifdef`,
@@ -313,6 +341,10 @@ accepted Cepheus kernel uses XNU 8796/SWEET. Its toolchain and SDK preparation
 need adaptation and an actual compile/link check before a local kernel can
 replace the current macOS artifact. The upstream installer also writes shims
 to `/usr/bin`; it has not been executed or installed on this host.
+
+On 2026-11-12 the host does provide `ld64.lld`. That does not provide the missing
+MIG/IIG or a validated full XNU8796 toolchain. The local build container supplies
+mtools; no upstream installer has been run.
 
 Full XNU remains in CI for this candidate. A future local migration should use
 an isolated prefix/container and retain the current XNU version, board config,

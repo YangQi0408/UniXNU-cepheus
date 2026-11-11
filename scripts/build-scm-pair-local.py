@@ -8,11 +8,14 @@ import argparse
 import datetime
 import hashlib
 import json
+import importlib.util
 from pathlib import Path
 import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
+spec=importlib.util.spec_from_file_location('smem_local_evidence',ROOT/'scripts/smem-packaging-evidence.py')
+smem=importlib.util.module_from_spec(spec);spec.loader.exec_module(smem)
 
 
 def identity(path):
@@ -29,11 +32,16 @@ def main():
     p.add_argument('--baseline',type=Path,default=ROOT.parent/'dist/boot-cepheus-zapmem-b5006b5.img')
     p.add_argument('--container',help='local image providing Python and mtools; packaging runs network-disabled')
     p.add_argument('--rpmh-tail',action='store_true',help='isolated diagnostic, reuse the complete local loader/core builds')
-    p.add_argument('--firmware-build',type=Path,help='complete tail loader build to verify and reuse')
+    p.add_argument('--smem-map',action='store_true',help='isolated mapping handoff, reuse verified local DarwinBoot')
+    p.add_argument('--firmware-build',type=Path,help='complete tail or SMEM loader build to verify and reuse')
     p.add_argument('--core-build',type=Path,help='complete tail core build to verify and reuse')
     a=p.parse_args();out=a.output.resolve();kernel=a.kernel.resolve();baseline=a.baseline.resolve()
     if out.exists():p.error('output exists; preserve earlier build results')
     if not kernel.is_file() or not baseline.is_file():p.error('missing kernel or baseline')
+    if a.smem_map:
+        smem.require(__debug__ and not a.rpmh_tail and a.firmware_build and not a.core_build,
+                     'SMEM requires isolated mode and complete local loader build, no core replacement')
+        smem.validate(kernel,a.kernel_receipt)
     verification=json.loads(a.kernel_receipt.read_text())
     if verification.get('status')!='PASS' or verification.get('kernel_sha256')!=identity(kernel)['sha256']:
         p.error('kernel verification receipt does not match a passed artifact')
@@ -43,13 +51,13 @@ def main():
         if not a.firmware_build or not a.core_build:p.error('tail requires both complete local firmware builds')
         if verification.get('native_tail_hook_and_caller_verified') is not True or verification.get('tail_abi_source_verified') is not True:
             p.error('compiled tail caller/helper and source ABI verification required')
-    elif a.firmware_build or a.core_build:p.error('build reuse options require --rpmh-tail')
+    elif not a.smem_map and (a.firmware_build or a.core_build):p.error('build reuse options require --rpmh-tail or --smem-map')
     data=kernel.read_bytes()
     if data[:8]!=bytes.fromhex('cffaedfe0c000001') or len(data)<2000000:
         p.error('kernel must be substantial ARM64 Mach-O')
-    if any(s not in data for s in (b'CEPHEUS SCM PAIR: UEFI',b'CEPHEUS SCM PAIR: XNU begin',
-                                  b'CEPHEUS SCM PAIR: end',b'CEPHEUS SCM %s CPU:')):
-        p.error('kernel lacks paired diagnostics')
+    markers=smem.NATIVE.MARKERS if a.smem_map else (b'CEPHEUS SCM PAIR: UEFI',b'CEPHEUS SCM PAIR: XNU begin',
+                                                   b'CEPHEUS SCM PAIR: end',b'CEPHEUS SCM %s CPU:')
+    if any(s not in data for s in markers):p.error('kernel lacks selected diagnostics')
     out.mkdir(parents=True)
     efi=out/'firmware/build/DarwinBoot/RELEASE_CLANGPDB/AARCH64/DarwinBoot.efi'
     fd=out/'fv/scm-pair.fd';fv_receipt=out/'fv/verification.json';image=out/'boot-scm-pair.img'
@@ -59,6 +67,10 @@ def main():
         core=a.core_build.resolve()/'build/PoolLifetimeCore/RELEASE_CLANGPDB/AARCH64/DxeCore.efi'
         image=out/'boot-rpmh-tail.img'
         if not efi.is_file() or not core.is_file():p.error('missing compiled EFI artifact')
+    if a.smem_map:
+        efi=a.firmware_build.resolve()/'build/DarwinBoot/RELEASE_CLANGPDB/AARCH64/DarwinBoot.efi'
+        image=out/'boot-smem-map.img'
+        if not efi.is_file():p.error('missing compiled SMEM loader')
     receipt={'time_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
              'kernel':identity(kernel),'kernel_verification':identity(a.kernel_receipt.resolve()),
              'baseline':identity(baseline),
@@ -84,6 +96,20 @@ def main():
             steps[3]+['--core',str(core)],
         ]
         receipt.update(profile='rpmh-exit-tail',core=identity(core),gpu_execution=False)
+    if a.smem_map:
+        steps=[
+            ['python3',str(ROOT/'scripts/verify-smem-handoff-firmware.py'),'--build',str(a.firmware_build.resolve()),
+             '--repository',str(ROOT.parent/'upstream-sync/unixnu'),'--uefi',str(ROOT.parent/'uefi'),
+             '--output',str(out/'loader-verification.json')],
+            steps[1],
+            ['python3',str(ROOT/'scripts/make-scm-pair-boot.py'),str(baseline),str(kernel),str(fd),str(image),
+             '--smem-map','--kernel-receipt',str(a.kernel_receipt.resolve())],
+            ['python3',str(ROOT/'scripts/verify-scm-pair-boot.py'),str(image),str(baseline),str(kernel),
+             str(fd),str(efi),str(fv_receipt),str(out/'boot-verification.json'),
+             '--smem-map','--kernel-receipt',str(a.kernel_receipt.resolve())],
+        ]
+        receipt.update(profile='smem-map-handoff',gpu_execution=False,smem_bytes_acquired=False,
+                       smem_access_authorized=False,firmware_execution=False)
     for index,command in enumerate(steps):
         if a.container and index>=len(steps)-2:
             command=['docker','run','--rm','--network','none','--user',

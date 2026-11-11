@@ -48,6 +48,8 @@ def main():
              ROOT / 'scripts/analyze-smem-handoff-log.py', ROOT / 'scripts/stage-smem-handoff-firmware.py',
              ROOT / 'scripts/verify-gpu-kernel.py', ROOT / 'scripts/validate-gpu-offline.py',
              ROOT / 'scripts/verify-smem-map-kernel.py', ROOT / 'scripts/verify-ci-scm-pair.py',
+             ROOT / 'scripts/smem-packaging-evidence.py', ROOT / 'scripts/test-smem-packaging.py',
+             ROOT / 'scripts/build-scm-pair-local.py', ROOT / 'scripts/make-scm-pair-boot.py',
              ROOT / 'scripts/check-kernel-sources.sh', ROOT / '.github/workflows/touch-kernel.yml',
              ROOT / 'xnu/0085-stage-cepheus-soc.sh', ROOT / 'xnu/cepheus_soc.c',
              ROOT / 'xnu/cepheus_smem_map_handoff.h', ROOT / 'xnu/test_smem_map_handoff.c',

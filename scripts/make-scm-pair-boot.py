@@ -17,6 +17,11 @@ import tomllib
 import zlib
 
 import adt
+import importlib.util
+
+spec = importlib.util.spec_from_file_location('smem_package_evidence', Path(__file__).with_name('smem-packaging-evidence.py'))
+smem = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(smem)
 
 BASE_SHA = '1f986169db84c5a7eec8cd1b208f70811a676aa2bb26a8a5e071b510d663c95d'
 FD_SHA = '511323ca7115e5c9f2d78e32d56c632775450738641ad75e189185959a74bcc4'
@@ -26,6 +31,7 @@ MARKERS = (b'CEPHEUS SCM PAIR: UEFI', b'CEPHEUS SCM PAIR: XNU begin',
            b'CEPHEUS SCM PAIR: end', b'cepheus-scm-handoff', b'CEPHEUS SCM %s CPU:')
 TAIL_MARKERS=(b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',
               b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail')
+SMEM_MARKERS = smem.NATIVE.MARKERS
 
 
 def digest(data):
@@ -45,13 +51,15 @@ def boot_parts(data):
     return raw[:128],raw[128:],stream.unused_data,data[end:end+r]
 
 
-def add_slot(data,rpmh_tail=False):
-    property_name='cepheus-rpmh-tail' if rpmh_tail else PROPERTY
-    slot_bytes=1128 if rpmh_tail else SLOT_BYTES
+def add_slot(data,rpmh_tail=False,smem_map=False):
+    if smem_map:
+        smem.require(__debug__ and not rpmh_tail, 'SMEM requires isolated, nonoptimized packaging')
+    property_name='cepheus-smem-map' if smem_map else ('cepheus-rpmh-tail' if rpmh_tail else PROPERTY)
+    slot_bytes=4576 if smem_map else (1128 if rpmh_tail else SLOT_BYTES)
     tree,end=adt.parse(data)
     assert end==len(data) and adt.serialize(tree)==data
     def scan(node):
-        assert not any(n in (PROPERTY,'cepheus-rpmh-tail','cepheus-rpmh-snapshot') for n,_,_ in node.props)
+        assert not any(n in (PROPERTY,'cepheus-rpmh-tail','cepheus-rpmh-snapshot','cepheus-smem-map') for n,_,_ in node.props)
         for child in node.children:scan(child)
     scan(tree)
     chosen=[child for child in tree.children if child.name=='chosen']
@@ -60,12 +68,14 @@ def add_slot(data,rpmh_tail=False):
     return adt.serialize(tree)
 
 
-def paired_config(data,rpmh_tail=False):
+def paired_config(data,rpmh_tail=False,smem_map=False):
+    if smem_map:
+        smem.require(__debug__ and not rpmh_tail, 'SMEM requires isolated, nonoptimized packaging')
     text=data.decode();config=tomllib.loads(text)
     assert len(config['entry'])==1
     tokens=config['entry'][0]['args'].split()
     assert [t for t in tokens if t.startswith('ceph')]==['cephzapmem=1']
-    tokens[tokens.index('cephzapmem=1')]='cephrpmhtail=1' if rpmh_tail else 'cephscmpair=1'
+    tokens[tokens.index('cephzapmem=1')]='cephsmemmap=1' if smem_map else ('cephrpmhtail=1' if rpmh_tail else 'cephscmpair=1')
     line=' '.join(tokens)
     assert len(line)<1000
     for token in ('sweetusb=2','sweettouch=1','sweettouchgpio=1','sweettouchpower=1',
@@ -86,17 +96,23 @@ def fat_files(data,root):
     return image,{str(p.relative_to(root/'EFI')):p.read_bytes() for p in (root/'EFI').rglob('*') if p.is_file()}
 
 
-def package(source,kernel,fd,output,rpmh_tail=False):
+def package(source,kernel,fd,output,rpmh_tail=False,smem_map=False,kernel_receipt=None):
+    if smem_map:
+        smem.require(not rpmh_tail, 'mixed diagnostic modes')
+        smem.validate(kernel,kernel_receipt)
+        smem.require(not output.exists() and not output.with_suffix('.packaging.json').exists(), 'preserve prior package')
+    elif kernel_receipt is not None:
+        raise ValueError('kernel receipt option requires SMEM mode')
     assert not output.exists()
     before=source.read_bytes();assert digest(before)==BASE_SHA
     shim,oldfd,dtb,fat=boot_parts(before);assert digest(oldfd)==FD_SHA
     newfd=fd.read_bytes();assert len(newfd)==len(oldfd)
     kdata=kernel.read_bytes();assert kdata[:4]==bytes.fromhex('cffaedfe') and len(kdata)>2000000
-    assert all(m in kdata for m in (TAIL_MARKERS if rpmh_tail else MARKERS))
+    assert all(m in kdata for m in (SMEM_MARKERS if smem_map else (TAIL_MARKERS if rpmh_tail else MARKERS)))
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp);image,original=fat_files(fat,root/'old')
-        updates={'UniXNU/unixnu.toml':paired_config(original['UniXNU/unixnu.toml'],rpmh_tail),
-                 'UniXNU/Payloads/kernel.macho.adt':add_slot(original['UniXNU/Payloads/kernel.macho.adt'],rpmh_tail),
+        updates={'UniXNU/unixnu.toml':paired_config(original['UniXNU/unixnu.toml'],rpmh_tail,smem_map),
+                 'UniXNU/Payloads/kernel.macho.adt':add_slot(original['UniXNU/Payloads/kernel.macho.adt'],rpmh_tail,smem_map),
                  'UniXNU/Payloads/kernel.macho':kdata}
         for index,(name,data) in enumerate(updates.items()):
             file=root/str(index);file.write_bytes(data)
@@ -118,6 +134,9 @@ def package(source,kernel,fd,output,rpmh_tail=False):
         'shim_and_dtb_unchanged':True,'other_fat_files_unchanged':True,
         'phone_operations':False,'gpu_execution':False}
     if rpmh_tail:report.update(profile='rpmh-exit-tail',zero_handoff_bytes=1128)
+    if smem_map:report.update(profile='smem-map-handoff',zero_handoff_bytes=4576,
+        kernel_receipt_sha256=digest(Path(kernel_receipt).read_bytes()),smem_bytes_acquired=False,
+        smem_access_authorized=False,firmware_execution=False)
     output.with_suffix('.packaging.json').write_text(json.dumps(report,indent=2)+'\n')
     return report
 
@@ -126,5 +145,7 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('source','kernel','fd','output'):parser.add_argument(name,type=Path)
     parser.add_argument('--rpmh-tail',action='store_true')
+    parser.add_argument('--smem-map',action='store_true')
+    parser.add_argument('--kernel-receipt',type=Path)
     a=parser.parse_args()
-    print(json.dumps(package(a.source,a.kernel,a.fd,a.output,a.rpmh_tail),indent=2))
+    print(json.dumps(package(a.source,a.kernel,a.fd,a.output,a.rpmh_tail,a.smem_map,a.kernel_receipt),indent=2))

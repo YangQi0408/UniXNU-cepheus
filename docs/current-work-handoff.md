@@ -1,5 +1,24 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 03:30 +08:00：same-boot SMEM离线封装路径准备完成，尚无真实
+新核candidate。现有make/verify/local增加隔离SMEM profile/zero4576槽、
+严格exact kernel receipt+全部production source hashes+独立native复验，
+无marker-only bypass；legacy断言parser在新profile下显式拒绝-O。
+本地FV重建baseline逐字节复现；仅197files中DarwinBoot改变，FD3145728B
+SHA a6716e30a94d0768be69079d51abdc9a59155a1c954c914a7d35b7287cc7fa8a，
+内嵌EFI与已验收v2完全一致，无DxeCore改变。container network-none
+smem fixture/旧pair/旧tail回归三项PASS，receipt
+out/smem-packaging-final-20261112-v1/receipt.json SHA
+d2b43b8d7424b151f0d0aa3d0f83ea6ce4055ba14f039a2498212d659ce7fdd2；
+其中synthetic kernel/native admission/local runner替身明确非候选验收。
+最新focused15checks PASS receipt out/smem-kernel-prereq-20261112-v2/receipt.json
+SHA 82fe54e945094018084daa49c60dd06096e3ce0e8b32b87eedcdcbd54d5688b5。
+CI43084634614已terminal failure：macOS fixture缺dyld_stub_binder，未开始XNU。
+test-only修复commit2be27a4已push，替换任务43085831185@2be27a4当前仍
+toolchain回归in_progress；不重复dispatch。下一同run terminal/download/
+独立验收，再本地real-kernel封装。无phone/boot/SMC/GPU操作，PAS13=false、
+CP halted、owner/secure PA/crypto/auth仍缺，GPU/Metal未执行，目标active。
+
 2026-11-12 03:08 +08:00：准备唯一changed XNU link。新增严格receiver/
 outlined helper/direct tail transfer验收，实际soc_smem_map noinline；15拒绝
 case及实际receiver ARM64 linked fixture普通/-O PASS，fixture非XNU验收。
