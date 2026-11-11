@@ -89,7 +89,8 @@ int cepheus_gpu_cp_execution_admit(const struct ceph_cp_execution_admission_owne
     ceph_cp_execution_admission.admitted=1;*out=ceph_cp_execution_admission.record;e=0;
 finish:
     if(held)__atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);
-    ceph_cp_execution_admission.owner.finish(ceph_cp_execution_admission.owner.ctx,1);
+    ceph_cp_execution_admission.owner.finish(ceph_cp_execution_admission.owner.ctx,
+        &ceph_cp_execution_admission.record,1);
     ceph_cp_execution_admission.finished=1;
     if(e)ceph_cp_execution_admission.failed=1;
 done:

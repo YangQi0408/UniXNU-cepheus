@@ -8,6 +8,7 @@
 static int ceph_scm_info_lock,ceph_gpll0_lock,scm_context;
 static int gx_live_fail,cp_live_fail,ring_live_fail,zap_auth_fail;
 static unsigned validates,finishes,finish_keep;
+static struct ceph_cp_execution_admission finish_record;
 static uint64_t zap_handle;
 
 static struct {
@@ -42,10 +43,14 @@ static int owner_validate(void *ctx)
     assert(ctx==(void *)&ceph_gx_smmu_native && ceph_gpll0_lock);
     ++validates;assert(validates);return 0;
 }
-static void owner_finish(void *ctx,int keep)
+static void owner_finish(void *ctx,const struct ceph_cp_execution_admission *record,int keep)
 {
-    assert(ctx==(void *)&ceph_gx_smmu_native);
-    ++finishes;finish_keep=(unsigned)keep;
+    assert(ctx==(void *)&ceph_gx_smmu_native && record);
+    assert(record->version==0 || record->version==CE_CP_EXECUTION_ADMISSION_VERSION);
+    assert(record->version!=CE_CP_EXECUTION_ADMISSION_VERSION ||
+        (record->ring_writes==7 && record->zap_epoch && record->admission_token &&
+         record->rpmh_token));
+    ++finishes;finish_keep=(unsigned)keep;finish_record=*record;
 }
 
 static void setup(void)
@@ -57,7 +62,7 @@ static void setup(void)
     memset(&ceph_cp_execution_admission,0,sizeof(ceph_cp_execution_admission));
     ceph_scm_info_lock=ceph_gpll0_lock=scm_context=0;
     gx_live_fail=cp_live_fail=ring_live_fail=zap_auth_fail=0;
-    validates=finishes=finish_keep=0;
+    validates=finishes=finish_keep=0;memset(&finish_record,0,sizeof(finish_record));
 
     struct ceph_smmu_geometry g;
     assert(!ceph_smmu_geometry((1u<<30)|(1u<<27)|(11u<<9)|16,(2u<<28)|8,0x1222,0x10000,&g));
@@ -115,6 +120,9 @@ int main(void)
     assert(ceph_cp_execution_admission.attempted && ceph_cp_execution_admission.admitted &&
         ceph_cp_execution_admission.finished && !ceph_cp_execution_admission.failed &&
         finishes==1 && finish_keep==1 && !ceph_gpll0_lock && !ceph_scm_info_lock);
+    assert(finish_record.version==CE_CP_EXECUTION_ADMISSION_VERSION &&
+        finish_record.ring_writes==7 && finish_record.zap_epoch==ceph_zap_native.epoch &&
+        finish_record.admission_token==token && finish_record.rpmh_token==1);
     assert(!cepheus_gpu_cp_execution_check(token,&record));
     assert(cepheus_gpu_cp_execution_check(token+1,&record)<0 && !ceph_cp_execution_admission.failed);
     assert(!cepheus_gpu_cp_execution_check(token,&record));
@@ -143,13 +151,20 @@ int main(void)
     reset_admission();ceph_gpll0_lock=1;
     assert(cepheus_gpu_cp_execution_admit(&owner,ceph_zap_native.epoch,&record)<0 &&
         ceph_cp_execution_admission.attempted && ceph_cp_execution_admission.failed &&
-        finishes==1 && ceph_gpll0_lock);
+        finishes==1 && ceph_gpll0_lock && finish_record.version==0);
     ceph_gpll0_lock=0;assert(cepheus_gpu_cp_execution_admit(&owner,ceph_zap_native.epoch,&record)<0 &&
         finishes==1);
 
     reset_admission();scm_context=1;
     assert(cepheus_gpu_cp_execution_admit(&owner,ceph_zap_native.epoch,&record)<0 &&
         !ceph_cp_execution_admission.attempted);
+    scm_context=0;
+
+    reset_admission();zap_auth_fail=1;
+    assert(cepheus_gpu_cp_execution_admit(&owner,ceph_zap_native.epoch,&record)<0 &&
+        finishes==1 && finish_keep==1 && finish_record.version==0);
+    assert(ceph_cp_execution_admission.failed && !ceph_cp_execution_admission.admitted);
+    zap_auth_fail=0;
 
     puts("CP execution admission native wrapper: lock order, one attempt, output aliases, owner retention and sticky identity/live/ZAP failure PASS");
 }

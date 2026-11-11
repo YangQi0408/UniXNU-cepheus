@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 14:40：ACTIVE sender固定槽租约批次已提交为`c190a09`，离线验收完成，
+等待唯一替代完整链接。最终ARC/BCM focused receipt `/tmp/active-lease-local-v4/
+receipt.json` SHA`f8cf24cf...`，绑定修复后的macOS测试源码。`c190a09`首次完整CI
+42971631606在macOS host失败：`test_arc_active.c`在private完整类型定义前声明
+lease对象；移到include后后ARC/BCM复验全PASS，失败run无kernel，不追认。CP
+admission finish快照的最终focused receipt `/tmp/cp-admission-finish-local-v2/
+receipt.json` SHA`3a056ad4...`，130源文件/164步全PASS；full preflight
+`/tmp/gpll0-admission-finish-preflight-v1/receipt.json` SHA`0beab894...`，
+四步全PASS且382源hash仍匹配。该批尚无包含它的完整XNU kernel。
+
 2026-11-11 14:19：ACTIVE sender固定槽租约批次离线完成，等待提交/完整链接。
 新增sender-owned只读lease快照（槽位、完整命令、WAIT/enable/control、命令状态、
 IRQ before/masked/final、attempted stores、CLEAN/UNCERTAIN）及ARC/BCM finish

@@ -8,10 +8,15 @@
 #include "cepheus_gx_smmu_plan.h"
 #include "cepheus_zap_memory_private.h"
 
+struct ceph_cp_execution_admission;
 struct ceph_cp_execution_admission_owner {
     void *ctx;
     int (*validate)(void *); /* genuine GX/TBU/CP/CPU-device writer lease */
-    void (*finish)(void *,int keep); /* retained; must not recurse into GPLL0 */
+    /* Once after the one admission attempt, under SCM/GPLL0 serialization. The
+     * record is a read-only copy owned by the admission boundary and must be
+     * checked against the owner's own ring/CP/SMMU/ZAP ledger. keep=1 means
+     * every attempted admission retains its external owner resources. */
+    void (*finish)(void *,const struct ceph_cp_execution_admission *,int keep);
 };
 
 #define CE_CP_EXECUTION_ADMISSION_VERSION 1u

@@ -35,6 +35,34 @@ valid admission. External owner resources are retained on every attempted
 path, including lock-busy and validation failure. Output is written only after
 the final live validation; refusal leaves caller output unchanged.
 
+The owner `finish` callback receives the sender-owned admission record read-only
+while SCM/GPLL0 serialization is still held. On a successful admission this is
+the exact seven-write ring, CP publication, GX SMMU plan, ZAP epoch/claim and
+RPMh token identity that was admitted. On a refusal the record may remain
+empty; `keep=1` still means the external owner resources are retained. The
+callback must verify the snapshot against its own ledger rather than treating a
+nonzero pointer as ownership proof.
+
+The final focused receipt is
+`/tmp/cp-admission-finish-local-v2/receipt.json`, SHA256
+`3a056ad4359c18a4b96c832ce3157773dda01e12bc05f1eb8e4873b8b4cc2791`.
+It binds 130 source files at `c190a09`; host, ASan/UBSan, actual AArch64
+codegen, staged codegen, real-firmware chains and static analysis all passed,
+with `phone_operations=false` and no GPU execution. The full preflight is
+`/tmp/gpll0-admission-finish-preflight-v1/receipt.json`, SHA256
+`0beab8945233b91ccadb7959e49ee833639a71ab4a32a5700413bb9324223ce9`;
+all four steps passed and its 382 `xnu/`/`scripts/` source hashes still match.
+The ARC/BCM final focused receipt is
+`/tmp/active-lease-local-v4/receipt.json`, SHA256
+`f8cf24cf5ef8604305f6ab03353b0f9c232e6cc550fa7e59ed384a1b74d468ea`.
+
+The first complete CI for `c190a09` was CI42971631606 and failed in the macOS
+host job because `test_arc_active.c` declared the lease snapshot before its
+private full type definition. The declaration was moved after the private
+header include; the final focused ARC/BCM receipt above covers the repaired
+test source. That failed run produced no accepted kernel artifact and is not
+presented as evidence for this batch.
+
 ## Local Evidence
 
 The identity test covers exact ring/CP/SMMU/ZAP epoch matching, handle and
@@ -81,8 +109,15 @@ This batch is committed/pushed as
 `f9447238ca206537a6e263da15694cd8d663a975`. Its single complete-kernel build
 CI42964201439 passed steps1..8 but failed during `0087` staging because the
 workflow copy manifest omitted both admission headers. No kernel artifact was
-produced. The manifest and a staging-copy regression are fixed locally; the
-replacement build is not artifact acceptance until it completes.
+produced. Commit `db33eff11c8acf11b00008e32e36e1d87a0bf8a1` fixed the copy
+manifest and added the staged-source regression. Replacement CI42967566527
+completed SUCCESS and its artifact passed independent verification: kernel
+17580568 bytes, SHA256
+`ee325d473d1a2c7418f0b722b32d67ef646d89b44571a78eddb73d5387cc8235`;
+archived-source staging plus `verify-gpu-kernel.py` reports 115 core entrypoints,
+49 memory/firmware APIs and zero unresolved symbols. Both CP admission symbols
+are linked. This accepts `db33eff`, not the later fixed-slot ACTIVE lease batch
+at `c190a09`.
 
 Real owner/inherited resource ledger, both TBUs, secure PA/crypto and PAS13
 remain unresolved. PAS13=false/supported=false still refuses startup. Admission

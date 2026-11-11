@@ -39,7 +39,6 @@ static char mutable_name[9];
 static bool rh_poisoned;
 static int context,complete,corrupt_payload,triggered,revoked,busy_after_mask;
 static unsigned elapsed,slot;
-static struct ceph_rpmh_active_lease finished_lease;
 static int ml_get_interrupts_enabled(void){return context!=1;}
 static int ml_at_interrupt_context(void){return context==2;}
 static int get_preemption_level(void){return context==3;}
@@ -88,6 +87,7 @@ static void delay(unsigned us)
     }
 }
 #include "cepheus_arc_active_private.h"
+static struct ceph_rpmh_active_lease finished_lease;
 static struct ceph_arc_active_owner owner;
 static void revoke(void)
 {

@@ -37,7 +37,6 @@ static uint32_t rh_db_size=1024;
 static unsigned rh_ncpt=16,rh_lock,reads,writes,checks,expire,fail_write;
 static unsigned finished,kept,effects,elapsed,slot,model_stores;
 static unsigned context,complete,corruption,late_bcm,triggered,current_bad,mutate_input,busy_after_mask,fail_irq_readback;
-static struct ceph_rpmh_active_lease finished_lease;
 static unsigned written_offsets[64],written_values[64];
 static bool rh_poisoned;
 static int ml_get_interrupts_enabled(void){return context!=1;}
@@ -90,6 +89,7 @@ static void delay(unsigned us)
 }
 #include "cepheus_arc_active_private.h"
 #include "cepheus_bcm_active_private.h"
+static struct ceph_rpmh_active_lease finished_lease;
 static struct ceph_bcm_active_owner owner;
 static struct ceph_bcm_active_vote votes[6];
 static void check_aperture(void)
