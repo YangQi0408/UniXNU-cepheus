@@ -18,6 +18,8 @@ FIRMWARE = Path('/home/yangqi/android/vendor/xiaomi/cepheus/proprietary/vendor/f
 SOURCES = (
     'xnu/cepheus_gpu_memory.cpp',
     'xnu/cepheus_zap_memory_private.h',
+    'xnu/cepheus_zap_resource_evidence.h',
+    'xnu/test_zap_resource_evidence.c',
     'tests/test_zap_pas.cpp',
     'tests/test_zap_memory.cpp',
     'scripts/verify-gpu-kernel.py',

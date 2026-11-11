@@ -9,6 +9,11 @@
 #define CE_OWNER_EXPECTATION_MAGIC UINT64_C(0x3150584f4e574e4f)
 #define CE_OWNER_EVIDENCE_VERSION 1u
 #define CE_OWNER_TBU_COUNT 2u
+#define CE_OWNER_TBU_EVIDENCE_BYTES 56u
+#define CE_OWNER_RPMH_EVIDENCE_BYTES 56u
+#define CE_OWNER_EVIDENCE_BYTES 288u
+#define CE_OWNER_EXPECTATION_BYTES 96u
+#define CE_OWNER_GATE_BYTES 304u
 
 #define CE_OWNER_TBU0_BASE UINT64_C(0x2cc5000)
 #define CE_OWNER_TBU1_BASE UINT64_C(0x2cc9000)
@@ -81,10 +86,10 @@ struct ceph_owner_evidence_expectation {
     uint64_t rpmh_ledger_id, rpmh_request_count, rpmh_checksum;
 };
 struct ceph_owner_evidence_gate {
-    _Alignas(8) uint32_t version;
+    uint32_t version;
     uint32_t state, retained, reserved;
     struct ceph_owner_evidence_snapshot accepted;
-};
+} __attribute__((aligned(8)));
 
 static inline uint64_t ceph_owner_evidence_mix(uint64_t sum,uint64_t value)
 {
@@ -139,7 +144,12 @@ static inline int ceph_owner_evidence_tbu_valid(const struct ceph_owner_tbu_evid
 static inline int ceph_owner_evidence_matches(const struct ceph_owner_evidence_snapshot *s,
     const struct ceph_owner_evidence_expectation *e)
 {
-    if(!s || !e || e->magic!=CE_OWNER_EXPECTATION_MAGIC || e->version!=CE_OWNER_EVIDENCE_VERSION ||
+    if(sizeof(struct ceph_owner_tbu_evidence)!=CE_OWNER_TBU_EVIDENCE_BYTES ||
+        sizeof(struct ceph_owner_rpmh_evidence)!=CE_OWNER_RPMH_EVIDENCE_BYTES ||
+        sizeof(struct ceph_owner_evidence_snapshot)!=CE_OWNER_EVIDENCE_BYTES ||
+        sizeof(struct ceph_owner_evidence_expectation)!=CE_OWNER_EXPECTATION_BYTES ||
+        sizeof(struct ceph_owner_evidence_gate)!=CE_OWNER_GATE_BYTES ||
+        !s || !e || e->magic!=CE_OWNER_EXPECTATION_MAGIC || e->version!=CE_OWNER_EVIDENCE_VERSION ||
         e->bytes!=sizeof(*e) || e->owner_domain!=CE_OD_XNU || e->writer_mask!=CE_OW_ALL ||
         !e->owner_id || !e->lease_id || !e->resource_epoch || !e->max_age_ticks ||
         !e->ack_count || (e->rpmh_source!=CE_ORS_INHERITED_UEFI &&
@@ -184,7 +194,8 @@ static inline int ceph_owner_evidence_admit(struct ceph_owner_evidence_gate *gat
     const struct ceph_owner_evidence_expectation *expected,
     struct ceph_owner_evidence_snapshot *out)
 {
-    if(!gate || !snapshot || !expected || !out || ((uintptr_t)gate&7u) ||
+    if(sizeof(struct ceph_owner_evidence_gate)!=CE_OWNER_GATE_BYTES ||
+        !gate || !snapshot || !expected || !out || ((uintptr_t)gate&7u) ||
         ((uintptr_t)snapshot&7u) || ((uintptr_t)expected&7u) || ((uintptr_t)out&7u))return -1;
     const void *bases[]={gate,snapshot,expected,out};
     const size_t bytes[]={sizeof(*gate),sizeof(*snapshot),sizeof(*expected),sizeof(*out)};

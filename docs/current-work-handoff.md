@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11：PAS secure resource evidence 合同离线完成。新增
+`xnu/cepheus_zap_resource_evidence.h` 与 focused test，把 secure PA/XPU/cache、
+crypto route/BCM/ledger/ACK、owner gate/epoch 和年龄窗口绑定；PAS start/lease
+已接入，并修复 transport epoch 与 owner resource epoch 的错误混用。真实
+`a640_zap.elf` 的 0..27 host transport modes 全PASS，其中 24..27 覆盖
+crypto ledger、PA 重叠、owner 混源和自封记录，均在 expose 前失败；纯合同
+ASan/UBSan PASS。该记录只验证格式和交叉绑定，不是真实 owner、PAS 认证或
+GPU 执行授权。当前源码尚未提交/完整 CI；手机仍未被 USB 工具枚举，保持
+PAS13=false/supported=false/CP halted，无 phone/SMC/PAS/GPU 操作。
+
 2026-11-11 17:30 离线收紧RPMh尾诊断设备入口。`run-rpmh-tail-device.py`现除
 唯一cepheus设备、精确镜像哈希和仅`fastboot boot`外，还会在分析前验证
 `capture.json`/`packets.jsonl`/`boot.log`三者一致：UDP正常跑满请求时长、

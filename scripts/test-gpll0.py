@@ -87,7 +87,8 @@ def main():
               'scripts/test-cp-ring-native-pool.sh')
     names += ('xnu/cepheus_cp_execution_admission.h','xnu/cepheus_cp_execution_admission_private.h',
               'tests/test_cp_execution_admission.c','tests/test_cp_execution_admission_native.c')
-    names += ('xnu/cepheus_owner_evidence.h','xnu/test_owner_evidence.c')
+    names += ('xnu/cepheus_owner_evidence.h','xnu/test_owner_evidence.c',
+              'xnu/cepheus_zap_resource_evidence.h','xnu/test_zap_resource_evidence.c')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -240,6 +241,10 @@ def main():
         run(name+'-owner-evidence-compile',[compiler,*common,*flags,
             str(ROOT/'xnu/test_owner_evidence.c'),'-o',str(exe)])
         run(name+'-owner-evidence-run',[str(exe)],env)
+        exe=out/(name+'-zap-resource-evidence')
+        run(name+'-zap-resource-evidence-compile',[compiler,*common,*flags,
+            str(ROOT/'xnu/test_zap_resource_evidence.c'),'-o',str(exe)])
+        run(name+'-zap-resource-evidence-run',[str(exe)],env)
         exe=out/(name+'-hfi-link-access')
         run(name+'-hfi-link-access-compile',[compiler,*common,*flags,
             str(ROOT/'tests/test_hfi_link_access.c'),str(ROOT/'xnu/cepheus_gmu_hfi_link.c'),'-o',str(exe)])
@@ -331,6 +336,8 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
         str(ROOT/'tests/test_cp_execution_admission_native.c'),'-o',os.devnull])
     run('owner-evidence-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
         str(ROOT/'xnu/test_owner_evidence.c'),'-o',os.devnull])
+    run('zap-resource-evidence-host-analysis',['clang',*common,'--analyze','-Xanalyzer','-analyzer-output=text',
+        str(ROOT/'xnu/test_zap_resource_evidence.c'),'-o',os.devnull])
     # Stage exactly as the existing local/CI copy manifests do, then compile
     # only from that tree. This catches missing transitive header copies.
     module_spec = importlib.util.spec_from_file_location('verification', ROOT/'scripts/verify-gpu-kernel.py')

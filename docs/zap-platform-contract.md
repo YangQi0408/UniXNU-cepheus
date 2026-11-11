@@ -1,5 +1,24 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-11：secure resource evidence 合同已接入，仍未取得资源所有权
+
+新增 `cepheus_zap_resource_evidence.h`。它把 PAS 准入所需的 secure PA/XPU/
+cache、crypto route/BCM/ledger/ACK 与冻结 owner evidence 绑定成一份可复制、
+自校验的记录。`cepheus_zap_pas_start` 在 expose 前要求该记录通过 owner gate、
+PA 对齐/不重叠、4K 或 16K XPU granule、CPU/secure cache 属性、crypto master
+23/slave 0、六项 BCM、IB/AB、ledger/ACK 和年龄窗口；自封记录、混源、
+REFUSED/UNCERTAIN owner、输出 alias 和过期证据均失败关闭。
+
+PAS transport epoch 与 owner `resource_epoch` 是两个独立域。transport lease
+继续使用 PAS epoch，resource evidence 必须绑定冻结 owner 的 resource epoch；
+不得要求两者数值相等。可能 expose 后的失败仍永久 KEEP，expose 前失败走
+CPU_ABORT。foreign/stale/uncertain/simulated 证据进入永久 uncertainty retention。
+
+这条合同只证明“记录满足格式和交叉绑定要求”，不证明记录内容来自真实
+owner、XPU、cache 或 crypto 后端，也不产生 BCM vote、ACK、TBU ownership、
+PAS 认证或 GPU 执行权限。`PAS13=false`、`supported=false`、CP halt 保持不变。
+真实 owner、继承 ACK/ledger、双 TBU、secure PA/crypto 后端与认证 PAS 仍未解决。
+
 ## 2026-11-11：authenticated allocator binding，仍无运行态准入
 
 `ceph_zap_memory_authenticated` is an allocator-record check, not an owner or

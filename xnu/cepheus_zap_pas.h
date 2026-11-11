@@ -6,17 +6,22 @@
 #define CEPHEUS_ZAP_PAS_H
 #include "cepheus_scm_discovery.h"
 #include "cepheus_zap_memory_private.h"
+#include "cepheus_zap_resource_evidence.h"
 enum ceph_zap_pas_phase {CE_ZP_NEW,CE_ZP_MEMORY,CE_ZP_OWNED,CE_ZP_INIT,CE_ZP_MEM,
     CE_ZP_IMAGE,CE_ZP_AUTH,CE_ZP_LIVE,CE_ZP_STOP,CE_ZP_STOPPED,CE_ZP_REFUSED,CE_ZP_RETAINED};
 enum ceph_zap_pas_command {CE_ZP_CMD_INIT=1,CE_ZP_CMD_MEM=2,CE_ZP_CMD_AUTH=5,CE_ZP_CMD_STOP=6};
 struct ceph_zap_pas_resources {
     void *ctx;
-    /* Acquire exclusive PAS13/GPU epoch and crypto bandwidth/clocks; validate
-     * secure PA reachability, XPU granules and CPU/secure cache attributes for
-     * this exact pair. Failure must resolve partial ownership itself. No
-     * inherited-vote zero assumption or "ready" flag is an implementation. */
-    int (*acquire)(void *,const struct ceph_zap_claim *,uint64_t *epoch);
-    int (*lease)(void *,const struct ceph_zap_claim *,uint64_t epoch);
+    /* Acquire exclusive PAS13/GPU epoch and crypto bandwidth/clocks. The
+     * accepted owner-evidence gate and its immutable snapshot are mandatory;
+     * acquire must return a complete secure-PA/XPU/cache and crypto-route
+     * record for this exact claim. Failure resolves partial ownership itself.
+     * No inherited-vote zero assumption or "ready" flag is an implementation. */
+    int (*acquire)(void *,const struct ceph_zap_claim *,
+        const struct ceph_owner_evidence_gate *,const struct ceph_owner_evidence_snapshot *,
+        uint64_t now_ticks,struct ceph_zap_resource_evidence *,uint64_t *epoch);
+    int (*lease)(void *,const struct ceph_zap_claim *,uint64_t epoch,
+        const struct ceph_zap_resource_evidence *);
     /* Stop/drain every GPU user bound to this epoch before PAS shutdown.
      * An idle-status bit or fence completion alone is insufficient. */
     int (*quiesce)(void *,uint64_t epoch);
@@ -34,6 +39,10 @@ struct ceph_zap_pas {
     int error,memory_error;
     unsigned calls,exposed,owned;
     uint64_t epoch,transport,secure;
+    struct ceph_owner_evidence_gate resource_owner_gate;
+    struct ceph_owner_evidence_snapshot resource_owner;
+    struct ceph_zap_resource_gate resource_gate;
+    struct ceph_zap_resource_evidence resource_evidence;
     struct ceph_zap_claim claim;
     struct ceph_zap_pas_resources resources;
 };
@@ -60,7 +69,16 @@ static inline int ceph_zap_pas_regs(enum ceph_scm_convention c,enum ceph_zap_pas
     return 0;
 }
 static inline int ceph_zap_pas_lease(struct ceph_zap_pas *s)
-{return s->resources.lease(s->resources.ctx,&s->claim,s->epoch);}
+{
+    return s->resource_gate.state!=CE_ZRG_ACCEPTED || s->resource_gate.retained!=1 ||
+        s->resource_gate.reserved ||
+        !ceph_zap_resource_same(&s->resource_gate.accepted,&s->resource_evidence) ||
+        s->resource_evidence.memory.handle!=s->claim.handle ||
+        s->resource_evidence.memory.mdt_pa!=s->claim.memory.mdt_pa ||
+        s->resource_evidence.memory.image_pa!=s->claim.memory.image_pa ||
+        s->resource_evidence.crypto.resource_epoch!=s->resource_owner.resource_epoch ||
+        s->resources.lease(s->resources.ctx,&s->claim,s->epoch,&s->resource_evidence);
+}
 static inline int ceph_zap_pas_call(struct ceph_zap_pas *s,struct ceph_zap_pas_transport *t,
     enum ceph_zap_pas_command cmd)
 {
@@ -88,10 +106,14 @@ static inline int ceph_zap_pas_fail(struct ceph_zap_pas *s,int error)
 }
 static inline int ceph_zap_pas_start(struct ceph_zap_pas *s,uint64_t snapshot,
     const struct ceph_scm_discovery *d,const struct ceph_zap_pas_resources *r,
+    const struct ceph_owner_evidence_gate *owner_gate,
+    const struct ceph_owner_evidence_snapshot *owner,
+    const struct ceph_zap_resource_expectation *expected,uint64_t now_ticks,
     struct ceph_zap_pas_transport *t)
 {
     if(!s || s->phase!=CE_ZP_NEW || s->claim.handle || s->calls || s->owned || s->exposed ||
-        !d || !r || !r->acquire || !r->lease || !r->quiesce || !r->release || !t || !t->invoke)return -1;
+        !d || !r || !r->acquire || !r->lease || !r->quiesce || !r->release || !owner_gate ||
+        !owner || !expected || !now_ticks || !t || !t->invoke)return -1;
     /* Admission is cached production discovery, not an additional phone test. */
     if(!d->terminal || d->error || d->supported!=1 || d->available_mask!=0x1f ||
         (d->convention!=CE_SCM_ARMV8_64 && d->convention!=CE_SCM_ARMV8_32))
@@ -102,10 +124,17 @@ static inline int ceph_zap_pas_start(struct ceph_zap_pas *s,uint64_t snapshot,
     struct ceph_scm_regs check;
     if(ceph_zap_pas_regs(s->convention,CE_ZP_CMD_INIT,&s->claim.memory,&check))return ceph_zap_pas_fail(s,-1);
     s->phase=CE_ZP_OWNED;
-    e=r->acquire(r->ctx,&s->claim,&s->epoch);
+    struct ceph_zap_resource_evidence acquired={};
+    e=r->acquire(r->ctx,&s->claim,owner_gate,owner,now_ticks,&acquired,&s->epoch);
     if(e)return ceph_zap_pas_fail(s,e);
     s->owned=1;
-    if(!s->epoch || ceph_zap_pas_lease(s))return ceph_zap_pas_fail(s,-1);
+    if(!s->epoch || acquired.crypto.resource_epoch!=owner->resource_epoch)
+        return ceph_zap_pas_fail(s,-1);
+    s->resource_owner_gate=*owner_gate;s->resource_owner=*owner;
+    if(ceph_zap_resource_admit(&s->resource_gate,&s->claim,&acquired,&s->resource_owner_gate,
+        &s->resource_owner,expected,now_ticks,&s->resource_evidence))
+        return ceph_zap_pas_fail(s,-1);
+    if(ceph_zap_pas_lease(s))return ceph_zap_pas_fail(s,-1);
     if(ceph_zap_memory_expose(s->claim.handle))return ceph_zap_pas_fail(s,-1);
     s->exposed=1;s->phase=CE_ZP_INIT;
     if(ceph_zap_pas_call(s,t,CE_ZP_CMD_INIT))return ceph_zap_pas_fail(s,-1);
@@ -135,7 +164,9 @@ static inline int ceph_zap_pas_stop(struct ceph_zap_pas *s,struct ceph_zap_pas_t
 #if defined(KERNEL)
 /* Serialized native one-shot entrypoints, no startup hook. Resource methods
  * must be real platform owners; no default implementation is installed. */
-int cepheus_gpu_zap_load(uint64_t,const struct ceph_zap_pas_resources *,uint64_t *);
+int cepheus_gpu_zap_load(uint64_t,const struct ceph_zap_pas_resources *,
+    const struct ceph_owner_evidence_gate *,const struct ceph_owner_evidence_snapshot *,
+    const struct ceph_zap_resource_expectation *,uint64_t,uint64_t *);
 int cepheus_gpu_zap_stop(uint64_t);
 int cepheus_gpu_zap_status(uint64_t,enum ceph_zap_pas_phase *);
 /* Private admission snapshot: requires exact LIVE epoch and copied claim. */

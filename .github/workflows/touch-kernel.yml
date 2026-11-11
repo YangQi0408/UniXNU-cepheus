@@ -48,7 +48,7 @@ jobs:
           cp cepheus/xnu/cepheus_bcm.h dxb/patches/
           for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c cepheus_gpu_compile.h \
             cepheus_gpu_memory_state.h cepheus_zap_image.h cepheus_zap_memory.h cepheus_zap_cache.h \
-            cepheus_zap_pas.h cepheus_zap_memory_private.h \
+            cepheus_zap_pas.h cepheus_zap_memory_private.h cepheus_zap_resource_evidence.h \
             cepheus_scm_handoff.h \
             cepheus_gmu_upload_mmio.h \
             cepheus_gpu_power_mmio.h cepheus_gpu_power_native.h cepheus_gpu_power_native_private.h \

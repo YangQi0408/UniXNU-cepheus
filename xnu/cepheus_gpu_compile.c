@@ -124,13 +124,17 @@ int cepheus_gpu_scm_probe_once(struct ceph_scm_discovery *out)
     return e;
 }
 /* Native PAS entrypoints. Kept outside the opt-in INFO startup path. */
-int cepheus_gpu_zap_load(uint64_t snapshot,const struct ceph_zap_pas_resources *resources,uint64_t *epoch)
+int cepheus_gpu_zap_load(uint64_t snapshot,const struct ceph_zap_pas_resources *resources,
+    const struct ceph_owner_evidence_gate *owner_gate,
+    const struct ceph_owner_evidence_snapshot *owner,
+    const struct ceph_zap_resource_expectation *expected,uint64_t now_ticks,uint64_t *epoch)
 {
-    if(!epoch || ceph_scm_info_context(NULL))return -1;
+    if(!epoch || !owner_gate || !owner || !expected || !now_ticks || ceph_scm_info_context(NULL))return -1;
     *epoch=0;lck_mtx_lock(&ceph_scm_info_lock);
     if(ceph_zap_native.phase!=CE_ZP_NEW) {lck_mtx_unlock(&ceph_scm_info_lock);return -1;}
     struct ceph_zap_pas_transport t={&ceph_zap_native,ceph_scm_info_invoke};
-    int e=ceph_zap_pas_start(&ceph_zap_native,snapshot,&ceph_scm_cached,resources,&t);
+    int e=ceph_zap_pas_start(&ceph_zap_native,snapshot,&ceph_scm_cached,resources,
+        owner_gate,owner,expected,now_ticks,&t);
     *epoch=ceph_zap_native.epoch;
     printf("CEPHEUS ZAP PAS: load result=%d phase=%u failed=%u calls=%u exposed=%u epoch=%#llx\n",
         e,(unsigned)ceph_zap_native.phase,(unsigned)ceph_zap_native.failed_phase,

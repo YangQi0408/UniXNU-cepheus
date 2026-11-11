@@ -14,5 +14,5 @@ if [[ $(uname -s) != Darwin ]]; then libs=(-lcrypto); fi
     -o "$tmp/zap-pas" "${libs[@]}"
 "$tmp/zap-pas"
 if [[ -n ${CEPHEUS_ZAP_ELF:-} ]]; then
-    for mode in {0..23}; do "$tmp/zap-pas" "$CEPHEUS_ZAP_ELF" "$mode"; done
+    for mode in {0..27}; do "$tmp/zap-pas" "$CEPHEUS_ZAP_ELF" "$mode"; done
 fi

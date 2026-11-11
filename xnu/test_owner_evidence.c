@@ -90,6 +90,11 @@ static void expect_uncertain(void)
 int main(void)
 {
     make_fixture();
+    assert(sizeof(struct ceph_owner_tbu_evidence)==CE_OWNER_TBU_EVIDENCE_BYTES);
+    assert(sizeof(struct ceph_owner_rpmh_evidence)==CE_OWNER_RPMH_EVIDENCE_BYTES);
+    assert(sizeof(struct ceph_owner_evidence_snapshot)==CE_OWNER_EVIDENCE_BYTES);
+    assert(sizeof(struct ceph_owner_evidence_expectation)==CE_OWNER_EXPECTATION_BYTES);
+    assert(sizeof(struct ceph_owner_evidence_gate)==CE_OWNER_GATE_BYTES);
     assert(_Alignof(struct ceph_owner_evidence_gate)==8);
     assert(!admit());
     assert(gate.state==CE_OEG_ACCEPTED && gate.retained==1);

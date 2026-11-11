@@ -14,7 +14,7 @@ install -m 0644 "$here/cepheus_gmu_hfi_link.c" "$here/cepheus_gmu_hfi_link.h" bs
 install -m 0644 "$here/cepheus_gmu_mmio.h" "$here/cepheus_gpu_config.h" bsd/dev/
 install -m 0644 "$here/cepheus_gpu_config_native.h" "$here/cepheus_gpu_config_native_private.h" bsd/dev/
 install -m 0644 "$here/cepheus_zap_image.h" "$here/cepheus_zap_memory.h" "$here/cepheus_zap_cache.h" bsd/dev/
-install -m 0644 "$here/cepheus_zap_memory_private.h" "$here/cepheus_zap_pas.h" bsd/dev/
+install -m 0644 "$here/cepheus_zap_memory_private.h" "$here/cepheus_zap_resource_evidence.h" "$here/cepheus_zap_pas.h" bsd/dev/
 install -m 0644 "$here/cepheus_qmp_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_gmu_retire_mmio.h" bsd/dev/
 install -m 0644 "$here/cepheus_pdc_mmio.h" bsd/dev/
