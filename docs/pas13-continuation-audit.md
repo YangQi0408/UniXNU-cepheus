@@ -1,5 +1,54 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+## 2026-11-11：任务调度与完成返回
+
+同一固定TZ原件的后续静态证据已保存，原件未修改，没有手机/SMC/PAS/GPU
+操作。`0x1c0ce3cc..1c0ce593`将frame、handler、argument count和0交给
+`0x1c0d58b0`，后者分配/清零0x68B任务记录并复制到+0x20/+0x28/+0x30/+0x38，
+callback在+0x18、result指针在+0x60。调度wrapper有-12忙和-9分配失败路径；
+汇编保留w0返回值，decompiler的void签名不能作为返回语义。
+
+`0x1c0d5990..1c0d5a73`入队并检查thread handle在注册列表中，失败返回
+0x80000001；随后signal、yield并读取context+0x20的完成队列。非空时读取
+entry+0x38的完成status并释放记录；**空/NULL完成队列的代码分支返回0**。
+这只是条件分支事实，不证明合法同步PAS7调度能在handler未运行时回到这里，
+也不是实际false原因。signal经过`0x1c0d99bc`，yield经`0x1c0d9030`和
+`0x1c0d919c`选择优先级就绪队列并进入`0x1c0d9bf4`上下文切换；这不是简单
+同步直接调用。完整signal/wait/context-switch和live调度不变量尚未建立。
+
+`0x1c0d56f4`注册三个service worker，入口常量为`0x1c0d5b28`。Ghidra没有
+为该入口建立function，因此不声称有该函数的dossier/decompilation。REA
+完整原字节及LLVM/Capstone解码的限定范围`0x1c0d5b28..1c0d5bf7`为208B：
+从pending移到active，`0x1c0d5ba4`通过record callback间接调用并转交四项
+参数，`0x1c0d5bac`写w0到record+0x40，之后移入completed并归还idle worker。
+队列为空时进入`0x1c0d06a0`等待。dispatcher的56B返回复制helper
+`0x1c040098`已解码为普通memcpy；它自身不能提供handler执行证明。
+
+私有bundle为
+`../logs/pas13-instruction-replay-20261110/tz-dispatch-scheduler-20261111-v1-evidence.json`，
+137 records，SHA256`937b5ea2d53fef39bd81b9042c0463f6e0efbf2a177c605726a671290f854bde`；
+匹配snapshot SHA256`d277addcddfb0f4d528449e83313ca40cf3dc8e1ab7b1f66a526994492197e8a`。
+关键Evidence：
+
+- enqueue/completion：`ev_701d42d375ba24f9b0bd94669c03a944348651e8a600712ec9845faf2d0a7787`
+- worker原字节：`ev_6122c5ba57c5ab28e6ed397bac27a79d6f608e2a417a57c9b2d5ffefc9a975c8`
+- workers初始化：`ev_e8567fb2be5ca792529de70643de804d7431f8565bd6c449a92805735062975e`
+- yield：`ev_302747f7118600d818b03e311e152dde67d6d5d971728e094c06fd07a2b87e96`
+- scheduler：`ev_9c4be1c9a27048197f9ee6283f815e252811ea5c51f5e3be68c2038e5a638f85`
+
+同目录`check-tz-worker-20261111.py`仅在主机RAM执行这52条原指令的一次任务
+迭代：callback替换为显式模拟true/false/error，在空队列wait入口前停止。
+三个场景均转交frame/handler/argc1/0、写匹配status、发布完成队列、保持
+frame及模拟result不变；普通及python -O结果逐字节相同。receipt
+`tz-worker-validation-20261111-v1.json` SHA256
+`f59f4e6cc411bd2f5e86eb8d3934053d0d1b326c00acf83cb52976496f785b6a`。
+**未执行PAS handler、signal/yield/wait、上下文切换或完整dispatcher**；该回放
+不能解释真机PAS13=false，也不能证明真实owner/认证或解除CP halt。
+
+下一具体问题是signal唤醒worker及yield恢复caller之间是否必然发布该任务
+完成记录；只在这个问题要求的范围补齐wait/wake/context-switch证据。运行TZ
+身份/上游环境与真实资源owner仍独立未知，不重复已完成的UEFI/XNU配对查询。
+
 2026-11-11参数校验续查：同一固定TZ原件与已有snapshot通过REA复用，新增
 `0x1c056c60..0x1c056d73`完整69条指令及`0x1c05724c..0x1c0573ab`
 单参数转发证据。前者的arginfo1值参数路径不访问输入帧，也不调用地址权限

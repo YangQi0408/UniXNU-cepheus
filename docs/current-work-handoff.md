@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 22:35 +08:00：PAS13调度/返回路径继续离线收窄，GPU仍未执行。
+新增137-record REA bundle及snapshot已保存，详见pas13-continuation-audit.md
+顶部。找到三个service worker入口0x1c0d5b28（Ghidra未建function，仅原字节
+和LLVM/Capstone有界解码），确认间接callback的四参数与record+0x40完成状态
+写入/队列发布。三个原指令主机RAM单迭代场景PASS，callback结果明确模拟，
+不执行PAS handler或scheduler/wait/context-switch；普通/-O receipt逐字节相同，
+SHA f59f4e6c...。enqueue外层空完成队列返回0的分支已观察，但合法调度是否
+可走该分支/live不变量未知，不归因为实际false。下一查signal→worker→wait→
+caller恢复的完成约束，不重复2026-11-10配对查询。无生产源码改动/CI/手机/
+SMC/PAS/GPU操作；supported=false、CP halt保持，目标active不停工。
+
 2026-11-11 22:14 +08:00：用户已明确继续不停工，目标为active。SCM-pair诊断
 runner和FDT恒等映射修复完成本地全量验收：
 `/tmp/gpu-offline-scm-pair-runner-20261111-v2/receipt.json`为PASS，42 PASS、
