@@ -11,6 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Integration(unittest.TestCase):
+    def test_rpmh_tail_device_runner_is_boot_only(self):
+        source = (ROOT / 'scripts/run-rpmh-tail-device.py').read_text()
+        self.assertIn("['fastboot', '-s', serial, 'boot', str(image)]", source)
+        for command in ('flash', 'erase', 'reboot', 'set_active', 'format'):
+            self.assertNotIn(f"'{command}'", source)
+        for call in ('cepheus_gpu_arc_raise', 'cepheus_gpu_bcm_raise',
+                     'cepheus_gpu_submit', 'cepheus_gpu_cp_execution_admit'):
+            self.assertNotIn(call, source)
+        subprocess.run(['python3', str(ROOT / 'scripts/test-run-rpmh-tail-device.py')], check=True)
+
     def test_workflow_copies_every_statically_staged_source(self):
         stage = (ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh').read_text()
         workflow = (ROOT / '.github/workflows/touch-kernel.yml').read_text()

@@ -21,6 +21,13 @@ boot-verification-independent SHA`f80d39a7...`。镜像只做90秒RPMh软件请�
 等于真实owner/ACK，PAS13=false/supported=false、secure PA/crypto及GPU/Metal
 执行仍未完成。
 
+真机执行入口为`scripts/run-rpmh-tail-device.py IMAGE NEW_OUTPUT_DIR`。它拒绝
+非唯一设备、非cepheus产品、错误镜像哈希、已占用UDP5140及已有输出目录；
+固定只执行`fastboot boot`，不包含flash/erase/reboot/set_active/format。
+先启动360秒有界UDP采集，收到READY后才发送镜像，结束后自动生成
+analysis.json和receipt.json。设备未出现时返回2且不创建输出；真机启动后
+先观察90秒scheduled记录，再核对18段raw、core summary和end marker。
+
 2026-11-11 owner-evidence离线批次：新增pure fail-closed双TBU/RPMh/ACK复制记录
 admission及link-only wrapper，无startup caller/MMIO/SMC/firmware/GPU提交。
 精确要求TBU0`0x2cc5000/0x1000`、TBU1`0x2cc9000/0x1000`及SID
