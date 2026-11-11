@@ -22,6 +22,7 @@
 #include "cepheus_scm_discovery.h"
 #include "cepheus_scm_handoff.h"
 #include "cepheus_rpmh_tail_handoff.h"
+#include "cepheus_smem_map_handoff.h"
 extern void cepheus_gmu_workspace_selftest(void);
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
@@ -371,6 +372,41 @@ static bool soc_rpmh_tail(void)
 	printf("CEPHEUS RPMH TAIL: end; diagnostic only, no ACK/ownership or GPU execution\n");
 	return true;
 }
+static bool soc_smem_map(void)
+{
+	int profile=ceph_smem_map_profile(PE_boot_args());
+	if (!profile) { return false; }
+	if (profile!=1) { printf("CEPHEUS SMEM MAP: refused profile\n");return true; }
+	printf("CEPHEUS SMEM MAP: scheduled delay_s=90\n");
+	swait(90000);
+	DTEntry chosen;
+	const void *property=NULL;
+	unsigned bytes=0;
+	static struct ceph_smem_map_handoff handoff;
+	if (SecureDTLookupEntry(NULL,"/chosen",&chosen)!=kSuccess ||
+	    SecureDTGetProperty(chosen,CE_SMEM_MAP_PROPERTY,&property,&bytes)!=kSuccess ||
+	    !property || bytes!=sizeof(handoff)) {
+		printf("CEPHEUS SMEM MAP: missing handoff\n");return true;
+	}
+	memcpy(&handoff,property,sizeof(handoff));
+	if (ceph_smem_map_valid(&handoff)) {
+		printf("CEPHEUS SMEM MAP: invalid handoff\n");return true;
+	}
+	printf("CEPHEUS SMEM MAP: begin version=1 bytes=%u checksum=%016llx\n",
+	    handoff.bytes,(unsigned long long)handoff.checksum);
+	for (unsigned offset=0;offset<sizeof(handoff);offset+=64) {
+		uint64_t words[8]={0};
+		unsigned count=sizeof(handoff)-offset;
+		if (count>sizeof(words)) { count=sizeof(words); }
+		memcpy(words,(const uint8_t *)&handoff+offset,count);
+		printf("CEPHEUS SMEM MAP: raw=%u words=%016llx:%016llx:%016llx:%016llx:%016llx:%016llx:%016llx:%016llx\n",offset,
+		    (unsigned long long)words[0],(unsigned long long)words[1],(unsigned long long)words[2],(unsigned long long)words[3],
+		    (unsigned long long)words[4],(unsigned long long)words[5],(unsigned long long)words[6],(unsigned long long)words[7]);
+	}
+	printf("CEPHEUS SMEM MAP: end diagnostic=%u; no SMEM reads, SCM or GPU execution\n",
+	    (unsigned)ceph_smem_map_diagnostic_pass(&handoff));
+	return true;
+}
 static bool soc_scm_pair(void)
 {
 	int profile=ceph_scm_pair_profile(PE_boot_args());
@@ -491,6 +527,9 @@ static void soc_scm_probe(void)
 static void soc_thread(void *arg, wait_result_t wr)
 {
 	(void)arg; (void)wr;
+	if (soc_smem_map()) {
+		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
+	}
 	if (soc_rpmh_tail()) {
 		(void)thread_terminate(current_thread());thread_block(THREAD_CONTINUE_NULL);return;
 	}
@@ -565,7 +604,8 @@ void cepheus_soc_init(void)
 	bool zap_present=PE_parse_boot_argn("cephzapmem", &zap, sizeof(zap));
 	int pair=ceph_scm_pair_profile(PE_boot_args());
 	int tail=ceph_rpmh_tail_profile(PE_boot_args());
-	if ((!enabled && !zap_present && !pair && !tail) || started) { return; }
+	int smem=ceph_smem_map_profile(PE_boot_args());
+	if ((!enabled && !zap_present && !pair && !tail && !smem) || started) { return; }
 	started = true;
 	if (kernel_thread_start(soc_thread, NULL, &thread) == KERN_SUCCESS) { thread_deallocate(thread); }
 }

@@ -77,6 +77,84 @@ resource owner and secure PA/cache/crypto/authentication remain unresolved.
 
 ## Independent Metadata Route
 
+### Same-Boot Copied Handoff (02:54)
+
+The mapping diagnostic now has a separate staged DarwinBoot integration and
+an XNU receiver, both isolated by `cephsmemmap=1`. A fixed 4576-byte v1 record
+in `/chosen/cepheus-smem-map` carries CPU contexts, the resource HOB, GCD fields,
+all512 PAR values, partial-failure statuses, capture ticks, source/profile
+SHA256 metadata, tree placement and the successful EBS attempt number. The
+record contains no callable pointer; GCD image/device values are numeric
+diagnostics only. A checksum detects transfer damage, not authenticity.
+
+DarwinBoot's actual bounded ADT parser requires exactly one zero-filled slot
+under `/chosen`, exact size, no placeholder flag and no mixed/duplicate profile.
+Capture occurs once before the final memory-map phase. It calls the real
+prepare/probe/close sequence without console printing. A probe failure keeps
+its partial diagnostic; a cleanup failure refuses boot while retaining the
+event/module, with Unload able to retry Close. An EBS observed during capture
+halts without further firmware services. Successful EBS precedes publication;
+the post-EBS path only seals and copies ordinary owned RAM. Map/EBS retries do
+not repeat capture. Existing DarwinEnter cache/MMU/TLB teardown remains intact.
+
+After a90-second wait on the isolated diagnostic thread, XNU copies the
+unaligned property into a static aligned record, validates it, and emits72 raw
+64-byte chunks plus begin/end markers. The last chunk's32 padding bytes are
+zero. It does not read SMEM, query SCM, probe GPU registers, or change admission.
+The host reconstructs every byte, checks ordering/padding/checksum and the
+success predicate independently, retaining complete partial-failure records.
+Missing/duplicate/reordered/truncated records and contradictory summaries are
+rejected. `HANDOFF_COMPLETE` means a complete diagnostic envelope, not a passed
+mapping test. Embedded build hashes are metadata, not running-image attestation;
+tree fields and EBS counters are not an authenticated same-boot origin proof.
+
+Local v2 build `out/smem-handoff-firmware-20261112-v2/` linked DarwinBoot in7s.
+EFI32256B SHA256
+`02badcc35f6cb50c29c5dba412683cdf63796969496313749d6e6b62b340ae8a`.
+Native verification decodes4287 instructions across all three executable
+sections, checks AT RVA0x35f4 and PAR/DAIF restoration, no SMC/HVC/imports,
+and the existing separate DarwinEnter cleanup. Reconstructed staging matches.
+Native probe analysis has zero warnings. DarwinBoot retains one baseline
+GetMap/Descriptor null warning (baseline has two); no new warning is introduced.
+The ignored optional PDB-copy message remains in the saved build log. V1 is
+historical; v2 preserves noinline capture/publication symbols for verification.
+
+Focused tests cover actual capture/copy and EBS loop under mocked services/AT,
+512 partial page failures, cleanup/EBS refusal, successful attempts1..3, map/
+terminal EBS failures,4576 byte checksum guards,1144 resealed word mutations,
+4720 actual ADT truncations,18 damaged-EFI/staging rejections, actual XNU helper
+to independent host round trip, and relevant SCM/RPMh/SoC/staging regressions.
+Both ordinary/-O new checks pass with ASan/UBSan for producer/XNU fixtures.
+Portable contract coverage is registered in existing kernel/offline checks;
+the new header is copied by both local staging and the kernel workflow.
+
+Final receipt `out/smem-handoff-final-20261112-v2/receipt.json`, SHA256
+`a7d08fa4bbcdc431448c1a90dadb04ecda423886872b0db1df16134136683fef`,
+contains13 PASS checks. All34 bound source hashes were independently rechecked;
+ordinary/-O linked verification records have identical hashes. V1 receipt is
+historical; v2 also binds the build log and PE helper dependencies.
+
+"Persistent" here means owned bytes survive EBS into this XNU boot. This adds
+no firmware variable, disk write or new log-storage backend. The existing
+SWEET console ring/USB route is reused by XNU printf, not by UEFI console;
+UDP delivery and ring concurrency are not authenticated or guaranteed. A
+fixed90s wait does not establish logger readiness. Original raw logs must be
+preserved even when the strict analyzer rejects them.
+
+No full XNU link including this receiver, FV/boot package, EFI execution,
+device operation, SMEM content capture, PAS mutation/query or GPU execution
+has occurred in this batch. Next independently verify/link the changed XNU
+receiver and bounded boot packaging before proposing any hardware test.
+Even a live passing diagnostic does not establish EL2/XPU/bus-abort containment
+or authorize content acquisition. PAS13=false, CP halted, real ownership,
+secure PA/cache, crypto and authentication blockers remain unchanged.
+
+```sh
+bash scripts/build-smem-handoff-firmware.sh NEW_BUILD ../unixnu/drivers/DarwinBoot ../uefi ../unixnu/package > NEW_BUILD-build.log 2>&1
+python3 scripts/validate-smem-handoff.py --build NEW_BUILD --repository ../unixnu/drivers/DarwinBoot --uefi ../uefi --output NEW_CHECKS
+python3 scripts/analyze-smem-handoff-log.py SAVED_XNU_LOG --output NEW_RESULT.json
+```
+
 ### Standalone Diagnostic Link (02:21)
 
 The mapping probe now has an isolated native driver entry and complete local

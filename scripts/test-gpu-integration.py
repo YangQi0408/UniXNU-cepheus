@@ -61,7 +61,7 @@ class Integration(unittest.TestCase):
             names=('cepheus_rpmh_snapshot.h','cepheus_rpmh_tail.h','cepheus_rpmh_tail_handoff.h')
             for name in ('0085-stage-cepheus-soc.sh','cepheus_soc.c','cepheus_soc.h',
                          'cepheus_cpu_policy.h','cepheus_gpu_power.h',
-                         'cepheus_gpu_idle.h','cepheus_gpu_idle_native_private.h'):
+                         'cepheus_gpu_idle.h','cepheus_gpu_idle_native_private.h','cepheus_smem_map_handoff.h'):
                 shutil.copyfile(ROOT/'xnu'/name,patches/name)
             for name in names:shutil.copyfile(ROOT/'firmware'/name,patches/name)
             subprocess.run(['bash',str(patches/'0085-stage-cepheus-soc.sh')],cwd=tree,check=True)
@@ -69,6 +69,8 @@ class Integration(unittest.TestCase):
                 self.assertEqual((tree/'bsd/dev'/name).read_bytes(),(ROOT/'firmware'/name).read_bytes())
             for name in ('cepheus_gpu_idle.h','cepheus_gpu_idle_native_private.h'):
                 self.assertEqual((tree/'osfmk/arm64'/name).read_bytes(),(ROOT/'xnu'/name).read_bytes())
+            self.assertEqual((tree/'bsd/dev/cepheus_smem_map_handoff.h').read_bytes(),
+                             (ROOT/'xnu/cepheus_smem_map_handoff.h').read_bytes())
 
     def test_real_config_sources_when_supplied(self):
         # Optional explicit reference; synthetic coverage is not presented as

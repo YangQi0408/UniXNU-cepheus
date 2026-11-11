@@ -52,6 +52,7 @@ def main():
             ('scm-hook',['python3','scripts/test-scm-hook.py'],{}),
             ('scm-pair-hook',['python3','scripts/test-scm-pair-hook.py'],{}),
             ('scm-pair-log',['python3','scripts/test-scm-pair-log.py'],{}),
+            ('smem-handoff-contract',['python3','scripts/test-smem-handoff-contract.py'],{}),
             ('scm-query-log',['python3','scripts/test-scm-query-log.py'],{}),
             ('soc-delay',['python3','scripts/test-soc-delay.py'],{}),
             ('soc-delay-packaging',['python3','scripts/test-soc-delay-packaging.py'],{}),

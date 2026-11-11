@@ -1,5 +1,24 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 02:54 +08:00：SMEM mapping same-boot owned handoff/XNU receiver
+离线完成。exact isolated cephsmemmap=1/unique chosen zero4576B slot，capture
+一次/close失败拒bootretain/unload可清理；成功EBS后仅seal/copy，无services。
+XNU90s后输出72raw块/32尾padding，主机逐字节重建校验保留partial，不新增
+SMC/SMEM load/GPU probe。v2 DarwinBoot本地7s完整链接EFI32256B SHA
+02badcc35f6cb50c29c5dba412683cdf63796969496313749d6e6b62b340ae8a；三代码段
+4287instructions/AT35f4/PAR DAIF/既有DarwinEnter清理staging核验PASS；probe
+零warning，DarwinBoot一条基线Map null warning保留，无新增。
+实际mock capture/EBS loop1..3retry及error stop/512partial faults、XNU→host
+roundtrip、1144resealed mutations/4576byte guards/4720ADT truncations/18EFI
+拒绝及相关回归普通/-O PASS。本批无full XNU link/FV/boot/phone/EFI执行；
+final13checks receipt out/smem-handoff-final-20261112-v2/receipt.json SHA
+a7d08fa4bbcdc431448c1a90dadb04ecda423886872b0db1df16134136683fef，34source
+hash复核不变；普通/-O linked receipt同hash。v1为历史。
+跨EBS保留非新disk持久化，沿用XNU ring/UDP不保证送达/不认证same boot。
+下一changed XNU独立链接/boot封装离线验收，再决定硬件点。PAS13=false、
+CP halt、owner/secure PA/crypto/auth仍缺，GPU/Metal未执行，目标active。
+详见tz-runtime-identity-boundary.md。本批准备提交。
+
 2026-11-12 02:21 +08:00：独立SMEM mapping driver native本地完整链接及验收
 完成。v2 EFI19456B SHA5e213732875fb97f7cf5fd8344a8774f4e6bb1781505ea0cb92f585df83d9af1，
 六秒/ARM64 BootService driver/no imports；原字节AT RVA16d8/PAR/DAIF恢复、

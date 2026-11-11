@@ -36,6 +36,7 @@ jobs:
           cp cepheus/xnu/cepheus_fts_sysinfo.h dxb/patches/
           cp cepheus/xnu/cepheus_i2c_bitbang.h dxb/patches/
           cp cepheus/xnu/cepheus_soc.c cepheus/xnu/cepheus_soc.h dxb/patches/
+          cp cepheus/xnu/cepheus_smem_map_handoff.h dxb/patches/
           cp cepheus/xnu/cepheus_cpu_policy.h dxb/patches/
           cp cepheus/xnu/cepheus_gpu_power.h dxb/patches/
           cp cepheus/xnu/cepheus_gpu_idle.h cepheus/xnu/cepheus_gpu_idle_native_private.h dxb/patches/
@@ -98,6 +99,7 @@ jobs:
           python3 cepheus/scripts/test-scm-hook.py
           python3 cepheus/scripts/test-scm-pair-hook.py
           python3 cepheus/scripts/test-rpmh-tail-hook.py
+          python3 cepheus/scripts/test-smem-handoff-contract.py
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_scm_handoff.c -o /tmp/ceph-scm-handoff
           /tmp/ceph-scm-handoff
           python3 cepheus/scripts/test-scm-query-log.py
