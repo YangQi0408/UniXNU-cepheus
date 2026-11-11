@@ -82,8 +82,40 @@ int cepheus_gpu_fuse_sample(uint32_t *out){*out=bin<<29;return 0;}
 #include "cepheus_gmu_hfi_native_private.h"
 #include "cepheus_gx_core_native_private.h"
 #if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
+#include "cepheus_cp_native_private.h"
 #include "cepheus_gx_smmu_native_private.h"
-static unsigned cp_mode,cp_checks,cp_ends,cp_expire,cp_initial_delays;
+static unsigned cp_mode,cp_checks,cp_ends,cp_expire,cp_initial_delays,prep_checks,prep_ends;
+static struct ceph_cp_workspace *prep_source;
+static void prep_finish(void *,unsigned,int);
+static int prep_begin(void *ctx,const struct ceph_cp_workspace *w,const struct ceph_gx_smmu_plan *p)
+{assert(ctx==windows && ceph_gpll0_lock && w->table.pa==(p->context.ttbr0&0xffffffffffULL));return cp_mode==10?-1:0;}
+static int prep_validate(void *ctx)
+{
+    assert(ctx==windows && ceph_gpll0_lock);++prep_checks;
+    if(cp_mode==11)return -1;
+    if(cp_mode==12 && ceph_cp_native.result.writes) {
+        assert(!mprotect((void *)windows[6],sizes[6],PROT_NONE));return -1;
+    }
+    if(cp_mode==13 && ceph_cp_native.result.writes)*word(6,0x808*4)=0;
+    if(cp_mode==14 && ceph_cp_native.result.writes)*word(6,0x823*4)=1;
+    if(cp_mode==15 && prep_checks==1)prep_source->regions[0].va+=4096;
+    if(cp_mode==16 && prep_ends)return -1;
+    if(cp_mode==17 && ceph_cp_native.result.reads==66 && prep_ends)
+        ((uint32_t *)ceph_cp_native.workspace.views[CE_CP_RESTORE].cpu)[5]^=1;
+    if(cp_mode==18 && ceph_cp_native.result.reads==66 && prep_ends)
+        ((uint8_t *)ceph_cp_native.workspace.views[CE_CP_RESTORE].cpu)[1024]=1;
+    if(cp_mode==19 && ceph_cp_native.result.writes)ceph_cp_native.workspace.table.words[0]^=1;
+    if(cp_mode==20 && ceph_cp_native.result.writes)
+        ((uint8_t *)ceph_cp_native.workspace.views[CE_CP_SQE].cpu)[12]^=1;
+    if(cp_mode==21 && prep_checks==1) {
+        struct ceph_cp_native_owner recursive={windows,prep_begin,prep_validate,prep_finish,1};
+        struct ceph_cp_native_result r={0};r.writes=123;
+        assert(cepheus_gpu_cp_prepare_native(&recursive,prep_source,&ceph_cp_native.plan,&r)<0 && r.writes==123);
+    }
+    return 0;
+}
+static void prep_finish(void *ctx,unsigned writes,int keep)
+{assert(ctx==windows && ceph_gpll0_lock && writes==ceph_cp_native.result.writes && keep);++prep_ends;}
 static int cp_begin(void *ctx,const struct ceph_gx_smmu_plan *p,const struct ceph_cp_publication *pub)
 {assert(ctx==windows && p->context.ttbr0==pub->memory.ttbr0 && ceph_gpll0_lock);return 0;}
 static int cp_validate(void *ctx)
@@ -238,7 +270,7 @@ static void oob_finish(void *ctx,unsigned stores,int keep)
 #if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
 int test_gx_smmu_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
     const struct ceph_smmu_plan *plan,const struct ceph_gx_smmu_plan *cp_plan,
-    const struct ceph_cp_publication *cp_publication,unsigned selected)
+    struct ceph_cp_workspace *cp_workspace,unsigned selected)
 #else
 int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
     const struct ceph_smmu_plan *plan,unsigned selected)
@@ -246,7 +278,7 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
 {
     assert(snapshot && workspace && plan && selected<=67);
 #if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
-    assert(selected<=9 && cp_plan && cp_publication);cp_mode=selected;mode=57;
+    assert(selected<=24 && cp_plan && cp_workspace);cp_mode=selected;mode=57;
 #else
     mode=selected;
 #endif
@@ -422,6 +454,27 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         printf("Actual HFI/OOB/GX mode=%u maps=%u guards=%u stores=%u PASS (emulated hardware)\n",mode,gx_maps,gx_checks,gx_stores);
     }
 #if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
+    prep_source=cp_workspace;
+    if(cp_mode==23)*word(6,0x10*4)=UINT32_MAX;
+    struct ceph_cp_native_owner prep={windows,prep_begin,prep_validate,prep_finish,1};
+    struct ceph_cp_native_result prepared;memset(&prepared,0xa5,sizeof(prepared));
+    int pe=cepheus_gpu_cp_prepare_native(&prep,cp_workspace,cp_plan,
+        cp_mode==22?(struct ceph_cp_native_result *)cp_workspace->views[0].cpu:
+        cp_mode==24?(struct ceph_cp_native_result *)workspace->views[2].cpu:&prepared);
+    int prep_ok=cp_mode<10 || cp_mode==15 || cp_mode==21 || cp_mode==23;
+    assert((pe==0)==prep_ok);
+    if(!prep_ok) {
+        assert(prepared.writes==0xa5a5a5a5);
+        if(cp_mode!=10 && cp_mode!=22 && cp_mode!=24)assert(prep_ends==1);
+        printf("Actual native CP refusal mode=%u writes=%u reads=%u guards=%u PASS (synthetic hardware)\n",
+            cp_mode,ceph_cp_native.result.writes,ceph_cp_native.result.reads,prep_checks);
+        goto cp_done;
+    }
+    assert(prepared.writes==45 && prepared.reads==66 && prep_ends==1 &&
+        *word(6,0x808*4)==2 && !*word(6,0x807*4));
+    cp_workspace->publication=prepared.publication;cp_workspace->state=CE_CP_WS_SEALED;
+    const struct ceph_cp_publication *cp_publication=&cp_workspace->publication;
+    if(cp_mode==8)((uint8_t *)cp_workspace->views[CE_CP_SQE].cpu)[12]^=1;
     struct ceph_gx_smmu_native_owner cp={windows,cp_begin,cp_validate,cp_finish,1};
     cp_initial_delays=delays;
     installed=(struct ceph_smmu_install){CE_SM_NEW,123,456};
@@ -435,13 +488,14 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
     if(cp_mode==9){assert(!ceph_memory_cp_acquire(cp_publication,&alias));assert(!ceph_memory_cp_finish(cp_publication,CE_MEMORY_CP_REFUSED));}
     int ie=cepheus_gpu_gx_smmu_install_native(&cp,cp_plan,cp_publication,
         cp_mode==9?(struct ceph_smmu_install *)alias.views[0].cpu:&installed);
-    assert((ie==0)==(cp_mode==0));
-    if(cp_mode==0)assert(installed.state==CE_SM_ENABLED && installed.effects==15 && cp_ends==1 &&
+    assert((ie==0)==(cp_mode==0 || cp_mode==15 || cp_mode==21 || cp_mode==23));
+    if(!ie)assert(installed.state==CE_SM_ENABLED && installed.effects==15 && cp_ends==1 &&
         *word(6,0x808*4)==2 && !*word(6,0x807*4));
     if(cp_mode==4 || cp_mode==5 || cp_mode==6)assert(installed.state==CE_SM_QUARANTINED);
     if(cp_mode==8)assert(!ceph_gx_smmu_native.attempted && !cp_ends);
     printf("Actual GX SMMU+CP pool mode=%u effects=%u guards=%u PASS (emulated MMIO/ACK/owner)\n",cp_mode,
         ceph_gx_smmu_native.txn.effects,cp_checks);
+cp_done:;
 #endif
     for(unsigned n=0;n<7;++n)assert(!munmap((void *)windows[n],sizes[n]));
     printf("Actual SMMU/upload/CM3/HFI + actual pool mode=%u checks=%u PASS (emulated MMIO/ACK/IOKit, no GPU)\n",mode,checks);

@@ -73,6 +73,8 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_gx_smmu_install.h'),
                                 ('bsd/dev', 'cepheus_gx_smmu_native.h'),
                                 ('bsd/dev', 'cepheus_gx_smmu_native_private.h'),
+                                ('bsd/dev', 'cepheus_cp_native.h'),
+                                ('bsd/dev', 'cepheus_cp_native_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_api.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_workspace.h'),
@@ -200,6 +202,7 @@ class Integration(unittest.TestCase):
                    'cepheus_gpu_gx_core_configure','ceph_cp_ring_configure_halted',
                    'cepheus_gpu_gx_core_native','cepheus_gpu_gx_setup_native','cepheus_gpu_gx_setup_perf_native',
                    'cepheus_cp_workspace_seal','ceph_memory_cp_seal','ceph_memory_cp_acquire','ceph_memory_cp_publish',
+                   'cepheus_gpu_cp_prepare_native','ceph_memory_cp_build_acquire','ceph_memory_cp_build_seal',
                    'cepheus_gpu_submit','ceph_smmu_install_context','cepheus_gpu_zap_snapshot_prepare',
                    'cepheus_zap_memory_prepare','cepheus_gpu_zap_load','cepheus_gpu_zap_stop')
         for name in ('cepheus_soc.c','cepheus_touch.c','cepheus_arc_probe.h'):

@@ -14,7 +14,8 @@ struct ceph_gx_smmu_native_owner {
     void (*finish)(void *,unsigned effects,int keep);
     uint64_t rpmh_token;
 };
-/* One-shot after actual native GX setup; derives CP views from the real pool.
+/* One-shot after actual native GX setup and native protected CP capture;
+ * derives CP views from the real pool and requires private capture provenance.
  * Installed translation is not authentication or command execution. */
 int cepheus_gpu_gx_smmu_install_native(const struct ceph_gx_smmu_native_owner *,
     const struct ceph_gx_smmu_plan *,const struct ceph_cp_publication *,struct ceph_smmu_install *);

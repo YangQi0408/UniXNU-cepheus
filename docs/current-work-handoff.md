@@ -1,5 +1,28 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 09:29：native CP/atomic build-seal/output-alias修复 frozen final-v3
+完整本地验收通过：focused153steps SHA42df3226...；full四步/83host/七分析
+SHAe4e61c8c...。完成后两source hash集与153log hashes独立匹配；原厂GMU/
+SQE旧68HFI+12CP、实际25CP/GX SMMU与10build pool全部PASS，无ASanUBSan。
+MMIO/ACK/IOKit/owner模拟，不是GPU运行。详见cp-native-backend.md完整hash。
+4cc8d2c CI42929469961为历史失败/无kernel；此批准备提交及单一替代完整CI。
+下一native halted ring/SQE七固定stores及actual已安装context绑定，无phone
+操作/不重复fastboot问题。真owner/继承/TBU/PAS13/auth缺，CP halt保持，
+GPU/Metal未执行，用户明确不停工，目标active。
+
+2026-11-11 08:57：不停工。4cc8d2c已推送，CI42929469961在host regression
+失败/未到Build XNU/无artifact；O0本机复现output4B自然对齐违反8B合同，
+explicit_Alignas(8)修复，不放宽native。失败log SHA67cce68e...。新增native
+CP45保护stores/66restore reads、actual六buffer准备pin/同锁atomic seal及
+private restore provenance已实现并绑定GX SMMU。interim focused150PASS，
+最终full四步/83host/七生产分析PASS receipt SHA48acc817...；最终focused
+原厂固件旧68HFI+12CP/全链PASS log SHAd6d6cc7e...，新增24CP/GX SMMU
+actual chain仍运行，未完结不追认。前轮mode12错把未暴露固件snapshot当作
+必须retain的DMA backing，修正夹具，production保留未放宽。详见cp-native-
+backend.md。待此批完结提交/唯一替代完整CI，下一native halted ring/SQE。
+无phone操作/USB无手机，不重复fastboot问题；CP halt/PAS13=false保持，
+真owner/继承票/TBU/auth仍缺，GPU/Metal未执行，目标active。
+
 2026-11-11 08:11：2d20d14 CI42925513101 FAIL，actual XNU IOKit缺CPprivate
 头（build.log:41073），已归档/无kernel，不追认local为full link。后续native
 GX SMMU SID0/mask401/39VA、actual CP pool pin+发布+失效隔离已实现；fresh

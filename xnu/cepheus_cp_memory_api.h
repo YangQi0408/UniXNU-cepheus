@@ -30,6 +30,15 @@ int ceph_memory_cp_validate(const struct ceph_cp_publication *);
 int ceph_memory_cp_publish(const struct ceph_cp_publication *);
 enum {CE_MEMORY_CP_REFUSED,CE_MEMORY_CP_INSTALLED,CE_MEMORY_CP_UNCERTAIN};
 int ceph_memory_cp_finish(const struct ceph_cp_publication *,int);
+/* Exclusive CPU preparation pin; blocks ordinary get/put/release/share until
+ * native capture either seals this exact workspace or retains uncertainty. */
+int ceph_memory_cp_build_acquire(const struct ceph_cp_workspace *);
+int ceph_memory_cp_build_validate(const struct ceph_cp_workspace *);
+int ceph_memory_cp_build_finish(const struct ceph_cp_workspace *,int uncertain);
+int ceph_memory_cp_build_seal(const struct ceph_cp_workspace *,const struct ceph_gx_smmu_plan *,
+    struct ceph_cp_publication *);
+/* Reject native result storage in any live pool backing, not only CP. */
+int ceph_memory_cp_output_safe(const void *,size_t);
 #ifdef __cplusplus
 }
 #endif

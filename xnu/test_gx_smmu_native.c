@@ -22,6 +22,7 @@ static unsigned ceph_gpll0_lock,checks,expire,maps,begins,ends,kept,context;
 static unsigned pool_state,pins,publishes,finishes,finish_result,finish_error,corrupt;
 static unsigned map_fail,map_bad,begin_fail,final_loss,mutation,reentry,upstream_loss;
 static unsigned frozen,reverse,late,timeout,delays,ready_after;
+static unsigned output_late;
 static uint64_t ticks;
 static volatile uint8_t *smmu;
 static uint8_t *backing[CE_CP_BUFFERS];
@@ -31,7 +32,11 @@ static struct ceph_cp_publication publication;
 static int ceph_scm_info_context(void *unused){(void)unused;return context?-1:0;}
 static int ceph_gx_native_record(void){return upstream_loss?-1:0;}
 static int ceph_gx_native_window(void){return upstream_loss?-1:0;}
+static int ceph_cp_native_provenance(const struct ceph_cp_publication *p)
+{return p->memory.group==257 && !upstream_loss?0:-1;}
 static int cepheus_gpu_rpmh_check(uint64_t token){return token==1?0:-1;}
+int ceph_memory_cp_output_safe(const void *out,size_t bytes)
+{(void)out;(void)bytes;return output_late && pool_state==4?-1:0;}
 static uintptr_t ml_io_map(uint64_t pa,size_t bytes)
 {
     assert(pa==0x2ca0000 && bytes==0x10000 && ceph_gpll0_lock);++maps;
@@ -78,7 +83,7 @@ static int validate(void *ctx)
     if(expire && checks>=expire){assert(!mprotect((void *)smmu,0x10000,PROT_NONE));return -1;}
     if(mutation){mutation=0;owner.validate=NULL;plan.context.smr=0;publication.memory.group=0;}
     if(reentry) {
-        reentry=0;struct ceph_smmu_install out={CE_SM_NEW,123,456};
+        reentry=0;_Alignas(8) struct ceph_smmu_install out={CE_SM_NEW,123,456};
         assert(cepheus_gpu_gx_smmu_install_native(&owner,&plan,&publication,&out)<0 && out.effects==123);
     }
     return 0;
@@ -95,7 +100,7 @@ static void reset(void)
     ceph_gpll0_lock=checks=expire=maps=begins=ends=kept=context=0;
     pins=publishes=finishes=finish_result=finish_error=corrupt=0;
     map_fail=map_bad=begin_fail=final_loss=mutation=reentry=upstream_loss=0;
-    frozen=reverse=late=timeout=delays=ready_after=0;ticks=10000;pool_state=1;
+    frozen=reverse=late=timeout=delays=ready_after=output_late=0;ticks=10000;pool_state=1;
     ceph_gx_native.attempted=ceph_gx_native.acquired=1;ceph_gx_native.failed=ceph_gx_native.sp_clock_off=0;
     ceph_gx_native.result=(struct ceph_gx_native_result){.configured=1,.setup=1};ceph_gx_native.owner.rpmh_token=1;
     owner=(struct ceph_gx_smmu_native_owner){(void *)smmu,begin,validate,finish,1};
@@ -116,7 +121,7 @@ int main(void)
     for(unsigned i=0;i<CE_CP_BUFFERS;++i) {
         backing[i]=mmap(NULL,4096,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(backing[i]!=MAP_FAILED);
     }
-    struct ceph_smmu_install out;
+    _Alignas(8) struct ceph_smmu_install out;
     reset();assert(!run(&out) && out.state==CE_SM_ENABLED && out.effects==15 && pool_state==4);
     assert(maps==1 && begins==1 && ends==1 && kept && pins==1 && publishes==1 && finishes==1);
     assert(*(volatile uint32_t *)(smmu+0x800)==0x84010000 &&
@@ -130,6 +135,8 @@ int main(void)
     }
     reset();mutation=reentry=1;assert(!run(&out) && !owner.validate && pool_state==4);
     reset();final_loss=1;assert(run(&out)<0 && out.state==CE_SM_QUARANTINED && pool_state==5);
+    reset();output_late=1;out=(struct ceph_smmu_install){CE_SM_NEW,123,456};
+    assert(run(&out)<0 && out.effects==123 && pool_state==5 && ceph_gx_smmu_native.txn.state==CE_SM_QUARANTINED);
     reset();map_fail=1;assert(run(&out)<0 && !out.effects && pool_state==1 && kept);
     for(unsigned n=1;n<=2;++n){reset();map_bad=n;assert(run(&out)<0 && !out.effects && pool_state==1);}
     reset();begin_fail=1;assert(run(&out)<0 && begins==1 && !ends && !maps && !pins);

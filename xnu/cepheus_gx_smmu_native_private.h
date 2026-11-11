@@ -28,6 +28,7 @@ static int ceph_gx_smmu_native_access(void *unused)
         ceph_gx_native_window() ||
         ceph_gx_smmu_native.owner.validate(ceph_gx_smmu_native.owner.ctx) ||
         ceph_gx_smmu_native_record() || ceph_gx_native_window() ||
+        ceph_cp_native_provenance(&ceph_gx_smmu_native.publication) ||
         (ceph_gx_smmu_native.pinned && ceph_memory_cp_validate(&ceph_gx_smmu_native.publication))) {
         ceph_gx_smmu_native.failed=1;return -1;
     }
@@ -49,7 +50,8 @@ static int ceph_gx_smmu_native_output(void)
         ceph_hfi_native.power.gcc.base,ceph_hfi_native.power.cc.base,
         ceph_hfi_native.smmu.base,ceph_gx_smmu_native.mmio.base};
     const size_t bytes[]={0x40000,0x30000,0x90000,0x9000,0x10000,0x10000};
-    if(dst>UINTPTR_MAX-sizeof(*ceph_gx_smmu_native.output))return -1;
+    if(dst>UINTPTR_MAX-sizeof(*ceph_gx_smmu_native.output) ||
+        ceph_memory_cp_output_safe(ceph_gx_smmu_native.output,sizeof(*ceph_gx_smmu_native.output)))return -1;
     for(unsigned i=0;i<6;++i) {
         uintptr_t base=(uintptr_t)bases[i];
         if(base && (base>UINTPTR_MAX-bytes[i] ||
@@ -174,7 +176,7 @@ int cepheus_gpu_gx_smmu_install_native(const struct ceph_gx_smmu_native_owner *o
     if(ceph_gx_smmu_native.attempted)goto done;
     ceph_gx_smmu_native.owner=*owner;
     if(ceph_gx_smmu_native_record() || cepheus_gpu_rpmh_check(owner->rpmh_token) ||
-        ceph_memory_cp_validate(publication))goto done;
+        ceph_memory_cp_validate(publication) || ceph_cp_native_provenance(publication))goto done;
     uintptr_t dst=(uintptr_t)out;
     const void *identities[]={owner,plan,publication,&ceph_gx_smmu_native};
     const size_t bytes[]={sizeof(*owner),sizeof(*plan),sizeof(*publication),sizeof(ceph_gx_smmu_native)};
@@ -195,7 +197,15 @@ int cepheus_gpu_gx_smmu_install_native(const struct ceph_gx_smmu_native_owner *o
         e=-1;
         if(ceph_gx_smmu_native.pinned)ceph_gx_smmu_native.txn.state=CE_SM_QUARANTINED;
     }
-    if(ceph_gx_smmu_native.output_safe)*out=ceph_gx_smmu_native.txn;
+    if(ceph_gx_smmu_native.output_safe) {
+        if(ceph_gx_smmu_native_output()) {
+            e=-1;ceph_gx_smmu_native.failed=1;ceph_gx_smmu_native.txn.error=-1;
+            if(ceph_gx_smmu_native.txn.effects) {
+                ceph_gx_smmu_native.txn.state=CE_SM_QUARANTINED;
+                (void)ceph_memory_cp_finish(&ceph_gx_smmu_native.publication,CE_MEMORY_CP_UNCERTAIN);
+            }
+        }else *out=ceph_gx_smmu_native.txn;
+    }
 done:
     __atomic_store_n(&ceph_gpll0_lock,0,__ATOMIC_RELEASE);return e;
 }

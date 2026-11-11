@@ -22,7 +22,7 @@ clang++ -std=c++17 "${common[@]}" -Wno-missing-field-initializers -pthread \
     -DCEPHEUS_GPU_MEMORY_HOST_TEST=1 -I"$root/tests/gpu-memory-host" \
     "$root/xnu/cepheus_gpu_memory.cpp" "$root/tests/test_gx_smmu_native_pool.cpp" "$out/"*.o \
     -o "$out/gx-smmu-pool" "${libs[@]}"
-for mode in {0..9}; do
+for mode in {0..24}; do
     "$out/gx-smmu-pool" "$gmu" "$sqe" "$mode" > "$out/mode-$mode.log" 2>&1
     if rg -n 'runtime error:|ERROR: AddressSanitizer|SUMMARY:.*Sanitizer' "$out/mode-$mode.log"; then exit 1; fi
     tail -n 2 "$out/mode-$mode.log"
