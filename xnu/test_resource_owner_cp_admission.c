@@ -273,7 +273,8 @@ int main(void)
 
     make_fixture();bind_provider();
     owner=attached_owner();
-    struct ceph_cp_execution_admission zero={0};
+    struct ceph_cp_execution_admission zero;
+    memset(&zero,0,sizeof(zero));
     owner.finish(owner.ctx,&zero,0);
     assert(binding.retained==1 && binding.state==CE_ROCP_FAILED && host.retain_calls==1);
 
