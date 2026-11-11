@@ -51,6 +51,22 @@ boot-verification-independent SHA`f80d39a7...`。镜像只做90秒RPMh软件请�
 analysis.json和receipt.json。设备未出现时返回2且不创建输出；真机启动后
 先观察90秒scheduled记录，再核对18段raw、core summary和end marker。
 
+2026-11-11 17:42 CP admission与owner证据链离线绑定。外部owner现在必须同时
+提供已接受的双TBU/RPMh/ACK evidence gate及同一不可变snapshot；自封记录、
+REFUSED gate、owner/lease/resource epoch或ACK/RPMh ledger身份不一致均在
+尝试前拒绝，取锁后再次核对门禁与本地副本。admission记录新增owner/lease/
+resource epoch，`check`同时复核这些字段。owner-evidence还拒绝
+`now+max_age` uint64回绕。focused receipt
+`/tmp/owner-admission-binding-local-v2/receipt.json` SHA
+`57c8f49f616d58e4c0b84364c5bbba5c8af5767c280300b5708203dbfddb8917`：
+host、ASan/UBSan、实际SWEET AArch64装配、staged AArch64编译及静态分析PASS。
+全量离线preflight
+`/tmp/gpu-offline-owner-admission-20261111-v1/receipt.json`为
+`PASS_WITH_SKIPS`（26 PASS/0 FAIL/6可选输入SKIP）SHA
+`d24b73590b5bf2de6632c10951ba31533993d7e92551ce49d9dde4f63956ae7b`；
+sanitizer log SHA`61a376a85648db4314d882d1da8b1a751d493a9aa8704203589e4940d68040c8`。
+这仍只是记录合同，不是真实owner/ACK，不解除CP halt，也没有GPU执行。
+
 2026-11-11 owner-evidence离线批次：新增pure fail-closed双TBU/RPMh/ACK复制记录
 admission及link-only wrapper，无startup caller/MMIO/SMC/firmware/GPU提交。
 精确要求TBU0`0x2cc5000/0x1000`、TBU1`0x2cc9000/0x1000`及SID

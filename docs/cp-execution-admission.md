@@ -22,6 +22,14 @@ enabled with15 effects and no pin/uncertainty/failure. The exact RPMh token
 must still match. Before and after the external owner validation, all three
 native live checks run again.
 
+The external owner must now provide both the accepted owner-evidence gate and
+the exact snapshot that gate retained. A self-sealed record, a refused gate, or
+mismatched owner/lease/resource epoch, ACK or RPMh ledger identity is rejected
+before an admission attempt. The gate and snapshot are copied, compared again
+after taking the locks, and the admitted record carries owner/lease/resource
+epoch for every later check. This binds record identity only; it does not turn
+a synthetic snapshot into a real TBU/RPMh owner or hardware ACK.
+
 Lock order is `ceph_scm_info_lock -> ceph_gpll0_lock -> pool lock`. The
 authenticated allocator query has an explicitly unlocked variant for this
 serialized path, avoiding a reverse pool-lock acquisition. The external owner
@@ -42,6 +50,16 @@ RPMh token identity that was admitted. On a refusal the record may remain
 empty; `keep=1` still means the external owner resources are retained. The
 callback must verify the snapshot against its own ledger rather than treating a
 nonzero pointer as ownership proof.
+
+The focused binding receipt is
+`/tmp/owner-admission-binding-local-v2/receipt.json`, SHA256
+`57c8f49f616d58e4c0b84364c5bbba5c8af5767c280300b5708203dbfddb8917`.
+It passes host, ASan/UBSan, actual SWEET AArch64 assembly, staged AArch64
+compilation and static analysis, with no phone operation or GPU execution.
+The full offline preflight
+`/tmp/gpu-offline-owner-admission-20261111-v1/receipt.json` is
+`PASS_WITH_SKIPS` with26 PASS,0 FAIL and6 optional-input skips; its SHA256 is
+`d24b73590b5bf2de6632c10951ba31533993d7e92551ce49d9dde4f63956ae7b`.
 
 The final focused receipt is
 `/tmp/cp-admission-finish-local-v2/receipt.json`, SHA256

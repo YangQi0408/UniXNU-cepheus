@@ -6,11 +6,16 @@
 #include "cepheus_cp_ring_config.h"
 #include "cepheus_cp_ring_native.h"
 #include "cepheus_gx_smmu_plan.h"
+#include "cepheus_owner_evidence.h"
 #include "cepheus_zap_memory_private.h"
 
 struct ceph_cp_execution_admission;
 struct ceph_cp_execution_admission_owner {
     void *ctx;
+    /* The accepted owner-evidence gate and its exact immutable snapshot. A
+     * self-sealed record without this gate is not accepted ownership. */
+    const struct ceph_owner_evidence_gate *evidence_gate;
+    const struct ceph_owner_evidence_snapshot *evidence;
     int (*validate)(void *); /* genuine GX/TBU/CP/CPU-device writer lease */
     /* Once after the one admission attempt, under SCM/GPLL0 serialization. The
      * record is a read-only copy owned by the admission boundary and must be
@@ -78,6 +83,7 @@ struct ceph_cp_execution_admission {
     struct ceph_gx_smmu_plan smmu;
     struct ceph_cp_ring_plan ring;
     uint64_t rpmh_token;
+    uint64_t owner_id,lease_id,resource_epoch;
 };
 
 /* Pure identity check over copied records. Live MMIO/owner/ZAP checks belong
@@ -86,10 +92,19 @@ static inline int ceph_cp_execution_admission_plan(
     const struct ceph_cp_publication *cp,const struct ceph_gx_smmu_plan *smmu,
     const struct ceph_cp_ring_plan *actual_ring,const struct ceph_cp_ring_native_result *ring,
     uint64_t epoch,const struct ceph_zap_claim *zap,uint64_t rpmh_token,uint64_t token,
+    const struct ceph_owner_evidence_snapshot *evidence,
     struct ceph_cp_execution_admission *out)
 {
-    if(!cp || !smmu || !actual_ring || !ring || !zap || !out || !epoch || !rpmh_token || !token ||
+    if(!cp || !smmu || !actual_ring || !ring || !zap || !out || !evidence || !epoch || !rpmh_token || !token ||
         !zap->handle || !ring->configured || ring->writes!=7 ||
+        evidence->owner_domain!=CE_OD_XNU || evidence->writer_mask!=CE_OW_ALL ||
+        evidence->complete!=1 || evidence->simulated || evidence->retention!=CE_ORT_BOOT ||
+        evidence->ack_state!=CE_OA_COMPLETE || !evidence->ack_count ||
+        evidence->ack_owner_id!=evidence->owner_id || evidence->ack_epoch!=evidence->resource_epoch ||
+        evidence->rpmh.owner_id!=evidence->owner_id ||
+        evidence->rpmh.resource_epoch!=evidence->resource_epoch ||
+        evidence->rpmh.state!=CE_OR_COMPLETE || evidence->rpmh.complete!=1 ||
+        evidence->checksum!=ceph_owner_evidence_checksum(evidence) ||
         !ceph_gx_smmu_plan_canonical(smmu) || !cp->memory.group || !cp->table_used ||
         cp->table_used>32 || cp->memory.ttbr0!=smmu->context.ttbr0 ||
         cp->memory.ttbr1!=smmu->context.ttbr1 || cp->memory.smr!=smmu->context.smr ||
@@ -97,9 +112,9 @@ static inline int ceph_cp_execution_admission_plan(
         cp->memory.asid!=smmu->context.asid)return -1;
     uintptr_t dst=(uintptr_t)out;
     if(!dst || (dst&7u) || dst>UINTPTR_MAX-sizeof(*out))return -1;
-    const void *inputs[]={cp,smmu,actual_ring,ring,zap};
-    const size_t bytes[]={sizeof(*cp),sizeof(*smmu),sizeof(*actual_ring),sizeof(*ring),sizeof(*zap)};
-    for(unsigned n=0;n<5;++n)
+    const void *inputs[]={cp,smmu,actual_ring,ring,zap,evidence};
+    const size_t bytes[]={sizeof(*cp),sizeof(*smmu),sizeof(*actual_ring),sizeof(*ring),sizeof(*zap),sizeof(*evidence)};
+    for(unsigned n=0;n<6;++n)
         if(ceph_cp_execution_admission_overlap(out,sizeof(*out),inputs[n],bytes[n]))return -1;
     for(unsigned i=0;i<CE_CP_BUFFERS;++i) {
         if(!cp->memory.handles[i])return -1;
@@ -118,6 +133,8 @@ static inline int ceph_cp_execution_admission_plan(
     struct ceph_cp_execution_admission candidate={0};
     candidate.version=CE_CP_EXECUTION_ADMISSION_VERSION;candidate.ring_writes=ring->writes;
     candidate.admission_token=token;candidate.zap_epoch=epoch;candidate.rpmh_token=rpmh_token;
+    candidate.owner_id=evidence->owner_id;candidate.lease_id=evidence->lease_id;
+    candidate.resource_epoch=evidence->resource_epoch;
     candidate.zap=*zap;candidate.cp=*cp;candidate.smmu=*smmu;candidate.ring=*actual_ring;
     *out=candidate;return 0;
 }

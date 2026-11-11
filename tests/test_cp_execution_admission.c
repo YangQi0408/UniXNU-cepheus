@@ -9,6 +9,7 @@ static struct ceph_gx_smmu_plan smmu;
 static struct ceph_cp_ring_plan ring;
 static struct ceph_cp_ring_native_result result={7,1};
 static struct ceph_zap_claim zap;
+static struct ceph_owner_evidence_snapshot evidence;
 static struct ceph_cp_execution_admission out;
 
 static void setup(void)
@@ -35,16 +36,36 @@ static void setup(void)
         .memory={.mdt=(const volatile uint8_t *)0x100000,.image=(const uint8_t *)0x200000,
         .mdt_pa=0x180000000,.image_pa=0x181000000,.mdt_capacity=16384,
         .image_capacity=1048576,.mdt_bytes=6860,.logical_bytes=4096,.entry_offset=0}};
+    memset(&evidence,0,sizeof(evidence));
+    evidence.magic=CE_OWNER_EVIDENCE_MAGIC;
+    evidence.version=CE_OWNER_EVIDENCE_VERSION;
+    evidence.bytes=sizeof(evidence);
+    evidence.complete=1;
+    evidence.owner_domain=CE_OD_XNU;
+    evidence.writer_mask=CE_OW_ALL;
+    evidence.ack_state=CE_OA_COMPLETE;
+    evidence.ack_count=2;
+    evidence.retention=CE_ORT_BOOT;
+    evidence.owner_id=0x640000;
+    evidence.lease_id=0x640002;
+    evidence.resource_epoch=0x640003;
+    evidence.ack_epoch=evidence.resource_epoch;
+    evidence.ack_owner_id=evidence.owner_id;
+    evidence.rpmh=(struct ceph_owner_rpmh_evidence){CE_ORS_INHERITED_UEFI,
+        CE_OR_COMPLETE,1,0,evidence.owner_id,0x640004,evidence.resource_epoch,9,0x640005};
+    ceph_owner_evidence_seal(&evidence);
 }
 
 static int plan(void){return ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,
-    0x640001,&zap,1,0x6400000000000001ULL,&out);}
+    0x640001,&zap,1,0x6400000000000001ULL,&evidence,&out);}
 
 int main(void)
 {
     setup();out=(struct ceph_cp_execution_admission){0};
     assert(!plan() && out.version==1 && out.ring_writes==7 && out.zap_epoch==0x640001 &&
         out.admission_token==0x6400000000000001ULL && out.rpmh_token==1 &&
+        out.owner_id==evidence.owner_id && out.lease_id==evidence.lease_id &&
+        out.resource_epoch==evidence.resource_epoch &&
         !memcmp(&out.cp,&cp,sizeof(cp)) && !memcmp(&out.smmu,&smmu,sizeof(smmu)) &&
         !memcmp(&out.ring,&ring,sizeof(ring)) && out.zap.handle==zap.handle);
     struct ceph_cp_execution_admission saved=out;
@@ -55,14 +76,21 @@ int main(void)
     cp.memory.asid++;assert(plan()<0);cp.memory.asid--;
     cp.regions[CE_CP_RPTR].permissions=0;assert(plan()<0);
     cp.regions[CE_CP_RPTR].permissions=ceph_cp_workspace_permissions(CE_CP_RPTR);
-    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,0,&zap,1,1,&out)<0);
-    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,0,1,&out)<0);
-    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,0,&out)<0);
-    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,NULL,1,1,&out)<0);
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,0,&zap,1,1,&evidence,&out)<0);
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,0,1,&evidence,&out)<0);
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,0,&evidence,&out)<0);
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,NULL,1,1,&evidence,&out)<0);
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,1,NULL,&out)<0);
+    evidence.checksum^=1;
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,1,&evidence,&out)<0);
+    evidence.checksum^=1;
+    evidence.owner_id++;
+    assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,1,&evidence,&out)<0);
+    evidence.owner_id--;
     assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,1,
-        (struct ceph_cp_execution_admission *)&cp)<0);
+        &evidence,(struct ceph_cp_execution_admission *)&cp)<0);
     assert(ceph_cp_execution_admission_plan(&cp,&smmu,&ring,&result,1,&zap,1,1,
-        (struct ceph_cp_execution_admission *)((uint8_t *)&zap+4))<0);
+        &evidence,(struct ceph_cp_execution_admission *)((uint8_t *)&zap+4))<0);
     assert(!plan() && !memcmp(&saved,&out,sizeof(out)));
     puts("CP execution admission identity: exact ring/CP/SMMU/ZAP epoch, output aliases and invalid records PASS");
 }

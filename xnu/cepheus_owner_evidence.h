@@ -153,7 +153,7 @@ static inline int ceph_owner_evidence_matches(const struct ceph_owner_evidence_s
         s->ack_count!=e->ack_count || s->ack_owner_id!=e->owner_id ||
         s->ack_epoch!=e->resource_epoch || s->sid_mask[0]!=CE_OWNER_TBU0_LOCAL_SID_MASK ||
         s->sid_mask[1]!=CE_OWNER_TBU1_LOCAL_SID_MASK || !s->captured_ticks ||
-        s->captured_ticks>e->now_ticks ||
+        s->captured_ticks>e->now_ticks || e->now_ticks>UINT64_MAX-e->max_age_ticks ||
         e->now_ticks-s->captured_ticks>e->max_age_ticks)return 0;
     for(unsigned i=0;i<CE_OWNER_TBU_COUNT;++i)
         if(!ceph_owner_evidence_tbu_valid(&s->tbu[i],i,e->lease_id))return 0;

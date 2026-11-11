@@ -162,6 +162,10 @@ int main(void)
     make_fixture();
     expectation.now_ticks=1101;
     expect_refused();
+    make_fixture();
+    expectation.now_ticks=UINT64_MAX;
+    expectation.max_age_ticks=UINT64_MAX;
+    expect_refused();
 
     make_fixture();
     snapshot.checksum^=1;

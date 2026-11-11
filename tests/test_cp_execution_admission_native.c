@@ -26,6 +26,8 @@ static struct {
     struct {uint64_t rpmh_token;} owner;
 } ceph_cp_ring_native;
 static struct ceph_zap_pas ceph_zap_native;
+static struct ceph_owner_evidence_gate evidence_gate;
+static struct ceph_owner_evidence_snapshot evidence;
 
 static void lck_mtx_lock(int *lock){assert(lock && !*lock);*lock=1;}
 static void lck_mtx_unlock(int *lock){assert(lock && *lock);*lock=0;}
@@ -94,6 +96,26 @@ static void setup(void)
     zap_handle=0x4000000000000010;
     ceph_zap_native.phase=CE_ZP_LIVE;ceph_zap_native.epoch=0x640001;
     ceph_zap_native.claim.handle=zap_handle;
+    memset(&evidence,0,sizeof(evidence));
+    evidence.magic=CE_OWNER_EVIDENCE_MAGIC;
+    evidence.version=CE_OWNER_EVIDENCE_VERSION;
+    evidence.bytes=sizeof(evidence);
+    evidence.complete=1;
+    evidence.owner_domain=CE_OD_XNU;
+    evidence.writer_mask=CE_OW_ALL;
+    evidence.ack_state=CE_OA_COMPLETE;
+    evidence.ack_count=2;
+    evidence.retention=CE_ORT_BOOT;
+    evidence.owner_id=0x640000;
+    evidence.lease_id=0x640002;
+    evidence.resource_epoch=0x640003;
+    evidence.ack_epoch=evidence.resource_epoch;
+    evidence.ack_owner_id=evidence.owner_id;
+    evidence.rpmh=(struct ceph_owner_rpmh_evidence){CE_ORS_INHERITED_UEFI,
+        CE_OR_COMPLETE,1,0,evidence.owner_id,0x640004,evidence.resource_epoch,9,0x640005};
+    ceph_owner_evidence_seal(&evidence);
+    evidence_gate=(struct ceph_owner_evidence_gate){.version=CE_OWNER_EVIDENCE_VERSION,
+        .state=CE_OEG_ACCEPTED,.retained=1,.accepted=evidence};
 }
 
 static void reset_admission(void)
@@ -105,7 +127,7 @@ static void reset_admission(void)
 int main(void)
 {
     setup();
-    struct ceph_cp_execution_admission_owner owner={(void *)&ceph_gx_smmu_native,
+    struct ceph_cp_execution_admission_owner owner={(void *)&ceph_gx_smmu_native,&evidence_gate,&evidence,
         owner_validate,owner_finish};
     uint64_t token=(uint64_t)(uintptr_t)&owner;
     struct ceph_cp_execution_admission record={0};
@@ -122,7 +144,9 @@ int main(void)
         finishes==1 && finish_keep==1 && !ceph_gpll0_lock && !ceph_scm_info_lock);
     assert(finish_record.version==CE_CP_EXECUTION_ADMISSION_VERSION &&
         finish_record.ring_writes==7 && finish_record.zap_epoch==ceph_zap_native.epoch &&
-        finish_record.admission_token==token && finish_record.rpmh_token==1);
+        finish_record.admission_token==token && finish_record.rpmh_token==1 &&
+        finish_record.owner_id==evidence.owner_id && finish_record.lease_id==evidence.lease_id &&
+        finish_record.resource_epoch==evidence.resource_epoch);
     assert(!cepheus_gpu_cp_execution_check(token,&record));
     assert(cepheus_gpu_cp_execution_check(token+1,&record)<0 && !ceph_cp_execution_admission.failed);
     assert(!cepheus_gpu_cp_execution_check(token,&record));
@@ -166,5 +190,35 @@ int main(void)
     assert(ceph_cp_execution_admission.failed && !ceph_cp_execution_admission.admitted);
     zap_auth_fail=0;
 
-    puts("CP execution admission native wrapper: lock order, one attempt, output aliases, owner retention and sticky identity/live/ZAP failure PASS");
+    reset_admission();
+    struct ceph_cp_execution_admission_owner missing=owner;missing.evidence=NULL;
+    assert(cepheus_gpu_cp_execution_admit(&missing,ceph_zap_native.epoch,&record)<0 &&
+        !ceph_cp_execution_admission.attempted && !finishes);
+    reset_admission();
+    missing=owner;missing.evidence_gate=NULL;
+    assert(cepheus_gpu_cp_execution_admit(&missing,ceph_zap_native.epoch,&record)<0 &&
+        !ceph_cp_execution_admission.attempted && !finishes);
+    reset_admission();
+    struct ceph_owner_evidence_snapshot bad_evidence=evidence;
+    bad_evidence.owner_id++;
+    struct ceph_cp_execution_admission_owner mismatched=owner;mismatched.evidence=&bad_evidence;
+    assert(cepheus_gpu_cp_execution_admit(&mismatched,ceph_zap_native.epoch,&record)<0 &&
+        !ceph_cp_execution_admission.attempted && !finishes);
+    reset_admission();
+    bad_evidence=evidence;bad_evidence.checksum^=1;
+    mismatched.evidence=&bad_evidence;
+    assert(cepheus_gpu_cp_execution_admit(&mismatched,ceph_zap_native.epoch,&record)<0 &&
+        !ceph_cp_execution_admission.attempted && !finishes);
+    reset_admission();
+    struct ceph_owner_evidence_gate bad_gate=evidence_gate;bad_gate.state=CE_OEG_REFUSED;
+    mismatched=owner;mismatched.evidence_gate=&bad_gate;
+    assert(cepheus_gpu_cp_execution_admit(&mismatched,ceph_zap_native.epoch,&record)<0 &&
+        !ceph_cp_execution_admission.attempted && !finishes);
+    reset_admission();
+    assert(!cepheus_gpu_cp_execution_admit(&owner,ceph_zap_native.epoch,&record));
+    bad_evidence=evidence;bad_evidence.lease_id++;
+    ceph_cp_execution_admission.owner.evidence=&bad_evidence;
+    assert(cepheus_gpu_cp_execution_check(token,&record)<0 && ceph_cp_execution_admission.failed);
+
+    puts("CP execution admission native wrapper: owner-evidence identity, lock order, one attempt, output aliases, owner retention and sticky identity/live/ZAP failure PASS");
 }
