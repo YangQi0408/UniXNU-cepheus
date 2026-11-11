@@ -54,6 +54,7 @@ for file in cepheus_gpu_memory.cpp cepheus_gpu_memory.h cepheus_gpu_compile.c ce
     cepheus_gmu_upload_native.h cepheus_gmu_upload_native_private.h \
     cepheus_gmu_hfi_native.h cepheus_gmu_hfi_native_private.h \
     cepheus_cp_ring_config.h \
+    cepheus_owner_evidence.h \
     cepheus_cp_protection.h \
     cepheus_cp_snapshot_mmio.h \
     cepheus_cp_workspace.c cepheus_cp_workspace.h cepheus_cp_memory_private.h cepheus_cp_native.h cepheus_cp_native_private.h cepheus_cp_ring_native.h cepheus_cp_ring_native_private.h \

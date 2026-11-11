@@ -60,6 +60,7 @@ HEADERS += ('cepheus_cp_memory_api.h',)
 HEADERS += ('cepheus_cp_native.h','cepheus_cp_native_private.h')
 HEADERS += ('cepheus_cp_ring_native.h','cepheus_cp_ring_native_private.h')
 HEADERS += ('cepheus_cp_execution_admission.h','cepheus_cp_execution_admission_private.h')
+HEADERS += ('cepheus_owner_evidence.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -173,6 +174,7 @@ def main():
     required |= {'_cepheus_gpu_cp_prepare_native'}
     required |= {'_cepheus_gpu_cp_ring_native'}
     required |= {'_cepheus_gpu_cp_execution_admit','_cepheus_gpu_cp_execution_check'}
+    required |= {'_cepheus_gpu_owner_evidence_admit'}
     required |= {'_cepheus_gpu_config_probe','_cepheus_gpu_fuse_sample'}
     required |= {'_cepheus_gmu_hfi_poll_debug'}
     required |= {'_cepheus_gmu_hfi_version_native','_cepheus_gmu_hfi_boot_native',

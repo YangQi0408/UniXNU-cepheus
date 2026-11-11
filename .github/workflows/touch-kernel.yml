@@ -68,6 +68,7 @@ jobs:
             cepheus_cp_snapshot_mmio.h \
             cepheus_cp_workspace.c cepheus_cp_workspace.h cepheus_cp_native.h cepheus_cp_native_private.h cepheus_cp_ring_native.h cepheus_cp_ring_native_private.h \
             cepheus_cp_execution_admission.h cepheus_cp_execution_admission_private.h \
+            cepheus_owner_evidence.h \
             cepheus_gpu_vm39.h \
             cepheus_gx_core.h \
             cepheus_gx_core_native.h cepheus_gx_core_native_private.h cepheus_cp_memory_private.h \

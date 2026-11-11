@@ -64,6 +64,7 @@
 #include "cepheus_gx_smmu_plan.h"
 #include "cepheus_gx_smmu_native.h"
 #include "cepheus_cp_execution_admission.h"
+#include "cepheus_owner_evidence.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
 int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);
@@ -121,4 +122,8 @@ int cepheus_gpu_hfi_notify(void *);
 int cepheus_gpu_gmu_fault(void *);
 int cepheus_gpu_cp_execution_admit(const struct ceph_cp_execution_admission_owner *,uint64_t,struct ceph_cp_execution_admission *);
 int cepheus_gpu_cp_execution_check(uint64_t,const struct ceph_cp_execution_admission *);
+int cepheus_gpu_owner_evidence_admit(struct ceph_owner_evidence_gate *,
+    const struct ceph_owner_evidence_snapshot *,
+    const struct ceph_owner_evidence_expectation *,
+    struct ceph_owner_evidence_snapshot *);
 #endif

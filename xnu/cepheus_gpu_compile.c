@@ -306,3 +306,8 @@ int cepheus_gpu_hfi_notify(void *m)
 { return ceph_gmu_mmio_hfi_notify(m); }
 int cepheus_gpu_gmu_fault(void *m)
 { return ceph_gmu_mmio_fault(m); }
+int cepheus_gpu_owner_evidence_admit(struct ceph_owner_evidence_gate *gate,
+    const struct ceph_owner_evidence_snapshot *snapshot,
+    const struct ceph_owner_evidence_expectation *expected,
+    struct ceph_owner_evidence_snapshot *out)
+{ return ceph_owner_evidence_admit(gate,snapshot,expected,out); }
