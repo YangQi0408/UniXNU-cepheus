@@ -29,7 +29,13 @@ host 86项、ASan/UBSan、production静态分析、AArch64/staged codegen及13�
 integration（1项可选reference SKIP）均PASS。
 没有默认backend/startup caller、MMIO/SMC/PAS/crypto/clock/WPTR/CP unhalt/GPU
 submission；夹具不是真实owner或硬件证据。PAS13=false/supported=false、CP
-halted不变；artifact未打包/未boot，手机保持当前现场，无USB/重启/刷写操作。
+halted不变。该精确kernel已重新打包SCM-pair诊断镜像并独立验证：
+`out/scm-pair-ci-43025405283-1f72f90-v1/boot-scm-pair.img`，70688768B SHA256
+`415d47275ca5e6f4db13015fd423f6c9ee29547f192895582bc5edc9bb07a30c`；
+receipt SHA`4330e727d4ec11558766165723497c96af1d76882e78114c9b0bb5252e686bae`，
+boot-verification SHA`b45690836b21ccf135231c1ced197263c32b94d51d3ac27f9dcb1ed46d2d1922`，
+两者PASS且phone_operations=false/gpu_execution=false。镜像未boot；手机保持
+当前现场，无USB/重启/刷写操作。
 
 2026-11-11：GPU owner provider 接线边界已离线完成，等待全量本地验证与提交。
 新增 `cepheus_resource_owner_provider.h` / focused test：真实后端必须自有
