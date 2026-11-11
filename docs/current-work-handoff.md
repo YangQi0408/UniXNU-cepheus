@@ -1,5 +1,18 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 05:28 +08:00：CI43101862468@3258922 terminal FAILURE，
+stage成功，但macOS ARM64 linked fixture在checked-copy overflow末尾
+校验失败，XNU未开始。没有对应listing，根因尚未证实；测试替身增加
+explicit global end symbol防止函数尾padding混入，失败时打印receiver/
+checked-copy/copy listing；production verifier及xnu/firmware完全不改。
+普通/-O各26拒绝+actual fortified receiver链接本地PASS；focused15PASS
+out/smem-kernel-prereq-20261112-v7/receipt.json SHA
+840c88285d32e767fbead5fd40ba668dbd0501de38541fbf735cfa1331bb2abc。
+failure日志inputs/ci-43101862468-failure/job-failed.log（相对项目根）SHA
+70bd16b49868a50dafa09dd568c1248144acc3b945e9af190d773b9911de4717。
+下一提交test-only修复/唯一替代CI，macOS通过前不称根因已解决。
+无phone操作，PAS13=false/CP halted/真实资源后端缺失及GPU/Metal未执行保持。
+
 2026-11-12 05:13 +08:00：CI43092532358@2ecdfb1确认terminal FAILURE，
 full XNU8m09s成功；job日志取得，确定receiver verifier拒___memcpy_chk。
 touch/idle/staging116core49memory成功，但其后pmap验收尚未执行，不当作

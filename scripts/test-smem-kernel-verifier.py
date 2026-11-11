@@ -127,7 +127,8 @@ __attribute__((noreturn)) void panic(const char *message,...) {(void)message;for
 /* Test-only helper shape from the accepted XNU link, not a runtime substitute. */
 __asm__(".text\\n.p2align 2\\n.globl ___memcpy_chk\\n___memcpy_chk:\\n"
         "cmp x3, x2\\nb.lo 1f\\nb _memcpy\\n1:\\n"
-        "sub sp, sp, #0x10\\nbl _panic\\n");
+        "sub sp, sp, #0x10\\nbl _panic\\n"
+        ".globl _fixture_checked_copy_end\\n_fixture_checked_copy_end:\\nret\\n");
 ''')
         stub_object = work / 'stubs.o'
         subprocess.run(['clang', '--target=arm64-apple-macos11', '-ffreestanding', '-O2', '-c', str(stubs),
@@ -139,7 +140,12 @@ __asm__(".text\\n.p2align 2\\n.globl ___memcpy_chk\\n___memcpy_chk:\\n"
             command = ['ld64.lld', '-arch', 'arm64', '-platform_version', 'macos', '11.0', '11.0', '-e', '_fixture_entry']
         subprocess.run([*command, str(output), str(stub_object), '-o', str(linked)], check=True)
         listing = subprocess.check_output([VERIFY.objdump_tool(), '-d', '--no-show-raw-insn', str(linked)], text=True)
-        report = VERIFY.inspect(listing)
+        try:
+            report = VERIFY.inspect(listing)
+        except ValueError:
+            for name in ('soc_smem_map', '__memcpy_chk', 'memcpy'):
+                print(name, VERIFY.function(listing, name), flush=True)
+            raise
         if '___memcpy_chk' not in report['checked_copy_helpers_verified']:
             raise ValueError('actual fortified receiver fixture did not exercise checked copy')
     print(f'SMEM kernel verifier: {len(bad)} synthetic rejections + actual receiver linked ARM64 fixture PASS; no full kernel/runtime')
