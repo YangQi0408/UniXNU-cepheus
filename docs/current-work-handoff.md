@@ -1,5 +1,14 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 15:20：owner-finish admission快照批次已提交/push为`aa1947b`，唯一
+完整CI42974023175 SUCCESS（35m23s），artifact已下载独立验收。device-commit精确
+匹配，kernel17564192B SHA`9ddd8ffc89728b396a2e46fae2d2e282494c2a06dccf6bd6502ef86eaab15f7f`，
+build.log SHA`ed89ed57...`，`llvm-nm -u`为空。从exact commit源码归档staging后
+`verify-gpu-kernel.py` PASS：115 core/49 memory API/0 unresolved；CP admission、
+authenticated ZAP、ARC/BCM、ring/submit符号均链接。该核仅验收为已链接构建，
+未打包/boot/刷写；PAS13=false/supported=false、CP halt、真owner/继承ledger/
+双TBU/secure PA+crypto/真实ACK仍缺，GPU/Metal未执行。无phone操作。
+
 2026-11-11 14:40：ACTIVE sender固定槽租约批次已提交为`c190a09`，离线验收完成，
 等待唯一替代完整链接。最终ARC/BCM focused receipt `/tmp/active-lease-local-v4/
 receipt.json` SHA`f8cf24cf...`，绑定修复后的macOS测试源码。`c190a09`首次完整CI

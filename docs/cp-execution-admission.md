@@ -63,6 +63,27 @@ header include; the final focused ARC/BCM receipt above covers the repaired
 test source. That failed run produced no accepted kernel artifact and is not
 presented as evidence for this batch.
 
+The owner-finish snapshot batch was committed/pushed as
+`aa1947b893d5d36355fde1aa3115e22aa497eb8e`. CI42974023175 completed SUCCESS
+in 35m23s and downloaded artifact `cepheus-touch-kernel` from the same run.
+`device-commit.txt` exactly matches that commit and `SHA256SUMS` verifies.
+The kernel is17564192 bytes with SHA256
+`9ddd8ffc89728b396a2e46fae2d2e282494c2a06dccf6bd6502ef86eaab15f7f`;
+the build log SHA256 is
+`ed89ed573a8dcbc21a12e8e55f4d974f06fba9d4dfcb6eb11a4061134bdba5a7`.
+`llvm-nm -u` is empty. Independent verification from the exact commit archive
+stages the source and passes `verify-gpu-kernel.py`:115 core entrypoints,
+49 memory/firmware APIs, zero unresolved. Both CP admission symbols and the
+authenticated ZAP unlocked query are linked, as are the ARC/BCM raise paths,
+ring and submit. This accepts `aa1947b`, including the fixed-slot ACTIVE lease
+and owner-finish admission snapshot, as a linked kernel build only.
+
+Acceptance reproduced several verifier invocation mistakes locally before the
+correct archived-tree invocation passed; those transient local errors changed
+no source and are not counted as build failures. The final command used the
+archive's own `0087` script from an empty `bsd/dev`, then explicitly added the
+CI-owned ARC/BCM active and RPMh scope headers before verification.
+
 ## Local Evidence
 
 The identity test covers exact ring/CP/SMMU/ZAP epoch matching, handle and
