@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 22:52 +08:00：PAS13有界调度整段回放完成。新202-record REA
+bundle/snapshot已保存，check-tz-scheduler-20261111.py共1132静态原指令，
+包含真实native寄存器/栈切换、转发和lookup；线程/队列/栈初态与free模拟，
+无EL3/SMC/认证/手机/GPU。五场景PASS：caller28/0/29≤worker29且固定表时
+均true并取回完成记录；假设count0返回false；假设caller30>worker29时
+lookup未执行而返回0。后两者非live证据，不能归因。初始化worker29，
+bootstrap31后降idle0已静态确认；实际SMC任务上下文/优先级未知。
+最终receipt SHA9f454772...，普通/-O cases一致但LLVM临时listing SHA不同。
+详见pas13-continuation-audit.md顶部。下一追普通SMC入口→dispatcher任务
+上下文，不重复配对/触摸轮；无生产改动/CI，supported=false、CP halt保持，
+真实owner/secure PA/crypto仍缺，GPU/Metal未执行，目标active不停工。
+
 2026-11-11 22:35 +08:00：PAS13调度/返回路径继续离线收窄，GPU仍未执行。
 新增137-record REA bundle及snapshot已保存，详见pas13-continuation-audit.md
 顶部。找到三个service worker入口0x1c0d5b28（Ghidra未建function，仅原字节

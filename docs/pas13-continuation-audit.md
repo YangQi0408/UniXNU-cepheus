@@ -1,5 +1,55 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+## 2026-11-11：有界调度整段回放
+
+继续同一固定TZ原件，新增wait/wake/context-switch与初始化证据。三个service
+worker的native初始化优先级为29（`0x1c0d9cfc`在context为NULL时传0x1d），
+bootstrap初始为31（`0x1c0d9330`），随后`0x1c0d93fc`将其降到idle0并yield。
+普通SMC入口实际使用哪一任务、进入前/运行中优先级及全部修改者尚未建立，
+不能把bootstrap31当真机查询caller优先级。
+
+新增私有`check-tz-scheduler-20261111.py`在主机RAM回放enqueue→signal→yield→
+worker→原PAS7 lookup→wait→caller恢复→取完成status，包含真实原指令的
+`0x1c104480`寄存器/栈保存恢复与单参数trampoline。固定lookup12段原指令
+仍与两份原生Ghidra及LLVM临时解码一致；调度/转发另33段和两个只读范围
+逐字节匹配固定原件与完整REA byte records。共1132条静态指令，禁SMC/
+HVC/SVC/ERET/范围外执行/访存/代码写，预算20000条及3秒。
+
+| 合成初始状态 | 主机RAM结果 | 执行条数 |
+|---|---|---|
+| caller28、worker29、固定count15/空cache | lookup执行，true，2次上下文切换，完成记录取回 | 1149 |
+| caller0、worker29、固定count15/空cache | 同上 | 1089 |
+| caller29、worker29、固定count15/空cache | 同上 | 1144 |
+| caller28、worker29、假设count0 | lookup执行，false，2次切换，完成记录取回 | 894 |
+| 假设caller30、worker29、固定count15 | lookup未执行，调度返回0，结果仍0，pending保留 | 307 |
+
+后两项是人为反例，**不是手机count或优先级的观察**。这里只证明所声明的
+两线程/一任务初始状态下的行为；不证明live调度不变量、运行TZ身份、实际
+false原因或硬件认证。registry、线程、队列、event、stack和canary view均
+合成；worker从合成的prologue后saved context恢复，不执行bootstrap；allocation
+省略、free为替身，仅native-thread路径，不执行secure-user切换、外部interrupt
+或完整dispatcher。它比上一节模拟callback的单迭代回放范围更大，但仍非真机。
+
+最终bundle（202 records）为
+`../logs/pas13-instruction-replay-20261110/tz-dispatch-waitwake-20261111-v3-evidence.json`，
+SHA256`16db157772078a2de4e7a0d4ef838d8b03e6f1fd3a2e5083e8ca4fe72b571fc9`；
+匹配snapshot SHA256`307bb217ffb26c209e763f9e884f7c004b31bdb4062db7c143bffce5df31aec8`。
+关键Evidence：native context switch
+`ev_89ae41d38e1be1e98c128be2592eaed9bce89c632d8452c2809dd269e72de489`，
+wait queue `ev_23071b409a11f26284230eed93fd30beae148bad85c568bafa10b98bb5c7e437`，
+worker优先级 `ev_8985e03f6949715afcbaff25dd651c7a2e92e615679dffbc5e21a0480da34211`，
+bootstrap/idle `ev_d645420f1e12b07b0d8a413c1fbf7f87c571708460b743255762884253786def` /
+`ev_f34fd67d3c55a3181593eab7c0f67182ed789471939addc52b10015349376acf`。
+
+最终receipt `tz-scheduler-validation-20261111-v2.json` SHA256
+`9f4547722caa5c08341f22ef9cd4c2e5096b777a81b40d02b7408c4543d0910b`，五场景PASS；
+python -O同样PASS且cases逐项相同。完整receipt只在LLVM临时路径引起的
+listing SHA不同，不声称逐字节相同。v1为先前四场景，保留不追认v2范围。
+
+下一聚焦普通SMC wrapper/入口接到dispatcher时的任务上下文及优先级；
+如没有独立live辨别手段，不把更多合成反例当根因。真实资源owner/secure
+PA/crypto仍独立缺口，PAS13=false及CP halt不变；无手机操作/新CI/GPU执行。
+
 ## 2026-11-11：任务调度与完成返回
 
 同一固定TZ原件的后续静态证据已保存，原件未修改，没有手机/SMC/PAS/GPU
