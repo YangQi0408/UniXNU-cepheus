@@ -1,5 +1,93 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+## 2026-11-12：Monitor 路由及普通调用修正
+
+**范围更正**：2026-11-11入口回放脚本实际输入为FAST `0xc2000207`，
+不是历史真机使用的普通64位调用`0x42000207`。旧记录及receipt保留，
+不能用旧回放证明普通调用。新私有`check-tz-normal64-entry-return-20261112.py`
+使用历史x0..x7输入`[0x42000207,1,13,0,0,0,0,0]`，前两场景MPIDR分别
+为历史UEFI`0x81000000`与XNU`0x81000200`；其余状态仍合成。
+固定count15两场景均得到monitor-context`[0,1,0,0]`，各执行2223条原指令；
+假设count0为全零（1968条），哨兵保留（1844条）。四场景普通/-O复验PASS。
+**scheduler task handoff仍模拟，monitor字段helper独立调用，未执行完整
+bootstrap/monitor/EL3或手机**，不证明live false原因或运行固件身份。
+fresh receipt `tz-normal64-entry-return-validation-20261112-v2.json` SHA256
+`19ca45a7f1f833b27ae91e7511dfc639a45d7ed962ac54ade328ee788c0687c7`，
+script SHA256`b00c8ad0d462e5a3383f43fd0d0721c19cedc39ea203c8500f1fb01f8ef7aee2`。
+普通/-O cases/bindings相同；移除`llvm_entry_return.listing_sha256`与
+`lookup_correlation.llvm.listing_sha256`两项后语义receipt相同，非字节相同。
+
+同一固定TZ原件的EL3入口`1c0180f0`识别ESR class`0x17/0x13`，
+`1c0181c0`先读取旧SCR_EL3到x1，再写SCR`0xe00`，于`1c0181d0`调用
+monitor router`1c01c75c`。router按传入旧SCR的NS bit0选择路径；它的
+context selector返回`1c029138`、`1c029338`、`1c029538`或
+`1c029738+CPU*0x200`。**这四种monitor CPU context不是scheduler thread**。
+初始化设置mode byte`[1c029130]=1`、base`[1c024000]=0`及system-register
+offset`[1c024008]=0x108`；这些是静态初始化，不是当前RAM观察。
+
+普通NS调用经`1c01c848`分支保存输入帧/EL1寄存器，并恢复context0的系统
+寄存器。`1c01dde4`把context0系统寄存器复制到临时frame，使用注册入口
+`[1c0290e0]`作为临时ELR、注册CPU stack`[1c0290e8+CPU*8]`作为SP_EL1，
+清出站LR并设置DAIF。**系统寄存器恢复不证明scheduler current pointer或
+优先级**；普通调用被送到注册secure entry，但实际运行任务仍未知。
+
+secure response外层command1经`[1c020438]`到`1c01ca8c`；内层
+`(x1&0x7f)-1`表`1c020670`分别将3/7送到`1c01d1c4`/`1c01d22c`。
+interrupt response7经`1c01db00`复制保存的正常context x1/x2/x3到envelope
+`+0x18/+0x20/+0x28`，再经共享`1c01c5e0`转回正常context；bit7路径保存
+secure context后恢复正常frame/系统寄存器，设置NS1。
+
+**token偏移更正**：`1c0671a4`把token写在`sp+0x38`，envelope起点是
+`sp+8`，故token实际在envelope **`+0x30`，不是`+0x38`**。
+`1c01c5e0`在静态初始化base0时复制它到正常context`+0x30`，即x6，
+与现有生产resume参数一致。envelope`+0x38`是另一条件字段，不是这个token。
+
+优先级假设的新约束：`1c03ba58`扫描9个调用槽的state4，dispatcher
+`1c056fc4..fe8`仅在PAS entry flags bit9置位时允许绕过pending state4，
+否则`1c0571a4`返回-12 BUSY。固定PAS7 entry`1c130458` flags=1，bit9未置位。
+历史配对日志最后两段x0/x1均0、无BUSY/INTERRUPTED；因此固定路径上的
+持续pending state4预测与记录不一致，削弱“中断残留高优先级caller”解释。
+它**不排除其他高优先级上下文、运行映像差异或其他live不变量变化**。
+
+481-record私有bundle `../logs/pas13-instruction-replay-20261110/
+tz-monitor-routing-20261112-v1-evidence.json` SHA256
+`ec09553d780e54ed61ee50315bab69f34d0e3f8189296aa22ec3e96708ba8a05`；
+snapshot SHA256`70d64f45849a221c0f1aede6adfbdacfb3f25bd4ddcccef836f785ce6d7627c9`。
+session已保存并关闭。router完整assembly已取得，不声称反编译成功；
+EL3和interrupt入口没有完整function归属结论。关键Evidence：
+
+- EL3入口bytes：`ev_57c540a5388ce4c062a2e0bc89a4e9f0303d081f74eb0a3d22a618af19de03df`
+- router assembly：`ev_ffc59f6618e244830b64be134434305484a3cb2cc881deb5b0389e603c26e7cb`
+- interrupt入口bytes：`ev_5299b75609cf034489b33a004fa7ae2cf621b070946ad5aaf8b1bf0b08d3a8df`
+- pending scan bytes：`ev_117dcc22d0e465cea481f4428bec3b2bbec6df91250d92fa40cb820a5851d395`
+
+新公开工具`scripts/verify-tz-monitor-routing.py`绑定固定原件、16个REA code
+范围及4个data范围，91条关键原指令和3个jump tables/PAS7 entry经LLVM核验。
+token creator额外120B仅原文件解码+REA analyzed assembly extent，**没有REA
+read_bytes record**，receipt单独注明。首次selector预期误填`1c01d6dc`，
+原表拒绝；实际`1c01d6e4`是返回context0的RET，修正后PASS，不追认首跑。
+普通/-O及7项拒绝测试均PASS，receipt移除一个LLVM listing SHA后语义相同。
+receipt `tz-monitor-routing-validation-20261112-v1.json` SHA256
+`07aa4f03893efadf070019ab38c9abb990fe419b921e17b78950ca86c5a11188`；
+工具SHA256`43b770e743bf2a17310974f45179bbc4359d5f3c5f30a0f97a3e65a44e31eede`。
+校验是**静态，不执行RAM/固件/SMC/GPU**。专有原件和bundle不发布、不进入CI。
+
+从workspace根本地复验：
+
+```sh
+python3 gpu-work/scripts/test-tz-monitor-routing.py
+python3 gpu-work/scripts/verify-tz-monitor-routing.py \
+  --tz logs/recovery-tz-acquisition-20261107-clean/tz-partition.img \
+  --bundle logs/pas13-instruction-replay-20261110/tz-monitor-routing-20261112-v1-evidence.json \
+  --output /tmp/tz-monitor-routing-new-receipt.json
+```
+
+本轮有界假设审查收尾，下一转独立运行身份/descriptor及真实owner证据；
+新增源代码审查见[SMEM身份线索边界](tz-runtime-identity-boundary.md)。
+不追加等价合成矩阵或重复已完成配对/触摸。没有生产内核改动/新CI/手机操作；
+PAS13=false、supported=false、CP halt保持，真实owner/secure PA/crypto仍缺，
+GPU scratch/fence/Metal未执行，目标active。
+
 ## 2026-11-11：当前线程写入与中断恢复
 
 同一固定TZ原件续查，未执行手机、SMC或固件。`[0x1c161828]`的23个
@@ -63,6 +151,9 @@ PA/crypto仍独立缺口，supported=false、CP halt不变，无生产改动/CI/
 GPU scratch/fence/Metal未执行；不重复已完成配对或触摸测试。
 
 ## 2026-11-11：普通入口、dispatcher与返回字段
+
+2026-11-12更正：下述旧回放输入实际为FAST `0xc2000207`，不是普通调用；
+这里只保留历史结果，正确normal64回放及限制见顶部。
 
 同一固定TZ原件的入口/返回续查已保存，未执行手机或SMC。旧原生证据已含
 `0x1c102f80..1c103003`；本次复核其缺少Ghidra function归属的直接调用边，

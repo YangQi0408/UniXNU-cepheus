@@ -1,5 +1,23 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 00:26 +08:00：monitor路由有界审查收尾，开始独立身份线索。
+重要更正：旧SMC framing回放实际FAST c2000207，不能覆盖真机普通42000207。
+新normal64脚本使用历史输入/两MPIDR，四场景普通/-O复验PASS；调度handoff及
+初态仍模拟、monitor helper独立调用，未执行EL3/bootstrap/live/GPU。
+fresh receipt SHA19ca45a7...；两LLVM listing SHA移除后语义一致，非字节一致。
+monitor CPU四context/系统寄存器恢复不是scheduler current pointer证明。
+token creator的sp+38减envelope起点sp+8为+30→正常x6，非envelope+38。
+固定PAS7 flags1若pending state4预测-12 BUSY，历史成功false无BUSY，削弱
+中断残留解释但不证明root cause/live身份。481-record bundle/snapshot已保存
+关闭；新公开静态verifier16REA code/4data/91关键LLVM及7拒绝测试普通/-O
+PASS，receipt SHA07aa4f03...，无RAM/firmware执行；token creator无REA byte
+record单独注明。详见pas13-continuation-audit.md顶部。
+独立SMEM item469/images只读源码路径确认；版本metadata不等于secure byte
+identity，旧UEFI parser边界不足不可直接采集。见tz-runtime-identity-boundary.md。
+下一bounded copied-view parser/独立身份与真实owner，不追加等价合成/配对/
+触摸；无生产改动/CI/phone，PAS13=false、supported=false、CP halt保持，
+owner/secure PA/crypto缺，GPU/Metal未执行，目标active不停工。
+
 2026-11-11 23:47 +08:00：current-thread/priority与中断恢复续查已保存。
 23个已解析current pointer引用仅bootstrap/调度两WRITE，不排除间接写入。
 原字节确认native29/secure-user31；两个disp0x28候选因base+0x18实际写
