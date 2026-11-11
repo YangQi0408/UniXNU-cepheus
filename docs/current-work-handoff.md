@@ -1,7 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
-2026-11-11：resource-owner provider结果到private CP admission owner的桥接已离线
-完成，等待提交与完整XNU链接。新header只接受既有provider gate逐字节命名的
+2026-11-11：resource-owner provider结果到private CP admission owner的桥接已提交
+并完成完整XNU链接。commit为`1f72f90`（桥接`516f615`及analyzer padding修复），
+run`43025405283`全成功，30m8s；artifact
+`../inputs/ci-43025405283/`。`device-commit.txt`精确匹配，`SHA256SUMS`通过；
+kernel17581176B SHA256
+`5427e02c29c56d76c7ae47968ca77e3b03a856fc46c8eae070d34e5dc3c79e03`，
+build.log SHA256
+`ce66a55677c3eab5acc98606377909b1107270b9fb5a80ce4e320aa6693c0a7e`。
+`llvm-nm -u`为空；从精确commit archive按0085/0086/0087顺序staging后
+`verify-gpu-kernel.py` PASS 116 core/49 memory API/0 unresolved。独立
+`verify-ci-scm-pair.py` receipt为`out/kernel-verification-ci-43025405283.json`，
+SHA256`de26ec66f69712b05ba86c3b528c1f2fada63c0a3554690ca490b904967c9b86`，
+并确认touch/pmap、CI staged source比较及CPU capture/SMC codegen。首次
+run`43022482625`在test fixture `{0}` padding的Clang analyzer警告处失败，未进入
+Build XNU、无kernel；该失败保留，修复`1f72f90`只改为显式`memset`。新header只接受既有provider gate逐字节命名的
 accepted result，并把provider/request/claim/expectations/result/clock复制成
 checksummed immutable contract；每次owner validate重新核对provider lease、
 owner/resource证据年龄、RPMh/ACK、crypto/ZAP身份。CP finish使用同一provider
@@ -16,7 +29,7 @@ host 86项、ASan/UBSan、production静态分析、AArch64/staged codegen及13�
 integration（1项可选reference SKIP）均PASS。
 没有默认backend/startup caller、MMIO/SMC/PAS/crypto/clock/WPTR/CP unhalt/GPU
 submission；夹具不是真实owner或硬件证据。PAS13=false/supported=false、CP
-halted不变，手机保持当前现场，无USB/重启/刷写操作。
+halted不变；artifact未打包/未boot，手机保持当前现场，无USB/重启/刷写操作。
 
 2026-11-11：GPU owner provider 接线边界已离线完成，等待全量本地验证与提交。
 新增 `cepheus_resource_owner_provider.h` / focused test：真实后端必须自有
