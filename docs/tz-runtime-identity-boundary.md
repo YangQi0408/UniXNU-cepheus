@@ -141,12 +141,114 @@ The local Cepheus DXE list includes `QcomPkg/Drivers/SmemDxe/SmemDxe.inf`; its
 40960B shipped EFI is now a concrete next audit target, SHA256
 `4553d85a7cfe19d9f7642822ce02799ac796faf17843391bc75db3b2db7c4a0e`.
 The generic protocol header declares a GetFunc but its actual semantics,
-registration, side effects and returned-view lifetime have not been inspected.
-Do not call it based only on the header or filename. Its inclusion is not an
-observed running protocol identity. No new REA session or device was started.
+registration, side effects and returned-view lifetime were unknown at the end
+of the00:47 batch. The subsequent static audit below now establishes its
+registration and several reasons not to call it as a read-only collector.
+Its inclusion is not an observed running protocol identity.
 Do not repeat paired INFO/PAS queries, boot rejected Android images, read
 arbitrary secure memory, or change PAS13 admission based on version strings.
 Actual owner/secure PA/cache/crypto/authentication remain separate blockers.
+
+## Shipped SmemDxe Audit (01:11)
+
+The exact40960B EFI above has been analyzed with REA/Ghidra12.1.2, then checked
+against original file bytes using Capstone and LLVM. The same bytes are embedded
+in historical accepted pair boot SHA256
+`2c93dc3333665bdbc8f1c835c0e59226f5b2a0cfda2678d4bb121a3fc86903d2`,
+FFS`F541D663-4A48-40AA-AABF-FF158CCAE34C`. This is **historical packaged
+identity**, not evidence that the protocol dispatched or that current RAM is
+accessible. The initial connected provider failed with a temporary-directory
+quota error; a scoped local REA session using an on-disk TMPDIR completed.
+No partial failed analysis is used. The successful session was exported and
+closed; there are no surviving audit processes or phone operations.
+
+Confirmed original-image facts (addresses are image-relative RVAs, not live VAs):
+
+- Entry`0x13a4` calls initialization`0x1e60`, then BootServices+`0x148`
+  (InstallMultipleProtocolInterfaces) with GUID at`0x8048` and table`0x8078`.
+  The GUID is`f4e5c7d0-d239-47cb-aacd-7f66ef763238`; table revision is`0x10001`,
+  followed by alloc`0x13f4`, get`0x1420`, ex-alloc`0x1464`, ex-get`0x1478`.
+- Get wrapper`0x1420` passes a stack size temporary to`0x1fc8`, copies the
+  returned pointer and size to caller outputs, and returns EFI_SUCCESS after
+  the delegate returns, including NULL-pointer failures. It does not initialize
+  the size temporary first; state/function/item-limit failures in`0x1fc8`
+  can return without writing size. Non-NULL output arguments are mandatory.
+  Initializing the caller's size alone would not fix that internal temporary.
+- The getter has a lazy initialization branch if local state`[0x8130] !=3`.
+  Initialization calls`0x23c0` for item3; its original store at`0x2428` ORs the
+  version into SMEM base+`0x40+0x1c`, namely base+`0x5c`. Initialization can also
+  assert/spin. Therefore a getter call is not unconditionally read-only.
+- Initialized v11 selects function-table`0x63c8`, getter`0x25c4`. For item469
+  it checks allocated==1 and returns a shared base+offset, not a copied buffer.
+  Both nominal lock hooks`0x3538/0x353c` are single RET instructions. The path
+  accepting nonzero AUX metadata still returns base+offset; no external-AUX
+  interpretation is authorized by this audit.
+- V12 selects table`0x6500`, getter`0x2aa4` and scanner`0x2d58`. It refreshes
+  mutable **driver-local** partition cache fields, searches the global-host
+  record, and returns an uncached/cached shared pointer from`0x2f94`.
+  Scanner instruction`0x2e28` explicitly truncates the traversal base to32 bits.
+  The RET-only hooks provide no interprocessor snapshot lock or returned lease.
+- Target initialization`0x3420` reads two source-selected MMIO words and
+  combines them into a target-info pointer; it extracts SMEM base from that
+  info. These are static instructions, not observed registers or permission to
+  read them. The PE subsystem is EFI_BOOT_SERVICE_DRIVER, not a runtime-service
+  lifetime guarantee. No use after ExitBootServices is justified.
+
+This audit **rejects direct GetFunc acquisition for now**. It does not prove
+that every initialized successful path changes shared item bytes, nor claim a
+complete debug/helper side-effect graph. It establishes enough hazards to
+require a separate copied-view route with verified pre-EBS mapping, bounded
+access and consistency checks. Version metadata remains unauthenticated even
+if that future capture succeeds; PAS13/owner/secure-memory/crypto gates do not
+change. No production caller, boot image, kernel or CI job was added.
+
+New public static verifier`scripts/verify-smemdxe-evidence.py` binds12 REA byte
+ranges (8code/4data), registered GUID/tables, historical embedded identity and
+43 critical instructions. Nine fixed-artifact tests cover foreign EFI/boot/
+Evidence, truncated/changed bytes, missing/duplicate selection and LLVM failure.
+Ordinary and`python -O` PASS; these private-input tests are not added to CI or
+the public GPU offline suite. The full heavy suite/kernel build was not rerun.
+The first verifier run rejected the unsigned spelling of a Capstone signed
+immediate (`w2,#-0x10000`); the corrected original-bit-pattern check passes.
+
+Private evidence at`../logs/smemdxe-audit-20261112-v1/`:
+
+```text
+763634d1708e69857ecb0172af5e4e8c4f8881e5881a9958259eeb17661e3d7f  evidence.json (35 records)
+f59797ed5ec9517fc807965d96dc9673a2bd80b1d5784ad9a5769b9c35e2f888  snapshot.json (closed)
+0be0aee8dde8e1c55cda73867eeab106a3633d708355972c542808647bb54c55  validation-v2.json
+943afac61bbe0b6d88cbeac3946030cc9c16cbdd3393e60cae97690ed0a3a079  validation-v2-opt.json
+```
+
+Final-v2 binds the verifier and all five imported helper source hashes; those
+hashes were independently rechecked after ordinary/-O tests. Ordinary/-O
+semantic receipts match after removing the disposable LLVM listing hash.
+Earlier`validation.json` remains historical and does not cover this final
+receipt-provenance addition.
+
+Key REA dossiers retained in that bundle:
+
+- Registration:`ev_6873b32a56b9573c3e85a4337b778e0d767a50eb6085bb41668ea04d0c7235a8`
+- Get wrapper:`ev_e9f49830d4111feb72cc148b78227ccc16bb7275d3f95f1dded3c596ae17545d`
+- Lazy delegate:`ev_5a7ed99099838f610a8b849048c94b40479e6c1a1c8a2ed37458bcb06f8d5083`
+- Version setter:`ev_ad4819f6d672d270b5e6f94c495309b1f2ea873ccb468db9c70028a89f9e3b28`
+- V12 scan:`ev_5e42ee5b546d28b8bb59d75d16d28e789e0fd64da7484f7d992be07e30661327`
+
+Local workspace-root verification (proprietary inputs stay private):
+
+```sh
+python3 gpu-work/scripts/test-smemdxe-evidence.py
+python3 gpu-work/scripts/verify-smemdxe-evidence.py \
+  --efi upstream-sync/uefi/Platforms/SurfaceDuo1Pkg/Device/xiaomi-cepheus/Binaries/QcomPkg/Drivers/SmemDxe/SmemDxe.efi \
+  --bundle logs/smemdxe-audit-20261112-v1/evidence.json \
+  --boot gpu-work/out/scm-pair-final-6ce4c7c/boot-scm-pair.img \
+  --output NEW_STATIC_RECEIPT.json
+```
+
+Next inspect the actual Cepheus platform memory-map installation and pre-EBS
+mapping/lifetime boundary, then prepare one bounded copied-view route only if
+that evidence supports it. Do not use target-info MMIO or a guessed physical
+base as a fallback; no phone change or repeated PAS/touch test is needed now.
 
 ## Source Digests
 

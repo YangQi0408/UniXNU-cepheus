@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 01:11 +08:00：原厂SmemDxe静态审查完成，无phone操作。
+REA/Ghidra经on-disk TMPDIR恢复quota失败；35-record bundle/snapshot保存关闭，
+无surviving过程。exact40960B EFI与历史pair boot内FFS逐字节一致；不是live
+dispatch证明。注册GUID/table/GetFunc RVA1420已确认；getter NULL失败仍返回
+EFI_SUCCESS，internal size temporary可未初始化，lazy init写SMEM base+5c；
+两lock hooks仅RET，v11/v12返回共享指针/v12 local cache可变，无lease/lifetime。
+拒绝直接GetFunc采集，下一查Cepheus pre-EBS真实memory mapping及bounded
+copied-view入口，不读猜测MMIO/physical fallback、不调用协议/重复PAS/触摸。
+verify-smemdxe-evidence.py的12REA byte ranges/43LLVM关键原指令与9拒绝测试
+普通/-O PASS，final-v2 receipt 0be0aee8...绑定verifier/5helpers且hash复验，
+移除LLVM临时listing hash后普通/-O语义相同；private inputs不进入CI，无全量重跑/新核。
+详见tz-runtime-identity-boundary.md。PAS13=false/supported=false、CP halt、
+owner/secure PA/crypto缺、GPU scratch/fence/Metal未执行，目标active不停工。
+
 2026-11-12 00:47 +08:00：独立SMEM版本证据工具离线完成，未操作手机。
 analyze-smem-versions.py支持exact4096B item469、caller显式base的单region
 TOC v11/global partition v12（cached/uncached）及sysfs rendering；完整边界/
