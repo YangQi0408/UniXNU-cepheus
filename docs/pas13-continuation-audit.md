@@ -1,5 +1,67 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+## 2026-11-11：当前线程写入与中断恢复
+
+同一固定TZ原件续查，未执行手机、SMC或固件。`[0x1c161828]`的23个
+Ghidra已解析引用逐项检查，仅两项为WRITE：`0x1c0d93e8`设置bootstrap
+pointer，`0x1c0d929c`选择最高ready bitmap优先级后设置current并转入
+context switch。Evidence分别为
+`ev_9061b838126d8a0c1fce8951c4d614e4a9f4b783ef702139bb9ba62df2eaac81` /
+`ev_daba62fc932f93db77bf17642b691f887aa78500ecf9e8dd1431737df0dfbe39`。
+这仅覆盖已解析引用，**不排除间接写入者或其他映像/运行地址**。
+
+原字节确认constructor`1c0d8e00`写thread+0x28；`1c0d9cfc`在context为NULL
+时传29，非NULL时传31，并设置+0x1d0和安全工作栈+0x1b8。
+`1c0cf1e0`的`1c0cf370`确实将安全应用context作为第四参数传入thread
+wrapper。`1c0d9bf4`按新线程+0x38选择native`1c104480`或带ERET的
+`1c03a5e8`，同时处理安全地址空间和saved DAIF；这里不修改+0x28。
+**尚未建立普通PAS7入口是否能继承priority31安全应用上下文**，不能把
+先前合成caller30反例当成live根因。
+
+限定`1c0d8e00..1c0d9f3f`扫描显式disp0x28 store共5项；其中
+`1c0d94a4`和`1c0d9854`之前已有base+0x18 writeback，实际写thread+0x40
+状态，不是优先级。其余为constructor、bootstrap31、idle降0。
+另一次全file-backed executable LOAD对齐词扫描仅筛出104个非SP显式W
+store候选，未逐项追对象，**不是全映像priority setter inventory**；变基址、
+indexed store、memcpy及其他写入方式未由这种筛选排除。
+
+原文件有界解码发现`0x1469040c`直接调用`1c0540ec`，Ghidra对后者的xref
+列表为空，不能据此声称没有调用者。原文件范围`14690350..1469041b`保存
+x0..x30、ELR_EL1、SPSR_EL1及SP_EL0到0x110B上下文再调用；这段没有REA
+byte record，仅绑定固定原件的唯一file mapping与Capstone/LLVM核验。
+`1c0540ec`保存FP条件状态、经`1c03b95c`复制上下文/生成token并把CPU调用
+槽置state4，暂停timer后发出`[1,0x87,1,...token]`。它没有直接修改current
+pointer；可选callback和完整外部路由未覆盖。
+
+resume`1c03b8b4`按token+state4找到slot，恢复slot状态/CPU并返回slot+0x28。
+入口`1c102ff8`使用该指针为SP，间接目标literal`[1c103078]`为`14690a84`。
+后者恢复全部寄存器、SPSR/SP_EL0/ELR和原SP，最后`14690b4c` ERET；它不是
+重新调度普通查询。Ghidra没有为`14690a84`建立function，结论来自完整204B
+REA byte record与原文件/Capstone/LLVM核验，不伪报其decompilation。
+
+原`1c103540`不是“入口立即SMC”：前32B先从envelope加载x0..x13，再于
+`1c103560` SMC，`1c103564`自环。Ghidra pseudo_code只呈现SMC/自环而省略
+加载部分；初版校验误用这种入口预期被原字节拒绝，补齐40B后通过。
+monitor router`1c01c75c`反编译遇临时数据库磁盘配额错误，未获得伪代码，
+不将该失败追认为结论；原byte读取可用，全部已取得记录已保存并关闭。
+
+最终407-record bundle `../logs/pas13-instruction-replay-20261110/
+tz-priority-resume-20261111-v3-evidence.json` SHA256
+`fcbdb9ad10b2e803d5b06d0466064de12b8695e2ff1d84cc53253b2a40818c9f`；
+snapshot SHA256`f0d70db22b64368310d6c850e5da8bd3f92136b664cbff75e349e5c795f9feca`。
+私有`check-tz-priority-resume-20261111.py` SHA256
+`4c2aa1b7b2c85350ab12b250600c211b8b31aa4418d7315f245a4889534df55a`，
+6个REA原字节范围+1个source-only范围、23引用/2写入/5候选及27个关键原
+指令LLVM静态校验PASS。receipt `tz-priority-resume-validation-20261111-v2.json`
+SHA256`43d30a970652ae40e0e6b575b3970f657e5ce52a4a29c9a46a0ef27283afec1c`。
+普通/-O语义字段一致，仅LLVM临时listing SHA不同；v1/v2/v3和旧receipt保留。
+这是**静态校验，无主机RAM执行**，不计作新增GPU测试或live观察。
+
+下一沿新确认的中断保存入口与monitor路由条件判断普通查询的实际上下文
+约束；如静态仍不能区分live身份，不追加等价合成场景。真实owner/secure
+PA/crypto仍独立缺口，supported=false、CP halt不变，无生产改动/CI/phone，
+GPU scratch/fence/Metal未执行；不重复已完成配对或触摸测试。
+
 ## 2026-11-11：普通入口、dispatcher与返回字段
 
 同一固定TZ原件的入口/返回续查已保存，未执行手机或SMC。旧原生证据已含

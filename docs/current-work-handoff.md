@@ -1,5 +1,20 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 23:47 +08:00：current-thread/priority与中断恢复续查已保存。
+23个已解析current pointer引用仅bootstrap/调度两WRITE，不排除间接写入。
+原字节确认native29/secure-user31；两个disp0x28候选因base+0x18实际写
+thread状态+0x40，非priority，普通PAS7能否继承secure-user31仍未建立。
+固定原文件发现1469040c→1c0540ec直接call，Ghidra xref遗漏；该入口保存
+0x110B中断上下文，token/state4 resume还原寄存器/原SP后ERET，不重新查询。
+1c103540先加载envelope x0..x13，SMC实际在1c103560；伪码省略加载，首版
+预期被字节拒绝后修正。monitor router反编译磁盘配额失败，无伪码结论。
+407-record bundle/snapshot保存、session关闭；6REA+1source-only字节范围、
+23refs/2writes/5候选/27关键LLVM指令静态PASS，无RAM/固件执行，普通/-O
+语义一致。receipt SHA43d30a97...，详见pas13-continuation-audit.md顶部。
+下一沿中断入口/monitor路由查实际上下文约束，不重复配对/触摸。
+无生产改动/CI/phone，真实owner/secure PA/crypto仍缺，supported=false、
+CP halt保持，GPU scratch/fence/Metal未执行，目标active不停工。
+
 2026-11-11 23:20 +08:00：普通SMC入口/dispatcher/返回字段有界回放完成，
 最终312-record REA bundle/snapshot保存、session关闭。原入口切工作SP及9项
 CPU调用槽不等于切scheduler thread；9/1/4参数为DAIF mask，不是priority。
