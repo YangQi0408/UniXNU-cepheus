@@ -34,11 +34,12 @@
 static uintptr_t rh_rsc=1,rh_tcs,rh_db;
 static uint32_t rh_db_size=256,*tcs,*db;
 static unsigned rh_ncpt=16,rh_lock,reads,writes,lease_calls,fail_lease,fail_write;
-static unsigned access_calls,fail_access,finished,kept,effects,mutate_owner;
+static unsigned access_calls,fail_access,finished,kept,effects,mutate_owner,fail_irq_readback;
 static char mutable_name[9];
 static bool rh_poisoned;
-static int context,complete,corrupt_payload,triggered,revoked;
+static int context,complete,corrupt_payload,triggered,revoked,busy_after_mask;
 static unsigned elapsed,slot;
+static struct ceph_rpmh_active_lease finished_lease;
 static int ml_get_interrupts_enabled(void){return context!=1;}
 static int ml_at_interrupt_context(void){return context==2;}
 static int get_preemption_level(void){return context==3;}
@@ -57,7 +58,7 @@ static uint32_t rh_read(uintptr_t base,uint32_t off)
     assert(!(off&3));++reads;
     if(base==rh_db){assert(off<rh_db_size);return db[off/4];}
     assert(base==rh_tcs && off<APERTURE);
-    if(fail_write && writes==fail_write)return UINT32_MAX;
+    if((fail_write && writes==fail_write) || (fail_irq_readback && writes==1 && off==RH_IRQ_EN))return UINT32_MAX;
     return tcs[off/4];
 }
 static void rh_write(uintptr_t base,uint32_t off,uint32_t value)
@@ -67,6 +68,7 @@ static void rh_write(uintptr_t base,uint32_t off,uint32_t value)
     if(off>RH_IRQ_CLEAR)assert(off/RH_TCS_STRIDE<RH_ACTIVE_N);
     if(off==RH_IRQ_CLEAR)tcs[RH_IRQ_STATUS/4]&=~value;
     else tcs[off/4]=value;
+    if(busy_after_mask && off==RH_IRQ_EN && !(value&1))tcs[RH_CONTROL/4]=RH_AMC_EN;
     if(off%RH_TCS_STRIDE==RH_CONTROL && value==(RH_AMC_EN|RH_TRIGGER)) {
         slot=off/RH_TCS_STRIDE;triggered=1;tcs[(slot*RH_TCS_STRIDE+RH_STATUS)/4]=0;
     }
@@ -107,8 +109,13 @@ static int validate(void *ctx,const struct ceph_arc_resource *r,unsigned current
     if(fail_lease && lease_calls>=fail_lease){revoke();return -1;}
     return 0;
 }
-static void finish(void *ctx,unsigned stores,int keep)
-{assert(ctx==tcs && rh_lock && stores==writes);++finished;effects=stores;kept=(unsigned)keep;}
+static void finish(void *ctx,const struct ceph_rpmh_active_lease *lease,int keep)
+{
+    assert(ctx==tcs && rh_lock && lease);
+    if(fail_irq_readback)assert(lease->attempted_stores==1 && lease->state==CEPH_RPMH_ACTIVE_LEASE_UNCERTAIN);
+    else assert(lease->attempted_stores==writes);
+    ++finished;effects=lease->attempted_stores;kept=(unsigned)keep;finished_lease=*lease;
+}
 static void init(void)
 {
     assert(!mprotect(tcs,APERTURE,PROT_READ|PROT_WRITE));
@@ -123,8 +130,9 @@ static void init(void)
     tcs[RH_IRQ_EN/4]=0xa5;tcs[RH_IRQ_STATUS/4]=0x80;
     tcs[RH_CMD_STATUS/4]=RH_ISSUED|RH_COMPLETE; /* stale from an older request */
     rh_ncpt=16;rh_lock=0;rh_poisoned=false;reads=writes=lease_calls=fail_lease=fail_write=0;
-    context=corrupt_payload=triggered=revoked=0;complete=1;elapsed=slot=0;
-    access_calls=fail_access=finished=kept=effects=mutate_owner=0;
+    context=corrupt_payload=triggered=revoked=busy_after_mask=0;complete=1;elapsed=slot=0;
+    access_calls=fail_access=finished=kept=effects=mutate_owner=fail_irq_readback=0;
+    memset(&finished_lease,0,sizeof(finished_lease));
     strcpy(mutable_name,"cx.lvl");
     ceph_rpmh_scope_phase=CE_RS_OPEN;ceph_rpmh_scope_effects=ceph_rpmh_scope_attempted=0;
     ceph_rpmh_scope_failed=0;
@@ -139,6 +147,14 @@ int main(void)
     assert(tcs!=MAP_FAILED && db!=MAP_FAILED);
     init();assert(!run() && !rh_poisoned && !rh_lock && writes && elapsed==1);
     assert(finished==1 && !kept && effects==writes);
+    assert(finished_lease.magic==CEPH_RPMH_ACTIVE_LEASE_MAGIC);
+    assert(finished_lease.state==CEPH_RPMH_ACTIVE_LEASE_CLEAN && finished_lease.slot==0);
+    assert(finished_lease.identity && finished_lease.count==1 && finished_lease.wait==1);
+    assert(finished_lease.command[0].message==RH_WRITE_ACK);
+    assert(finished_lease.command[0].address==0x30010 && finished_lease.command[0].data==2);
+    assert(finished_lease.irq_bit==1 && finished_lease.irq_enable_before==0xa5);
+    assert(finished_lease.irq_enable_masked==0xa4);
+    assert(finished_lease.irq_enable_final==0xa5);
     assert(tcs[RH_IRQ_EN/4]==0xa5 && tcs[RH_IRQ_STATUS/4]==0x80);
     assert(!tcs[RH_CONTROL/4] && !tcs[RH_WAIT/4] && !tcs[RH_ENABLE/4]);
     assert(tcs[RH_DATA/4]==2 && tcs[RH_MSGID/4]==RH_WRITE_ACK);
@@ -173,6 +189,13 @@ int main(void)
     assert(tcs[RH_CONTROL/4]==RH_AMC_EN && tcs[RH_ENABLE/4]==1 && tcs[RH_ADDR/4]==0x40000);
     init();tcs[RH_CONTROL/4]=1;tcs[(RH_TCS_STRIDE+RH_CONTROL)/4]=1;
     assert(run()==EBUSY && !writes && !rh_poisoned);
+    init();busy_after_mask=1;assert(run()==EBUSY && writes==1 && rh_poisoned);
+    assert(finished==1 && kept && effects==1 && finished_lease.slot==0);
+    assert(finished_lease.state==CEPH_RPMH_ACTIVE_LEASE_UNCERTAIN);
+    assert(tcs[RH_IRQ_EN/4]==0xa4 && tcs[RH_CONTROL/4]==RH_AMC_EN);
+    init();fail_irq_readback=1;assert(run()==EIO && writes==1 && rh_poisoned);
+    assert(finished==1 && kept && effects==1 && finished_lease.slot==0);
+    assert(finished_lease.state==CEPH_RPMH_ACTIVE_LEASE_UNCERTAIN);
     init();complete=2;assert(run()==ETIMEDOUT && rh_poisoned && elapsed==RH_TIMEOUT_US);
     assert(finished==1 && kept && effects==writes);
     assert(tcs[RH_CONTROL/4]==(RH_AMC_EN|RH_TRIGGER) && tcs[RH_ENABLE/4]==1 && !(tcs[RH_IRQ_EN/4]&1));

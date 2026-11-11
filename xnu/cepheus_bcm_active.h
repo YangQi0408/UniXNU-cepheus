@@ -2,6 +2,7 @@
 #ifndef CEPHEUS_BCM_ACTIVE_H
 #define CEPHEUS_BCM_ACTIVE_H
 #include "cepheus_bcm.h"
+struct ceph_rpmh_active_lease;
 enum ceph_bcm_active_id {CE_BA_SH2,CE_BA_SN15,CE_BA_SN3,CE_BA_SH0,CE_BA_MC0,CE_BA_ACV,CE_BA_NRESOURCE};
 struct ceph_bcm_active_vote {
     enum ceph_bcm_active_id id;
@@ -16,10 +17,12 @@ struct ceph_bcm_active_owner {
     int (*validate)(void *);
     /* Bind the real inherited/ACKed apps request and exact actual metadata. */
     int (*current)(void *,enum ceph_bcm_active_id,const struct ceph_bcm_resource *,uint32_t,uint32_t);
-    /* Once after any attempted store; keep=1 retains every resource on error.
-     * keep=0 follows ACK+slot cleanup, not permission to lower/free live votes.
-     */
-    void (*finish)(void *,unsigned attempted_stores,int keep);
+    /* Once after any attempted store. The read-only lease carries the selected
+     * ACTIVE slot, exact commands/status, store count and terminal state; verify
+     * its identity before updating the vote ledger. keep=1 retains every
+     * resource on error. keep=0 follows ACK+slot cleanup, not permission to
+     * lower/free live votes. */
+    void (*finish)(void *,const struct ceph_rpmh_active_lease *,int keep);
     /* Participating-writer reservation, not inherited request evidence.
      * Management/finish callbacks must not recurse into scope APIs. */
     uint64_t rpmh_token;

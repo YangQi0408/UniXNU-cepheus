@@ -75,7 +75,8 @@ int cepheus_gpu_bcm_raise(const struct ceph_bcm_active_vote *votes,unsigned coun
     e=ceph_bcm_active_lease(&c);if(e)goto done;
     e=ceph_rpmh_active_send(&call);
 done:
-    if(call.attempted_stores)c.owner.finish(c.owner.ctx,call.attempted_stores,e!=0);
+    if(call.attempted_stores || (call.lease.state==CEPH_RPMH_ACTIVE_LEASE_ARMED && e))
+        c.owner.finish(c.owner.ctx,&call.lease,e!=0);
     __atomic_store_n(&rh_lock,0,__ATOMIC_RELEASE);
     return e==ENOSPC?EBUSY:e;
 }

@@ -5,6 +5,7 @@
 #ifndef CEPHEUS_ARC_ACTIVE_H
 #define CEPHEUS_ARC_ACTIVE_H
 #include "cepheus_arc.h"
+struct ceph_rpmh_active_lease;
 struct ceph_arc_active_owner {
     void *ctx;
     int (*validate)(void *,const struct ceph_arc_resource *,unsigned,unsigned);
@@ -12,8 +13,10 @@ struct ceph_arc_active_owner {
      * exclusive apps writers and deep-idle exclusion, before decoding too. */
     int (*validate_access)(void *);
     /* Once after any attempted store, while the shared transport lock is held.
+     * The lease is a read-only copy owned by the sender; its identity and full
+     * command/status snapshot must match before updating the owner ledger.
      * keep=1 retains resources on uncertainty; keep=0 is ACK+cleanup, not off. */
-    void (*finish)(void *,unsigned attempted_stores,int keep);
+    void (*finish)(void *,const struct ceph_rpmh_active_lease *,int keep);
     /* Participating-writer reservation, separate from the resource ledger.
      * Management/finish callbacks must not recurse into scope APIs. */
     uint64_t rpmh_token;

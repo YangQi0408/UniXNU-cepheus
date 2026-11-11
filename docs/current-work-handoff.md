@@ -1,5 +1,25 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 14:19：ACTIVE sender固定槽租约批次离线完成，等待提交/完整链接。
+新增sender-owned只读lease快照（槽位、完整命令、WAIT/enable/control、命令状态、
+IRQ before/masked/final、attempted stores、CLEAN/UNCERTAIN）及ARC/BCM finish
+回调证据；IRQ mask后第二次全bank扫描必须仍选同一槽，禁止重定向。补齐mask写后
+读回失败也向owner报告UNCERTAIN。`test-bcm-active.py` final-v3全部PASS（host、
+ASan/UBSan、两静态分析、实际RPMh AArch64编译、integration、boot-no-call、
+staged-native），receipt `/tmp/active-lease-local-v3/receipt.json` SHA
+`fb57087c...`；full preflight四步/83host/七分析PASS，receipt
+`/tmp/gpll0-active-lease-preflight-v2/receipt.json` SHA`bf4a372c...`，382源文件
+验收后未变。该批尚无包含它的完整XNU kernel。
+
+`db33eff`的替代完整CI42967566527已SUCCESS并下载独立验收：kernel17580568B
+SHA`ee325d473d1a2c7418f0b722b32d67ef646d89b44571a78eddb73d5387cc8235`，
+build.log SHA`2dab8726...`；device-commit精确匹配，archived `db33eff`源码
+staging后`verify-gpu-kernel.py` PASS（115 core/49 memory API/0 unresolved），
+CP admission、authenticated ZAP、ARC/BCM、ring/submit符号均在链接核中。此核
+包含CP admission staging修复，不含随后fixed-slot lease改动。PAS13=false/
+supported=false与CP halt保持，真owner/继承ledger/双TBU/secure PA+crypto/真实
+ACK仍缺，GPU/Metal未执行；无phone操作/重启/刷写。
+
 2026-11-11 13:10：CP execution admission边界实现并离线验收PASS。新增
 private identity和native one-shot wrapper，精确绑定7-store halted ring、
 CP45 writes/66 reads sealed publication、15-effect enabled GX SMMU、LIVE

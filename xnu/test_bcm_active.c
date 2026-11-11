@@ -36,7 +36,8 @@ static uintptr_t rh_rsc=1,rh_tcs,rh_db;
 static uint32_t rh_db_size=1024;
 static unsigned rh_ncpt=16,rh_lock,reads,writes,checks,expire,fail_write;
 static unsigned finished,kept,effects,elapsed,slot,model_stores;
-static unsigned context,complete,corruption,late_bcm,triggered,current_bad,mutate_input;
+static unsigned context,complete,corruption,late_bcm,triggered,current_bad,mutate_input,busy_after_mask,fail_irq_readback;
+static struct ceph_rpmh_active_lease finished_lease;
 static unsigned written_offsets[64],written_values[64];
 static bool rh_poisoned;
 static int ml_get_interrupts_enabled(void){return context!=1;}
@@ -55,7 +56,7 @@ int cepheus_gpu_idle_finish(uint64_t token,int keep)
 static uint32_t rh_read(uintptr_t base,uint32_t off)
 {
     assert(!(off&3) && off<(base==rh_db?rh_db_size:APERTURE));++reads;
-    if(fail_write && writes==fail_write)return UINT32_MAX;
+    if((fail_write && writes==fail_write) || (fail_irq_readback && writes==1 && off==0))return UINT32_MAX;
     return *(volatile uint32_t *)(base+off);
 }
 static void rh_write(uintptr_t base,uint32_t off,uint32_t value)
@@ -65,6 +66,7 @@ static void rh_write(uintptr_t base,uint32_t off,uint32_t value)
     if(off>8)assert(off/0x2a0<2);
     if(off==8)tcs[1]&=~value;
     else *(volatile uint32_t *)(base+off)=value;
+    if(busy_after_mask && off==0 && !(value&1))tcs[0x14/4]=0x10000;
     if(off%0x2a0==0x14 && value==0x1010000) {
         slot=off/0x2a0;triggered=1;tcs[(slot*0x2a0+0x18)/4]=0;
     }
@@ -122,8 +124,13 @@ static int current(void *ctx,enum ceph_bcm_active_id id,const struct ceph_bcm_re
     assert(id==CE_BA_ACV?(x==0 && y==0):(x==1 && y==10));
     return current_bad?-1:0;
 }
-static void finish(void *ctx,unsigned stores,int keep)
-{assert(ctx==tcs && rh_lock && stores==writes);++finished;effects=stores;kept=(unsigned)keep;}
+static void finish(void *ctx,const struct ceph_rpmh_active_lease *lease,int keep)
+{
+    assert(ctx==tcs && rh_lock && lease);
+    if(fail_irq_readback)assert(lease->attempted_stores==1 && lease->state==CEPH_RPMH_ACTIVE_LEASE_UNCERTAIN);
+    else assert(lease->attempted_stores==writes);
+    ++finished;effects=lease->attempted_stores;kept=(unsigned)keep;finished_lease=*lease;
+}
 static int forbidden_arc_owner(void *ctx,const struct ceph_arc_resource *r,unsigned old,unsigned target)
 {(void)ctx;(void)r;(void)old;(void)target;assert(0);return -1;}
 static int forbidden_arc_access(void *ctx){(void)ctx;assert(0);return -1;}
@@ -134,7 +141,8 @@ static void reset(void)
     memset(tcs,0,APERTURE);memset(db,0,APERTURE);
     rh_rsc=1;rh_tcs=(uintptr_t)tcs;rh_db=(uintptr_t)db;rh_db_size=1024;
     rh_ncpt=16;rh_lock=0;rh_poisoned=false;reads=writes=checks=expire=fail_write=0;
-    finished=kept=effects=elapsed=slot=model_stores=context=corruption=late_bcm=triggered=current_bad=mutate_input=0;
+    finished=kept=effects=elapsed=slot=model_stores=context=corruption=late_bcm=triggered=current_bad=mutate_input=busy_after_mask=fail_irq_readback=0;
+    memset(&finished_lease,0,sizeof(finished_lease));
     complete=1;owner=(struct ceph_bcm_active_owner){tcs,validate,current,finish,1};
     ceph_rpmh_scope_phase=CE_RS_OPEN;ceph_rpmh_scope_effects=ceph_rpmh_scope_attempted=0;
     ceph_rpmh_scope_failed=0;
@@ -163,6 +171,16 @@ int main(void)
     assert(!run() && finished==1 && !kept && !rh_poisoned && !rh_lock);
     unsigned total=checks,stores=writes;
     assert(stores==29 && effects==stores && elapsed==1);
+    assert(finished_lease.magic==CEPH_RPMH_ACTIVE_LEASE_MAGIC);
+    assert(finished_lease.state==CEPH_RPMH_ACTIVE_LEASE_CLEAN && finished_lease.slot==0);
+    assert(finished_lease.count==6 && finished_lease.wait==0x36);
+    for(unsigned n=0;n<6;++n) {
+        assert(finished_lease.command[n].message==tcs[(0x30+n*0x14)/4]);
+        assert(finished_lease.command[n].address==tcs[(0x34+n*0x14)/4]);
+        assert(finished_lease.command[n].data==tcs[(0x38+n*0x14)/4]);
+    }
+    assert(finished_lease.irq_bit==1 && finished_lease.irq_enable_before==0xa5);
+    assert(finished_lease.irq_enable_masked==0xa4 && finished_lease.irq_enable_final==0xa5);
     const unsigned order[]={3,4,1,0,2,5};
     for(unsigned n=0;n<6;++n) {
         unsigned b=0x30+n*0x14,commit=!!(0x36&(1u<<n));
@@ -199,6 +217,11 @@ int main(void)
         assert(run()==EBUSY && !writes && !finished && !rh_poisoned);
     }
     reset();late_bcm=1;assert(run()==EBUSY && writes==1 && finished && kept);
+    reset();busy_after_mask=1;assert(run()==EBUSY && writes==1 && finished && kept && rh_poisoned);
+    assert(finished_lease.slot==0 && finished_lease.state==CEPH_RPMH_ACTIVE_LEASE_UNCERTAIN);
+    assert(tcs[0]==0xa4 && tcs[0x14/4]==0x10000);
+    reset();fail_irq_readback=1;assert(run()==EIO && writes==1 && finished && kept && rh_poisoned);
+    assert(finished_lease.slot==0 && finished_lease.state==CEPH_RPMH_ACTIVE_LEASE_UNCERTAIN);
     reset();tcs[0x14/4]=0x10000;tcs[0x1c/4]=1;tcs[0x34/4]=0x40000;
     assert(!run() && slot==1 && tcs[0x14/4]==0x10000 && tcs[0x1c/4]==1 && tcs[0x34/4]==0x40000);
     for(unsigned n=0;n<=4;++n)if(n!=1) {

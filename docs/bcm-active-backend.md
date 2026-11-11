@@ -49,6 +49,9 @@ chosen IRQ source is masked. Any armed BCM address is refused, even outside
 the requested route: a foreign command may have a pending VCD dependency. This
 does not inspect hidden TCS or prove pending BCM state is globally empty.
 No sleep/wake programming, RSC reset, vote-off, retry or automatic recovery.
+The second scan must select the same ACTIVE slot. If the original slot becomes
+busy while another slot is free, the request is refused instead of being
+redirected.
 
 Attempted stores poison the shared transport first. Clean ACK and slot cleanup
 clear trigger then mode, clear only owned enable/wait/IRQ state and restore
@@ -58,6 +61,13 @@ payload, missing command completion or timeout leaves state intact and reports
 **not permission to release live rail/clock/bandwidth ownership**. The coordinator
 updates its current-vote ledger only after success; partial/uncertain writes
 cannot be interpreted as an ACKed new ledger.
+
+`finish` receives a sender-owned read-only lease with the selected slot, exact
+six-command snapshot, WAIT/enable/control, per-command status, IRQ observations,
+IRQ-enable before/masked/final, attempted-store count and terminal state.
+`CLEAN` is ACK plus owned-slot cleanup; `UNCERTAIN` is any attempted store
+without a clean terminal path. The owner must check the snapshot against its
+own request and retain on uncertainty; the pointer is not an ownership grant.
 
 ## Verification
 
@@ -79,6 +89,8 @@ Final four-step local preflight:
 - All-bank foreign BCM and late conflict, missing fresh IRQ/ISSUED/COMPLETE,
   payload/control corruption, bad metadata/current/context/lock, overflow,
   decreases/no-op/duplicate IDs and shared ARC poison rejection are tested.
+  Fixed-slot diversion after IRQ mask is also refused, and finish snapshots are
+  checked for exact commands, slot, IRQ restoration and terminal state.
 - ARC's revised 153 lease boundaries/14 store positions still pass.
 - ASan/UBSan, actual complete native RPMh AArch64 compilation/assembly/static
   analysis, host static analysis and staged-header-only native compilation pass.

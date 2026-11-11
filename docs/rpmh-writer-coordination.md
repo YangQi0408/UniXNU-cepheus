@@ -29,6 +29,14 @@ apps-DRV reservation BEFORE touching MMIO. Callback reentry cannot release
 them because the actual transport lock is held. Nonzero effects, uncertain
 transport poison or invalid idle state never unblock legacy writers.
 
+The shared ACTIVE sender now keeps a fixed-slot lease. After masking the chosen
+slot's IRQ, its second all-bank scan must select that same slot; another newly
+free ACTIVE slot cannot redirect the request. `finish` receives a read-only
+sender-owned snapshot with the slot, exact commands, WAIT/enable/control,
+per-command status, IRQ-enable before/masked/final values, attempted stores and
+terminal state (`CLEAN` or `UNCERTAIN`). This is evidence for the owner ledger,
+not an owner, inherited vote or hardware ACK by itself.
+
 `finish(token,0)` only releases an unretained, effect-free reservation; the
 caller separately owns its still-held idle token. `finish(token,1)` retains
 the reservation and idle token. A failed idle check is sticky even if a later
@@ -86,6 +94,11 @@ verification passes: kernel 17473184 bytes, SHA256
 Subsequent GPLL0 integration
 is documented separately in `gpll0-scope-coordination.md`; this run cannot
 accept those later source changes.
+
+The later fixed-slot lease and finish-snapshot API is a production-source
+change. The 42874717231 and 42819762105 kernels predate it. Its local ARC/BCM
+acceptance is `/tmp/active-lease-local-v3/receipt.json`; a full XNU link is
+still required before that later source can be accepted as a kernel.
 
 ## Linked Control Flow
 

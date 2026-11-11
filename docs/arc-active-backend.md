@@ -53,11 +53,14 @@ vote-off recovery. This does not resolve PAS13=false, PAS memory permissions,
 crypto clocks/bandwidth, clock/GDSC ownership, SMMU, or thermal supervision.
 
 The adapter checks all eight normal TCS banks for armed commands targeting the
-same resource, then uses only one empty idle ACTIVE slot. It masks only that
-slot's interrupt source. All payload fields are read back; success requires a
-fresh IRQ absent before trigger, idle state and command ISSUED+COMPLETE. Stale
-command status or a busy transition alone cannot satisfy completion. The
-payload, enable/wait/control fields are checked again before cleanup.
+same resource, then uses only one empty idle ACTIVE slot. The selected slot is
+a fixed lease: the second availability scan must select that same slot after
+its IRQ source is masked. A newly free other slot cannot redirect the command.
+It masks only that slot's interrupt source. All payload fields are read back;
+success requires a fresh IRQ absent before trigger, idle state and command
+ISSUED+COMPLETE. Stale command status or a busy transition alone cannot satisfy
+completion. The payload, enable/wait/control fields are checked again before
+cleanup.
 
 Any uncertain store, lost lease or ACK timeout poisons the shared transport and
 leaves the slot intact. A successful path clears trigger then mode, only its
@@ -65,14 +68,24 @@ command enable/wait and W1C IRQ bit, then restores only its IRQ-enable bit.
 Sleep/wake/hidden TCS, unrelated payload/IRQs, global reset and physical rail
 verification are outside this API. ACK is not proof of physical voltage.
 
+`finish` receives a read-only sender-owned lease snapshot, not a caller-supplied
+identity. It records the selected slot, exact command/WAIT/enable values,
+command-status and IRQ observations, IRQ-enable before/masked/final values,
+attempted stores and terminal state. `CLEAN` means ACK plus owned-slot cleanup;
+`UNCERTAIN` means at least one store was attempted without a clean terminal
+path. The owner must still bind this evidence to its own current vote and must
+retain resources on uncertainty.
+
 ## Verification
 
 Local final receipt:
 `out/arc-active-local-20261110-final/receipt.json`.
 
-- RAM tests inject all 70 lease boundaries and 14 uncertain writes, armed
+- RAM tests inject all 153 lease boundaries and 14 uncertain writes, armed
   conflicts in all eight banks, stale completion, missing fresh IRQ, corrupted
-  payload/control, invalid metadata/context, and shared lock/poison rejection.
+  payload/control, fixed-slot diversion after IRQ mask, invalid
+  metadata/context, and shared lock/poison rejection. Finish snapshots are
+  checked for exact slot, command, IRQ and terminal-state evidence.
 - ASan/UBSan, 66 host programs and seven existing production-unit static
   analyses passed. Native ARC/RPMh analysis passed separately.
 - The actual pinned RPMh functions plus the adapter compile/assemble for

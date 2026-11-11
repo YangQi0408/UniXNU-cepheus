@@ -53,7 +53,8 @@ int cepheus_gpu_arc_raise(const char *name,unsigned current,unsigned target,
     call.command[0]=(struct ceph_rpmh_active_command){RH_WRITE_ACK,c.resource.address,target};
     e=ceph_rpmh_active_send(&call);
 done:
-    if(call.attempted_stores)c.owner.finish(c.owner.ctx,call.attempted_stores,e!=0);
+    if(call.attempted_stores || (call.lease.state==CEPH_RPMH_ACTIVE_LEASE_ARMED && e))
+        c.owner.finish(c.owner.ctx,&call.lease,e!=0);
     __atomic_store_n(&rh_lock,0,__ATOMIC_RELEASE);
     return e==ENOSPC?EBUSY:e;
 }
