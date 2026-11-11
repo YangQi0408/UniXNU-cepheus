@@ -128,7 +128,9 @@ jobs:
       - name: Toolchain and event parser regression
         run: |
           set -euo pipefail
-          brew install jq gum bash cmake ninja
+          brew install jq gum bash cmake ninja llvm
+          export LLVM_OBJDUMP="$(brew --prefix llvm)/bin/llvm-objdump"
+          echo "LLVM_OBJDUMP=$LLVM_OBJDUMP" >> "$GITHUB_ENV"
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
           sudo chmod +x /usr/local/bin/xcodes
           test -d /Applications/Xcode_16.2.app
@@ -136,6 +138,7 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
           xcrun --find iig
+          python3 cepheus/scripts/test-smem-kernel-verifier.py
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_fts_events.c -o /tmp/fts-test
           /tmp/fts-test
           cc -std=c11 -Wall -Wextra -Werror -fsanitize=undefined cepheus/xnu/test_i2c_bitbang.c -o /tmp/i2c-test
@@ -263,6 +266,7 @@ jobs:
           grep -F '#include "cepheus_arc_probe.h"' dxb/xnu/bsd/dev/sweet_rpmh.c
           python3 -c 'from pathlib import Path; d=Path("dxb/fakeroot/System/Library/Kernels/kernel.development.sweet").read_bytes(); assert b"CEPHEUS ARC:" in d and b"cepharc" in d'
           python3 cepheus/scripts/verify-gpu-kernel.py dxb/xnu "$K"
+          python3 cepheus/scripts/verify-smem-map-kernel.py "$K"
           grep -F 'Applying patch:' dxb/build.log | grep -F '0088-cepheus-pmap-cache-pa.patch'
           python3 -c 'from pathlib import Path; s=Path("dxb/xnu/osfmk/arm/pmap/pmap.c").read_text(); assert "flush_dcache((vm_offset_t) ptoa(pp), PAGE_SIZE, TRUE);" in s; assert "(pp << PAGE_SHIFT)" not in s'
           python3 cepheus/scripts/verify-pmap-cache-kernel.py "$K"

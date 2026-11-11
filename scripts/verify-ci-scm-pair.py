@@ -20,6 +20,7 @@ def main():
     p.add_argument('--input',required=True,type=Path);p.add_argument('--log',required=True,type=Path)
     p.add_argument('--output',required=True,type=Path)
     p.add_argument('--rpmh-tail',action='store_true',help='also verify this commit\'s tail ABI, native helper and linked caller')
+    p.add_argument('--smem-map',action='store_true',help='verify copied mapping receiver and its linked thread')
     a=p.parse_args();assert not a.output.exists()
     pin=run(['git','rev-parse',a.commit]).strip()
     ci=json.loads(run(['gh','run','view',str(a.run),'--repo','YangQi0408/UniXNU-cepheus',
@@ -77,6 +78,10 @@ def main():
         assert '_gpu_probe' in tail or '_ml_io_map' in tail
         assert 'smc\t' not in tail and '_cepheus_gpu_submit' not in tail and '_cepheus_gpu_arc_raise' not in tail
     checks={}
+    smem=None
+    if a.smem_map:
+        smem=json.loads(run(['python3',str(ROOT/'scripts/verify-smem-map-kernel.py'),str(kernel)]))
+        assert smem['status']=='PASS_LINKED_SMEM_RECEIVER' and smem['kernel_sha256']==sha
     for script,flags in (('verify-touch-kernel.py',['--ordered-contacts']),('verify-pmap-cache-kernel.py',[])):
         checks[script]=run(['python3',str(ROOT/'scripts'/script),str(kernel),*flags]).strip()
     log=a.log.read_text(errors='replace')
@@ -90,6 +95,7 @@ def main():
         'build_log_sha256':hashlib.sha256(a.log.read_bytes()).hexdigest(),
         'phone_operations':False,'gpu_execution':False,'run_state':ci}
     if a.rpmh_tail:result.update(tail_abi_source_verified=True,native_tail_hook_and_caller_verified=True)
+    if a.smem_map:result.update(smem_map_abi_source_verified=True,native_smem_receiver_and_thread_verified=True,smem_map_verification=smem)
     a.output.parent.mkdir(parents=True,exist_ok=True)
     a.output.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k not in ('run_state','source_sha256')},indent=2))

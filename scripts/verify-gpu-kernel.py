@@ -105,6 +105,8 @@ def main():
     data = args.kernel.read_bytes()
     for marker in (b'CEPHEUS RPMH TAIL: begin',b'CEPHEUS RPMH TAIL: raw=',b'CEPHEUS RPMH TAIL: end',b'cepheus-rpmh-tail'):
         if marker not in data:raise ValueError('missing RPMh exit-tail diagnostic '+repr(marker))
+    for marker in (b'CEPHEUS SMEM MAP: begin version=1 bytes=',b'CEPHEUS SMEM MAP: raw=',b'CEPHEUS SMEM MAP: end diagnostic=',b'cepheus-smem-map'):
+        if marker not in data:raise ValueError('missing SMEM copied diagnostic '+repr(marker))
     if data[:8] != bytes.fromhex('cffaedfe0c000001') or b'CEPHEUS GPU MEM:' not in data:
         raise ValueError('not the expected arm64 GPU kernel')
     if b'SWEET FASTBOOT:' in data or b'sweetfastboot' in data:

@@ -1,5 +1,16 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-12 03:08 +08:00：准备唯一changed XNU link。新增严格receiver/
+outlined helper/direct tail transfer验收，实际soc_smem_map noinline；15拒绝
+case及实际receiver ARM64 linked fixture普通/-O PASS，fixture非XNU验收。
+CI显式安装LLVM且仅通过LLVM_OBJDUMP选择disassembler，不改变XNU编译器。
+focused15checks PASS receipt out/smem-kernel-prereq-20261112-v1/receipt.json
+SHA cffe3e32f7d1ccd165015de48f454048744bd1ec834a14286153e357be8cbbbf，
+含真实adapter mock/XNU roundtrip、native EFI及旧SCM/tail/delay回归。
+此前056578e receipt保留但不冒充当前source。接下来commit/push、单次CI，
+再独立下载核验/离线封装；未操作phone/SMC/boot，GPU/Metal未执行。
+PAS13=false/CP halted、真实owner/secure PA/crypto/auth缺失保持。
+
 2026-11-12 02:54 +08:00：SMEM mapping same-boot owned handoff/XNU receiver
 离线完成。exact isolated cephsmemmap=1/unique chosen zero4576B slot，capture
 一次/close失败拒bootretain/unload可清理；成功EBS后仅seal/copy，无services。

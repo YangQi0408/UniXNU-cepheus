@@ -372,6 +372,7 @@ static bool soc_rpmh_tail(void)
 	printf("CEPHEUS RPMH TAIL: end; diagnostic only, no ACK/ownership or GPU execution\n");
 	return true;
 }
+__attribute__((noinline))
 static bool soc_smem_map(void)
 {
 	int profile=ceph_smem_map_profile(PE_boot_args());
