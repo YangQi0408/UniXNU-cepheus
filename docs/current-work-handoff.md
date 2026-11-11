@@ -1,5 +1,26 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 17:05 owner-evidence完整链接与退出尾诊断包验收PASS，真机未启动。
+commit`c9306124818aab7b0e005fad1b52deda98703863`的唯一完整CI42987126144
+SUCCESS（33m23s），artifact `cepheus-touch-kernel`及build log已下载。
+`device-commit.txt`精确匹配、`SHA256SUMS`通过；kernel17564288B SHA
+`4041b59f97587b398d0f19eb02b83e05c8b3aff0e132e2238087258e8e90e028`，
+build.log SHA`3a5a5b0082b23a6551540bfae9510b82d4ad71c515de6ef4941f2b555d83679b`，
+`llvm-nm -u`为空。从精确commit archive staging后`verify-gpu-kernel.py`
+PASS 116 core/49 memory API/0 unresolved，owner-evidence及CP admission/
+native ring符号已链接；`verify-ci-scm-pair.py --rpmh-tail` PASS并生成
+out/kernel-verification-ci-42987126144-tail.json。
+用该精确kernel重打包现有退出尾诊断，五步本地构建全PASS，另在离线容器
+独立复验PASS：out/rpmh-tail-real-42987126144-c930612-v1/boot-rpmh-tail.img，
+70696960B SHA`aa519aeaf36d3c87b0b516695b814aefbf1d44655a94bc926606eb9de8d1616b`；
+receipt SHA`67a5126f...`，boot-verification SHA`96684262...`，独立
+boot-verification-independent SHA`f80d39a7...`。镜像只做90秒RPMh软件请求
+快照及gated只读GPU探测，不解除CP halt/写WPTR/提交GPU。17:02主机
+`lsusb`/`adb`/`fastboot`均未枚举手机，因此没有启动、重启、刷写或切换系统。
+真机下一步仍是手动fastboot后临时`fastboot boot`此镜像；即使快照成功也不
+等于真实owner/ACK，PAS13=false/supported=false、secure PA/crypto及GPU/Metal
+执行仍未完成。
+
 2026-11-11 owner-evidence离线批次：新增pure fail-closed双TBU/RPMh/ACK复制记录
 admission及link-only wrapper，无startup caller/MMIO/SMC/firmware/GPU提交。
 精确要求TBU0`0x2cc5000/0x1000`、TBU1`0x2cc9000/0x1000`及SID

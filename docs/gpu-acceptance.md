@@ -4,6 +4,18 @@
 > [工作交接文档](current-work-handoff.md)。本页保留各轮验收及纠错原记录；
 > 构建通过不替代实测，各轮UI通过/失败不可互相覆盖，长期稳定仍未证明。
 
+## 2026-11-11 17:05：owner-evidence完整链接及最新退出尾诊断包验收
+
+CI42987126144 @c930612完整SUCCESS（33m23s）。kernel17564288B SHA
+`4041b59f97587b398d0f19eb02b83e05c8b3aff0e132e2238087258e8e90e028`，
+build.log SHA`3a5a5b0082b23a6551540bfae9510b82d4ad71c515de6ef4941f2b555d83679b`；
+device-commit精确匹配、SHA256SUMS通过、`llvm-nm -u`为空。精确archive源码
+staging后116 core/49 memory API/0 unresolved PASS。精确kernel重打包退出尾
+诊断包五步全PASS并离线容器独立复验：70696960B SHA
+`aa519aeaf36d3c87b0b516695b814aefbf1d44655a94bc926606eb9de8d1616b`。
+主机未枚举手机，故未启动。该包仅采集软件请求及只读GPU状态，不是owner/ACK、
+CP unhalt或GPU执行；PAS13=false/supported=false保持。
+
 ## 2026-11-10 20:19：父时钟保持/计数器完整XNU构建验收通过，未启动GPU
 
 CI42810544983 @aa585f5于20:05:32成功；内核和日志已下载，本机独立核验
