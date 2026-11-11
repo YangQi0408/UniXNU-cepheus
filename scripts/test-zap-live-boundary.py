@@ -22,6 +22,8 @@ SOURCES = (
     'xnu/test_zap_resource_evidence.c',
     'xnu/cepheus_resource_owner_provider.h',
     'xnu/test_resource_owner_provider.c',
+    'xnu/cepheus_resource_owner_cp_admission.h',
+    'xnu/test_resource_owner_cp_admission.c',
     'tests/test_zap_pas.cpp',
     'tests/test_zap_memory.cpp',
     'scripts/verify-gpu-kernel.py',

@@ -1,5 +1,22 @@
 # Resource Owner Boundary
 
+2026-11-11 CP admission bridge: `cepheus_resource_owner_cp_admission.h` accepts
+only a provider result that the existing accepted resource-owner gate names
+byte-for-byte. It copies the provider, request, claim, expectations, accepted
+result and clock identity into one checksummed immutable contract. Every owner
+validation rechecks the provider lease, owner/resource evidence age, RPMh/ACK
+identity and crypto/ZAP identity before CP admission. Finish uses that same
+provider context and lease; a repeated finish, empty record, identity mismatch,
+expired/revoked lease or failed live validation becomes sticky failure and
+retains the resources once. The production CP caller's `keep=1` is covered
+separately from an explicit successful `keep=0` fixture.
+
+The bridge installs no default provider, startup caller or CP submission. It
+contains no MMIO, SMC, PAS, crypto vote, clock change, WPTR write or CP unhalt.
+Its focused fixtures are synthetic contract tests, not real owner or hardware
+evidence. PAS13 remains false, `supported` remains false and the CP remains
+halted.
+
 2026-11-11 live provider boundary: `cepheus_resource_owner_provider.h` adds a
 host-validated, fail-closed bridge between a future owner backend and the
 existing owner/resource evidence gates. The provider owns the lease, supplies

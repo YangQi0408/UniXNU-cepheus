@@ -104,6 +104,7 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_cp_execution_admission_private.h'),
                                 ('bsd/dev', 'cepheus_owner_evidence.h'),
                                 ('bsd/dev', 'cepheus_resource_owner_provider.h'),
+                                ('bsd/dev', 'cepheus_resource_owner_cp_admission.h'),
                                 ('bsd/dev', 'cepheus_zap_resource_evidence.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_api.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_private.h'),
@@ -237,6 +238,7 @@ class Integration(unittest.TestCase):
                    'cepheus_zap_memory_prepare','cepheus_gpu_zap_load','cepheus_gpu_zap_stop')
         dangerous += ('cepheus_gpu_owner_evidence_admit',)
         dangerous += ('cepheus_resource_owner_acquire',)
+        dangerous += ('cepheus_resource_owner_cp_binding_init',)
         for name in ('cepheus_soc.c','cepheus_touch.c','cepheus_arc_probe.h'):
             text=(ROOT/'xnu'/name).read_text()
             text=re.sub(r'/\*.*?\*/|//[^\n]*','',text,flags=re.S)

@@ -1,5 +1,23 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11：resource-owner provider结果到private CP admission owner的桥接已离线
+完成，等待提交与完整XNU链接。新header只接受既有provider gate逐字节命名的
+accepted result，并把provider/request/claim/expectations/result/clock复制成
+checksummed immutable contract；每次owner validate重新核对provider lease、
+owner/resource证据年龄、RPMh/ACK、crypto/ZAP身份。CP finish使用同一provider
+context/lease；重复finish、空记录、身份错配、lease撤销或证据过期都粘滞失败并
+只retain一次。生产CP的`keep=1`与显式成功`keep=0`分别覆盖。
+focused `/tmp/resource-owner-cp-gpll0-20261111-v3/receipt.json`为PASS，184步，
+SHA `c14ffa1e9e5353d50f17ddffc24236438e54bfd64e4d035378d24ff9eee373c2`，
+验收期间source hashes未变。ZAP live-boundary
+`/tmp/resource-owner-cp-zap-live-20261111-v1/receipt.json`也为PASS，SHA
+`9f70cb9040d7e226ef5681347b131a77c907c84f1e14faafcf902a3c7fa38fcf`。
+host 86项、ASan/UBSan、production静态分析、AArch64/staged codegen及13项
+integration（1项可选reference SKIP）均PASS。
+没有默认backend/startup caller、MMIO/SMC/PAS/crypto/clock/WPTR/CP unhalt/GPU
+submission；夹具不是真实owner或硬件证据。PAS13=false/supported=false、CP
+halted不变，手机保持当前现场，无USB/重启/刷写操作。
+
 2026-11-11：GPU owner provider 接线边界已离线完成，等待全量本地验证与提交。
 新增 `cepheus_resource_owner_provider.h` / focused test：真实后端必须自有
 lease 并在采集前后验证，显式 EXCLUSIVE_REAL、非模拟，精确绑定 provider
