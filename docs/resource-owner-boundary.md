@@ -1,5 +1,16 @@
 # Resource Owner Boundary
 
+2026-11-11 owner-evidence admission: `cepheus_owner_evidence.h` now defines a
+pure, fail-closed gate over immutable copied records. It requires both TBUs at
+their exact MMIO bases and `[0,0x400)`/`[0x400,0x800)` SID ranges, the two
+local GX-user SID bits, a sender-owned writer/lease identity, complete RPMh
+ledger provenance, and a matching ACK epoch/count. ECATS debug status,
+uncertain/simulated/stale/foreign state and partial or stale records cannot
+admit. Inputs are copied, outputs may not alias any record, and an uncertain
+attempt permanently retains the gate. The linked wrapper has no startup
+caller. This validates a record contract only; it does not acquire either TBU,
+observe a real owner, consume an inherited request or authorize a GPU store.
+
 2026-11-10 source review after native power integration. This identifies the
 next owner work; it does not implement an owner, observe hardware sleep state
 or authorize an ARC/BCM/GCC store.

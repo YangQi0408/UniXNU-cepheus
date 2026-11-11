@@ -1,5 +1,19 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 owner-evidence离线批次：新增pure fail-closed双TBU/RPMh/ACK复制记录
+admission及link-only wrapper，无startup caller/MMIO/SMC/firmware/GPU提交。
+精确要求TBU0`0x2cc5000/0x1000`、TBU1`0x2cc9000/0x1000`及SID
+`[0,0x400)`/`[0x400,0x800)`，拒绝ECATS debug误认、缺TBU、SID重叠、
+foreign/stale/uncertain RPMh、缺/错ACK、simulated、partial、过期及output
+alias；uncertain永久retain。commit`8163eec`；fresh full local preflight
+`/tmp/owner-evidence-preflight-v2/receipt.json`四步PASS SHA`3053c969...`；
+focused `/tmp/gpll0-owner-evidence-final-v2/receipt.json`除900s CP-ring链
+timeout外全部PASS，FAIL保留；单独CP-ring重跑完整PASS receipt
+`/tmp/owner-evidence-cp-ring-pool-v1/receipt.json` SHA`0306e6ff...`。
+真实owner仍未取得，故GPU/Metal未执行；下一步唯一完整kernel link，然后
+只读inherited-resource快照真机点。PAS13=false/supported=false、CP halt、
+无PAS mutation/刷写/phone操作保持。
+
 2026-11-11 15:20：owner-finish admission快照批次已提交/push为`aa1947b`，唯一
 完整CI42974023175 SUCCESS（35m23s），artifact已下载独立验收。device-commit精确
 匹配，kernel17564192B SHA`9ddd8ffc89728b396a2e46fae2d2e282494c2a06dccf6bd6502ef86eaab15f7f`，
