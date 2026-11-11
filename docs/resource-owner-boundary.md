@@ -1,5 +1,24 @@
 # Resource Owner Boundary
 
+2026-11-11 live provider boundary: `cepheus_resource_owner_provider.h` adds a
+host-validated, fail-closed bridge between a future owner backend and the
+existing owner/resource evidence gates. The provider owns the lease, supplies
+the evidence and validates that lease both before and after collection. The
+bridge requires an explicit `EXCLUSIVE_REAL`, non-simulated mode, exact
+provider/context identity, boot/owner/lease/resource/ACK epochs, RPMh and
+crypto ledger identities, copied outputs and no aliasing with any input,
+provider context or gate. One attempt is allowed per boot. Every attempted
+failure invokes `retain` on the same provider context and permanently leaves
+the gate uncertain; an invalid pre-attempt contract or an already nonzero gate
+version is rejected without pretending an attempt occurred.
+
+This is an interface contract, not an owner backend. It contains no default
+provider, MMIO, SMC, PAS, crypto vote, clock change or GPU submission, and it
+has no startup caller. The focused host test uses synthetic fixtures solely to
+exercise rejection and retention behavior; those records are not hardware
+ownership evidence. PAS13 remains false, `supported` remains false and the CP
+remains halted.
+
 2026-11-11 owner-evidence admission: `cepheus_owner_evidence.h` now defines a
 pure, fail-closed gate over immutable copied records. It requires both TBUs at
 their exact MMIO bases and `[0,0x400)`/`[0x400,0x800)` SID ranges, the two

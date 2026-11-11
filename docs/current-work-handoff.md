@@ -1,5 +1,15 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11：GPU owner provider 接线边界已离线完成，等待全量本地验证与提交。
+新增 `cepheus_resource_owner_provider.h` / focused test：真实后端必须自有
+lease 并在采集前后验证，显式 EXCLUSIVE_REAL、非模拟，精确绑定 provider
+context、boot/owner/lease/resource/ACK epoch、RPMh/crypto ledger；输出复制且
+禁止与任何输入/context/gate alias。一次 boot 仅一次尝试，所有已尝试失败在
+固定 provider context 上 retain 并永久保留 uncertain；错误 pre-attempt 合同
+和已有非零 gate version 在尝试前拒绝。没有默认 backend、startup caller、
+MMIO/SMC/PAS/crypto/clock/GPU 操作。该 fixture 不是真实 owner 证据；
+PAS13=false/supported=false/CP halted 不变。手机当前不做硬件操作。
+
 2026-11-11：secure resource evidence 批次已提交并完成完整 CI。commit
 `6a4c732`，run `43002894731` 全成功，37m0s；artifact 为
 `../inputs/ci-43002894731/cepheus-touch-kernel/`，kernel 17564792B，

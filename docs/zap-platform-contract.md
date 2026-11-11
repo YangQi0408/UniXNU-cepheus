@@ -1,5 +1,19 @@
 # A640 ZAP/PAS 平台接入事实与缺口
 
+## 2026-11-11：owner provider 边界只提供接线合同
+
+新增 `cepheus_resource_owner_provider.h`，为未来的真实 owner 后端提供
+fail-closed 接线：provider 自己持有 lease 和证据，必须在采集前后验证同一
+lease；只接受显式 EXCLUSIVE_REAL 且非模拟模式，并精确绑定 provider/context、
+boot/owner/lease/resource/ACK epoch、RPMh 与 crypto ledger。所有证据复制，
+输出不得覆盖输入、provider context 或 gate。每次 boot 只允许一次尝试；任何
+已尝试失败都以同一 context 调用 retain，并永久保留 uncertain 状态。错误
+pre-attempt 合同或已有非零 gate version 会在尝试前拒绝。
+
+这不是 owner 后端，也没有默认实现、启动调用者、MMIO/SMC/PAS、crypto vote、
+clock 或 GPU 操作。focused host fixture 只验证拒绝和保留行为，不是真实
+owner/ACK。PAS13=false、supported=false、CP halt 均不变。
+
 ## 2026-11-11：secure resource evidence 合同已接入，仍未取得资源所有权
 
 新增 `cepheus_zap_resource_evidence.h`。它把 PAS 准入所需的 secure PA/XPU/

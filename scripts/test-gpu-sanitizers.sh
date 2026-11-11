@@ -6,7 +6,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 for name in gmu_firmware zap_image gmu_upload hfi hfi_access hfi_messages hfi_session gpu_vm gpu_vm39 gpu_va \
     arc arc_active bcm gpu_bw gpu_ring cp_init smmu_plan gpu_mutations qmp_acd qmp_mmio qmp_connect qmp_native \
-    gpu_tsens gpu_tsens_native gmu_start_native gmu_oob_native gpu_pdc_native smmu_native smmu_mmio gmu_mmio gmu_retire_mmio pdc_mmio gpu_fault_mmio gmu_upload_mmio gmu_upload_native cp_ring_config cp_ring_native cp_protection cp_snapshot_mmio cp_native gx_core gx_core_native gx_smmu_native gpu_keepalive gx_smmu_plan gpu_power_txn gpu_power_mmio gpu_power_native gpll0 clock_measure bcm_active owner_evidence zap_resource_evidence; do
+    gpu_tsens gpu_tsens_native gmu_start_native gmu_oob_native gpu_pdc_native smmu_native smmu_mmio gmu_mmio gmu_retire_mmio pdc_mmio gpu_fault_mmio gmu_upload_mmio gmu_upload_native cp_ring_config cp_ring_native cp_protection cp_snapshot_mmio cp_native gx_core gx_core_native gx_smmu_native gpu_keepalive gx_smmu_plan gpu_power_txn gpu_power_mmio gpu_power_native gpll0 clock_measure bcm_active owner_evidence zap_resource_evidence resource_owner_provider; do
     "${CC:-clang}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
         "$root/xnu/test_${name}.c" -o "$tmp/$name"
     "$tmp/$name"
