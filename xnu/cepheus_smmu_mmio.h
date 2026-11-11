@@ -8,6 +8,7 @@
 #define CEPHEUS_SMMU_MMIO_H
 #include "cepheus_smmu_install.h"
 #include "cepheus_smmu_geometry.h"
+#include "cepheus_gx_smmu_plan.h"
 struct ceph_smmu_mmio {
     volatile uint8_t *base;
     size_t mapped_bytes;
@@ -27,14 +28,18 @@ static inline void ceph_smmu_mmio_order(void)
 #error "SMMU MMIO adapter requires arm64"
 #endif
 }
-static inline int ceph_smmu_mmio_offset(const struct ceph_smmu_mmio *m,enum ceph_smmu_reg reg,uint32_t *offset,unsigned *width)
+static inline int ceph_smmu_mmio_offset_mode(const struct ceph_smmu_mmio *m,enum ceph_smmu_reg reg,
+    uint32_t *offset,unsigned *width,int gx)
 {
+    if(!m)return -1;
+    const struct ceph_gx_smmu_plan g={m->plan,m->actlr};
     if(!m || !m->base || ((uintptr_t)m->base&7u) || !offset || !width ||
         (uintptr_t)m->base>UINTPTR_MAX-m->mapped_bytes ||
-        !ceph_smmu_plan_canonical(&m->plan) || m->actlr!=0x303 ||
+        !(gx?ceph_gx_smmu_plan_canonical(&g):ceph_smmu_plan_canonical(&m->plan)) || m->actlr!=0x303 ||
         m->geometry.bytes!=m->mapped_bytes || m->geometry.bytes!=0x10000 ||
         m->geometry.page_shift!=12 || m->geometry.cb_base!=0x8000 || m->geometry.gr1!=0x1000 ||
-        m->geometry.va_bits<32 || m->geometry.ipa_bits<40 || m->geometry.pa_bits<40 ||
+        m->geometry.va_bits<(gx?39u:32u) || m->geometry.ipa_bits<40 || m->geometry.pa_bits<40 ||
+        (gx && (m->geometry.sid_bits<11 || m->geometry.sid_bits>15 || m->geometry.contexts>8)) ||
         m->plan.slot>=m->geometry.groups || m->plan.cb<m->geometry.s2_contexts ||
         m->plan.cb>=m->geometry.contexts || !m->lease)return -1;
     uint32_t off=0;*width=4;
@@ -65,10 +70,13 @@ static inline int ceph_smmu_mmio_offset(const struct ceph_smmu_mmio *m,enum ceph
     if(off>m->mapped_bytes || *width>m->mapped_bytes-off || off&(*width-1))return -1;
     *offset=off;return 0;
 }
-static inline int ceph_smmu_mmio_read(void *ctx,enum ceph_smmu_reg reg,uint64_t *value)
+static inline int ceph_smmu_mmio_offset(const struct ceph_smmu_mmio *m,enum ceph_smmu_reg reg,
+    uint32_t *offset,unsigned *width)
+{return ceph_smmu_mmio_offset_mode(m,reg,offset,width,0);}
+static inline int ceph_smmu_mmio_read_mode(void *ctx,enum ceph_smmu_reg reg,uint64_t *value,int gx)
 {
     struct ceph_smmu_mmio *m=ctx;uint32_t offset;unsigned width;
-    if(!value || ceph_smmu_mmio_offset(m,reg,&offset,&width) ||
+    if(!value || ceph_smmu_mmio_offset_mode(m,reg,&offset,&width,gx) ||
         reg==CE_SM_TLBIASID || reg==CE_SM_TLBSYNC || m->lease(m->owner))return -1;
     ceph_smmu_mmio_order();
     uint64_t actual=width==8?*(volatile uint64_t *)(m->base+offset):*(volatile uint32_t *)(m->base+offset);
@@ -76,10 +84,10 @@ static inline int ceph_smmu_mmio_read(void *ctx,enum ceph_smmu_reg reg,uint64_t 
     if(m->lease(m->owner) || actual==(width==8?UINT64_MAX:UINT32_MAX))return -1;
     *value=actual;return 0;
 }
-static inline int ceph_smmu_mmio_write(void *ctx,enum ceph_smmu_reg reg,uint64_t value)
+static inline int ceph_smmu_mmio_write_mode(void *ctx,enum ceph_smmu_reg reg,uint64_t value,int gx)
 {
     struct ceph_smmu_mmio *m=ctx;uint32_t offset;unsigned width;
-    if(ceph_smmu_mmio_offset(m,reg,&offset,&width))return -1;
+    if(ceph_smmu_mmio_offset_mode(m,reg,&offset,&width,gx))return -1;
     const struct ceph_smmu_plan *p=&m->plan;int allowed=0;
     switch(reg) {
     case CE_SM_SMR:allowed=value==p->smr || value==(p->smr&~(1u<<31));break;
@@ -104,4 +112,12 @@ static inline int ceph_smmu_mmio_write(void *ctx,enum ceph_smmu_reg reg,uint64_t
     else *(volatile uint32_t *)(m->base+offset)=(uint32_t)value;
     ceph_smmu_mmio_order();return m->lease(m->owner)?-1:0;
 }
+static inline int ceph_smmu_mmio_read(void *ctx,enum ceph_smmu_reg reg,uint64_t *value)
+{return ceph_smmu_mmio_read_mode(ctx,reg,value,0);}
+static inline int ceph_smmu_mmio_write(void *ctx,enum ceph_smmu_reg reg,uint64_t value)
+{return ceph_smmu_mmio_write_mode(ctx,reg,value,0);}
+static inline int ceph_gx_smmu_mmio_read(void *ctx,enum ceph_smmu_reg reg,uint64_t *value)
+{return ceph_smmu_mmio_read_mode(ctx,reg,value,1);}
+static inline int ceph_gx_smmu_mmio_write(void *ctx,enum ceph_smmu_reg reg,uint64_t value)
+{return ceph_smmu_mmio_write_mode(ctx,reg,value,1);}
 #endif

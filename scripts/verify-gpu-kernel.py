@@ -55,6 +55,8 @@ HEADERS += ('cepheus_scm_handoff.h',)
 HEADERS += ('cepheus_cp_preinit.h',)
 HEADERS += ('cepheus_gx_va_layout.h','cepheus_gx_gbif.h','cepheus_gx_hwcg.h','cepheus_cp_unsecure_gate.h')
 HEADERS += ('cepheus_gx_smmu_plan.h',)
+HEADERS += ('cepheus_gx_smmu_install.h','cepheus_gx_smmu_native.h','cepheus_gx_smmu_native_private.h')
+HEADERS += ('cepheus_cp_memory_api.h',)
 HEADERS += ('cepheus_gpu_vm.h',)
 HEADERS += ('cepheus_gpu_va.h',)
 HEADERS += ('cepheus_gpu_pdc.h',)
@@ -160,6 +162,7 @@ def main():
     required |= {'_cepheus_gpu_gx_hwcg_configure'}
     required |= {'_cepheus_gpu_cp_unhalt_check'}
     required |= {'_cepheus_gpu_gx_smmu_plan'}
+    required |= {'_cepheus_gpu_gx_smmu_install_native'}
     required |= {'_cepheus_cp_workspace_table'}
     required |= {'_cepheus_cp_workspace_validate'}
     required |= {'_cepheus_cp_workspace_restore'}

@@ -39,9 +39,11 @@ static inline int ceph_smmu_plan_canonical(const struct ceph_smmu_plan *p)
 }
 static inline int ceph_smmu_read(struct ceph_smmu_ops *b,enum ceph_smmu_reg r,uint64_t *v)
 {
-    if(b->validate(b->ctx) || b->read(b->ctx,r,v))return -1;
-    if(r==CE_SM_TTBR0 || r==CE_SM_TTBR1) return *v==UINT64_MAX?-1:0;
-    return *v>=UINT32_MAX?-1:0;
+    uint64_t actual;
+    if(!v || b->validate(b->ctx) || b->read(b->ctx,r,&actual) || b->validate(b->ctx))return -1;
+    if(actual==(r==CE_SM_TTBR0 || r==CE_SM_TTBR1?UINT64_MAX:UINT32_MAX) ||
+        (r!=CE_SM_TTBR0 && r!=CE_SM_TTBR1 && actual>UINT32_MAX))return -1;
+    *v=actual;return 0;
 }
 static inline int ceph_smmu_write_verify(struct ceph_smmu_install *s,struct ceph_smmu_ops *b,
     enum ceph_smmu_reg r,uint64_t v)
@@ -52,10 +54,12 @@ static inline int ceph_smmu_write_verify(struct ceph_smmu_install *s,struct ceph
     uint64_t actual;if(ceph_smmu_read(b,r,&actual) || actual!=v)return -1;
     return 0;
 }
-static inline int ceph_smmu_install_context(struct ceph_smmu_install *s,struct ceph_smmu_ops *b,
+/* Private sequence shared by independently admitted GMU and GX wrappers.
+ * Each wrapper must validate its exact SID/mask/address-size encoding first. */
+static inline int ceph_smmu_install_reserved(struct ceph_smmu_install *s,struct ceph_smmu_ops *b,
     const struct ceph_smmu_plan *p,uint32_t actlr)
 {
-    if(!s || s->state!=CE_SM_NEW || s->effects || !ceph_smmu_plan_canonical(p) ||
+    if(!s || s->state!=CE_SM_NEW || s->effects || !p ||
         actlr!=0x303 || !b || !b->begin || !b->validate || !b->read || !b->write ||
         !b->publish_tables || !b->barrier || !b->delay_us || !b->finish)return -1;
     int e=b->begin(b->ctx,p,actlr);
@@ -103,5 +107,11 @@ static inline int ceph_smmu_install_context(struct ceph_smmu_install *s,struct c
 failed:
     s->state=s->effects?CE_SM_QUARANTINED:CE_SM_REFUSED;s->error=e;
     b->finish(b->ctx,s->effects!=0);return e;
+}
+static inline int ceph_smmu_install_context(struct ceph_smmu_install *s,struct ceph_smmu_ops *b,
+    const struct ceph_smmu_plan *p,uint32_t actlr)
+{
+    if(!ceph_smmu_plan_canonical(p))return -1;
+    return ceph_smmu_install_reserved(s,b,p,actlr);
 }
 #endif

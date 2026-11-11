@@ -55,6 +55,14 @@ install -m 0644 "$here/cepheus_gx_hwcg.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_unsecure_gate.h" bsd/dev/
 install -m 0644 "$here/cepheus_cp_preinit.h" bsd/dev/
 install -m 0644 "$here/cepheus_gx_smmu_plan.h" bsd/dev/
+install -m 0644 "$here/cepheus_gx_smmu_install.h" "$here/cepheus_gx_smmu_native.h" "$here/cepheus_gx_smmu_native_private.h" bsd/dev/
+install -m 0644 "$here/cepheus_cp_memory_api.h" bsd/dev/
+install -m 0644 "$here/cepheus_cp_memory_api.h" iokit/Kernel/arm/
+for header in cepheus_cp_memory_private.h cepheus_cp_workspace.h cepheus_gpu_vm39.h \
+    cepheus_sqe.h cepheus_gx_smmu_plan.h cepheus_smmu_plan.h cepheus_smmu_geometry.h \
+    cepheus_cp_init.h cepheus_a640_pm4.h cepheus_cp_protect.h; do
+    install -m 0644 "$here/$header" iokit/Kernel/arm/
+done
 install -m 0644 "$here/cepheus_gmu_bringup.c" "$here/cepheus_gmu_bringup.h" bsd/dev/
 for header in cepheus_hfi.h cepheus_hfi_boot.h cepheus_hfi_messages.h cepheus_hfi_session.h \
     cepheus_arc.h cepheus_arc_active.h cepheus_gmu_firmware.h cepheus_gmu_upload.h cepheus_smmu_plan.h \

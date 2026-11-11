@@ -62,6 +62,7 @@
 #include "cepheus_gx_core.h"
 #include "cepheus_gx_core_native.h"
 #include "cepheus_gx_smmu_plan.h"
+#include "cepheus_gx_smmu_native.h"
 int cepheus_gpu_config_build(const struct ceph_arc_db *,uint32_t,uint32_t,struct ceph_gpu_config *);
 int cepheus_gpu_config_probe(const struct ceph_arc_db *,uint32_t,uint32_t);
 int cepheus_gpu_qmp_bind(struct ceph_qmp_mmio *,unsigned,struct ceph_qmp_ops *);

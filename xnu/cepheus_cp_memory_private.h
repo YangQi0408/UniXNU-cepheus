@@ -1,26 +1,9 @@
 /* Trusted C/C++ pool bridge for the separate GX CP group. No hardware API. */
 #ifndef CEPHEUS_CP_MEMORY_PRIVATE_H
 #define CEPHEUS_CP_MEMORY_PRIVATE_H
-#include "cepheus_cp_workspace.h"
+#include "cepheus_cp_memory_api.h"
 #include "cepheus_gpu_firmware.h"
 #include "cepheus_cp_init.h"
-struct ceph_cp_memory_view {
-    struct ceph_cp_publication publication;
-    struct ceph_gpu_memory_view views[CE_CP_BUFFERS];
-};
-static inline int ceph_cp_memory_output(const struct ceph_gpu_memory_view views[CE_CP_BUFFERS],
-    const void *out,size_t bytes,const void *identity,size_t identity_bytes)
-{
-    uintptr_t dst=(uintptr_t)out,self=(uintptr_t)identity;
-    if(!dst || (dst&7u) || !bytes || bytes>UINTPTR_MAX-dst || identity_bytes>UINTPTR_MAX-self ||
-        (dst<self+identity_bytes && self<dst+bytes))return -1;
-    for(unsigned i=0;i<CE_CP_BUFFERS;++i) {
-        uintptr_t base=(uintptr_t)views[i].cpu;
-        if(views[i].bytes>UINTPTR_MAX-base ||
-            (dst<base+views[i].bytes && base<dst+bytes))return -1;
-    }
-    return 0;
-}
 /* Exact actual backing, fixed SQE bytes, restore structure and all PTEs.
  * Caller owns pool lock/writer exclusion. CPU VAs are not made read-only. */
 static inline int ceph_cp_memory_layout(const struct ceph_gpu_memory_view views[CE_CP_BUFFERS],
@@ -69,19 +52,4 @@ static inline int ceph_cp_memory_layout(const struct ceph_gpu_memory_view views[
     for(size_t i=CE_CP_REGLIST_WORDS*4;i<views[CE_CP_RESTORE].bytes;++i)if(tail[i])return -1;
     return 0;
 }
-#ifdef __cplusplus
-extern "C" {
-#endif
-int ceph_memory_cp_seal(const uint64_t[CE_CP_BUFFERS],const struct ceph_gpu_memory_view[CE_CP_BUFFERS],
-    const struct ceph_vm_region[CE_CP_ROOT],unsigned,const struct ceph_gx_smmu_plan *,struct ceph_cp_publication *);
-/* Temporary pin -> exposure barrier -> installed result. REFUSED is legal
- * only before publish; uncertainty keeps all backing and poisons the pool. */
-int ceph_memory_cp_acquire(const struct ceph_cp_publication *,struct ceph_cp_memory_view *);
-int ceph_memory_cp_validate(const struct ceph_cp_publication *);
-int ceph_memory_cp_publish(const struct ceph_cp_publication *);
-enum {CE_MEMORY_CP_REFUSED,CE_MEMORY_CP_INSTALLED,CE_MEMORY_CP_UNCERTAIN};
-int ceph_memory_cp_finish(const struct ceph_cp_publication *,int);
-#ifdef __cplusplus
-}
-#endif
 #endif

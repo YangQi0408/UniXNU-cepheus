@@ -81,6 +81,23 @@ int cepheus_gpu_fuse_sample(uint32_t *out){*out=bin<<29;return 0;}
 #include "cepheus_gpu_config_native_private.h"
 #include "cepheus_gmu_hfi_native_private.h"
 #include "cepheus_gx_core_native_private.h"
+#if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
+#include "cepheus_gx_smmu_native_private.h"
+static unsigned cp_mode,cp_checks,cp_ends,cp_expire,cp_initial_delays;
+static int cp_begin(void *ctx,const struct ceph_gx_smmu_plan *p,const struct ceph_cp_publication *pub)
+{assert(ctx==windows && p->context.ttbr0==pub->memory.ttbr0 && ceph_gpll0_lock);return 0;}
+static int cp_validate(void *ctx)
+{
+    assert(ctx==windows && ceph_gpll0_lock);++cp_checks;
+    if(cp_mode==6 && delays>cp_initial_delays)return -1;
+    if((cp_expire && cp_checks>=cp_expire) || (cp_mode==4 && ceph_gx_smmu_native.txn.effects)) {
+        assert(!mprotect((void *)windows[3],sizes[3],PROT_NONE));return -1;
+    }
+    return 0;
+}
+static void cp_finish(void *ctx,unsigned effects,int keep)
+{assert(ctx==windows && ceph_gpll0_lock && keep);(void)effects;++cp_ends;if(cp_mode==5)cp_expire=cp_checks+1;}
+#endif
 static int gx_begin(void *ctx,const struct ceph_gpu_publication *pub,const struct ceph_gx_core_input *input)
 {
     assert(ctx==windows && ceph_gpll0_lock && pub->group==publication.group &&
@@ -218,10 +235,22 @@ static int run_qmp(void)
 static int oob_drained(void *ctx){assert(ctx==windows && ceph_gpll0_lock);return 0;}
 static void oob_finish(void *ctx,unsigned stores,int keep)
 {assert(ctx==windows && ceph_gpll0_lock && stores==2 && keep);}
+#if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
+int test_gx_smmu_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
+    const struct ceph_smmu_plan *plan,const struct ceph_gx_smmu_plan *cp_plan,
+    const struct ceph_cp_publication *cp_publication,unsigned selected)
+#else
 int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *workspace,
     const struct ceph_smmu_plan *plan,unsigned selected)
+#endif
 {
-    assert(snapshot && workspace && plan && selected<=67);mode=selected;publication=workspace->publication;
+    assert(snapshot && workspace && plan && selected<=67);
+#if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
+    assert(selected<=9 && cp_plan && cp_publication);cp_mode=selected;mode=57;
+#else
+    mode=selected;
+#endif
+    publication=workspace->publication;
     bin=mode==10 || mode>=24;boot_fail=mode>=11 && mode<=14?mode-10:0;late_boot=mode==15;late_start=mode==23;
     table=workspace->views[2].cpu;ticks=1000000;gpll0_scope_reset();
     for(unsigned n=0;n<7;++n) {
@@ -392,6 +421,28 @@ int test_hfi_native_pool(uint64_t snapshot,const struct ceph_gmu_workspace *work
         }
         printf("Actual HFI/OOB/GX mode=%u maps=%u guards=%u stores=%u PASS (emulated hardware)\n",mode,gx_maps,gx_checks,gx_stores);
     }
+#if defined(CEPHEUS_GX_SMMU_NATIVE_POOL_TEST)
+    struct ceph_gx_smmu_native_owner cp={windows,cp_begin,cp_validate,cp_finish,1};
+    cp_initial_delays=delays;
+    installed=(struct ceph_smmu_install){CE_SM_NEW,123,456};
+    *word(3,0x28)=0x1222;
+    if(cp_mode==1)*word(3,0x800+4*cp_plan->context.slot)=0x84000000;
+    if(cp_mode==2)*word(6,0x808*4)=0;
+    if(cp_mode==3)cp_expire=1;
+    if(cp_mode==6)*word(3,0x8000+0x1000*cp_plan->context.cb+0x7f4)=1;
+    if(cp_mode==7)*word(3,0x28)=0x1022;
+    struct ceph_cp_memory_view alias={0};
+    if(cp_mode==9){assert(!ceph_memory_cp_acquire(cp_publication,&alias));assert(!ceph_memory_cp_finish(cp_publication,CE_MEMORY_CP_REFUSED));}
+    int ie=cepheus_gpu_gx_smmu_install_native(&cp,cp_plan,cp_publication,
+        cp_mode==9?(struct ceph_smmu_install *)alias.views[0].cpu:&installed);
+    assert((ie==0)==(cp_mode==0));
+    if(cp_mode==0)assert(installed.state==CE_SM_ENABLED && installed.effects==15 && cp_ends==1 &&
+        *word(6,0x808*4)==2 && !*word(6,0x807*4));
+    if(cp_mode==4 || cp_mode==5 || cp_mode==6)assert(installed.state==CE_SM_QUARANTINED);
+    if(cp_mode==8)assert(!ceph_gx_smmu_native.attempted && !cp_ends);
+    printf("Actual GX SMMU+CP pool mode=%u effects=%u guards=%u PASS (emulated MMIO/ACK/owner)\n",cp_mode,
+        ceph_gx_smmu_native.txn.effects,cp_checks);
+#endif
     for(unsigned n=0;n<7;++n)assert(!munmap((void *)windows[n],sizes[n]));
     printf("Actual SMMU/upload/CM3/HFI + actual pool mode=%u checks=%u PASS (emulated MMIO/ACK/IOKit, no GPU)\n",mode,checks);
     return e;

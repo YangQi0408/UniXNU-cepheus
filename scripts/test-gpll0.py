@@ -77,6 +77,10 @@ def main():
               'xnu/cepheus_gx_smmu_plan.h','xnu/cepheus_smmu_geometry.h','xnu/cepheus_sqe.h',
               'xnu/test_gx_smmu_plan.c','scripts/test-gpu-stack.sh',
               'tests/test_cp_workspace.cpp','tests/test_cp_workspace_restore.c','scripts/test-cp-memory-pool.sh')
+    names += ('xnu/cepheus_cp_memory_api.h','xnu/cepheus_smmu_install.h','xnu/cepheus_gx_smmu_install.h',
+              'xnu/cepheus_gx_smmu_native.h','xnu/cepheus_gx_smmu_native_private.h',
+              'xnu/test_gx_smmu_native.c','tests/test_gx_smmu_native_pool.cpp',
+              'scripts/test-gx-smmu-native-pool.sh')
     receipt['source_sha256'] = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in names}
     if args.android:
         android = args.android.resolve()
@@ -213,7 +217,7 @@ def main():
         exe = out/(name+'-power-mmio')
         run(name+'-power-mmio-compile', [compiler, *common, *flags, str(ROOT/'xnu/test_gpu_power_mmio.c'), '-o', str(exe)])
         run(name+'-power-mmio-run', [str(exe)], env)
-        for sensor in ('gx_core_native','gpu_config_native','hfi_session','hfi_access','gmu_oob','gmu_oob_native','qmp_mmio','qmp_connect','qmp_native','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
+        for sensor in ('gx_smmu_native','gx_core_native','gpu_config_native','hfi_session','hfi_access','gmu_oob','gmu_oob_native','qmp_mmio','qmp_connect','qmp_native','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
             exe=out/(name+'-'+sensor)
             run(name+'-'+sensor+'-compile', [compiler,*common,*flags,str(ROOT/'xnu'/('test_'+sensor+'.c')),'-o',str(exe)])
             run(name+'-'+sensor+'-run',[str(exe)],env)
@@ -280,6 +284,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                    'cepheus_gmu_hfi_boot_native:','cepheus_gmu_hfi_dcvs_native:','cepheus_gmu_hfi_start_native:',
                    'cepheus_gpu_gx_core_native:','cepheus_gpu_gx_setup_native:',
                    'cepheus_gpu_gx_setup_perf_native:',
+                   'cepheus_gpu_gx_smmu_install_native:',
                    'dsb\tosh', 'ml_io_map', 'delay', 'mach_absolute_time', 'absolutetime_to_nanoseconds'):
         if marker not in assembly:
             raise SystemExit('Missing actual native assembly marker: '+marker)
@@ -289,7 +294,7 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
                           str(ROOT/'xnu/test_gpll0.c'), '-o', os.devnull])
     run('measure-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                  str(ROOT/'xnu/test_clock_measure.c'), '-o', os.devnull])
-    for name in ('gx_core_native','gpu_config_native','hfi_session','hfi_access','gmu_oob','gmu_oob_native','qmp_native','qmp_mmio','qmp_connect','gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
+    for name in ('gx_smmu_native','gx_core_native','gpu_config_native','hfi_session','hfi_access','gmu_oob','gmu_oob_native','qmp_native','qmp_mmio','qmp_connect','gpu_power_native','gpu_power_mmio','gpu_tsens','gpu_tsens_native','gmu_start_native','gmu_mmio','gpu_pdc_native','pdc_mmio','smmu_native','smmu_mmio','gmu_upload_native','gmu_upload','gmu_upload_mmio'):
         run(name+'-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
                                    str(ROOT/'xnu'/('test_'+name+'.c')), '-o', os.devnull])
     run('hfi-link-host-analysis', ['clang', *common, '--analyze', '-Xanalyzer', '-analyzer-output=text',
@@ -355,6 +360,8 @@ extern void absolutetime_to_nanoseconds(uint64_t,uint64_t *);
         env.pop('CEPHEUS_ZAP_ELF',None)
         run('real-firmware-memory-chain',['bash','scripts/test-gpu-memory-host.sh',
             str(fixtures['gmu']),str(fixtures['sqe'])],env,timeout=900)
+        run('real-firmware-gx-smmu-chain',['bash','scripts/test-gx-smmu-native-pool.sh',
+            str(fixtures['gmu']),str(fixtures['sqe']),str(out/'gx-smmu-pool')],env,timeout=900)
         for name,path in fixtures.items():
             if hashlib.sha256(path.read_bytes()).hexdigest()!=receipt['proprietary_fixtures'][name]['sha256']:
                 raise SystemExit('Firmware fixture changed during acceptance: '+name)

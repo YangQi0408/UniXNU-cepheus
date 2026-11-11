@@ -1,5 +1,17 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 08:11：2d20d14 CI42925513101 FAIL，actual XNU IOKit缺CPprivate
+头（build.log:41073），已归档/无kernel，不追认local为full link。后续native
+GX SMMU SID0/mask401/39VA、actual CP pool pin+发布+失效隔离已实现；fresh
+focused147steps PASS SHA692c2856...，full四步/84host PASS SHA70b8ebf3...，
+两source hash集完结仍匹配。原厂GMU/SQE整链68HFI+12CP+10GX SMMU cases
+PASS/无ASanUBSan，logs SHA4dc03d41.../23364c73...；owner/IOKit/MMIO/ACK模拟。
+补IOKit完整CP dependency staging+仅staged目录编译回归PASS。旧fast编译
+失败/v3timeout终止/sourcechanged不追认。见gx-smmu-native-backend.md。
+此批待提交/单一替代CI，下一native CP protection+实际restore provenance。
+无phone操作/新boot/USB手机；真owner/TBU/PAS13/secure缺，CP halt/GPU未执行，
+目标active不停工。
+
 2026-11-11：继续不停工。b3d0871 HWCG/GBIF后续计数器与CP六buffer封存/pin
 fresh frozen focused141steps PASS SHA04c809ab...，完整四步/83host preflight
 PASS SHA92b7c19c...，结束后两source hash集匹配。原厂GMU/SQE actual68HFI

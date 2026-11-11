@@ -70,6 +70,14 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_gpu_pdc_native_private.h'),
                                 ('bsd/dev', 'cepheus_smmu_native.h'),
                                 ('bsd/dev', 'cepheus_smmu_native_private.h'),
+                                ('bsd/dev', 'cepheus_gx_smmu_install.h'),
+                                ('bsd/dev', 'cepheus_gx_smmu_native.h'),
+                                ('bsd/dev', 'cepheus_gx_smmu_native_private.h'),
+                                ('iokit/Kernel/arm', 'cepheus_cp_memory_api.h'),
+                                ('iokit/Kernel/arm', 'cepheus_cp_memory_private.h'),
+                                ('iokit/Kernel/arm', 'cepheus_cp_workspace.h'),
+                                ('iokit/Kernel/arm', 'cepheus_gpu_vm39.h'),
+                                ('iokit/Kernel/arm', 'cepheus_gx_smmu_plan.h'),
                                 ('bsd/dev', 'cepheus_gmu_upload_native.h'),
                                 ('bsd/dev', 'cepheus_gmu_upload_native_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_gmu_upload.h'),
@@ -97,6 +105,14 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_smmu_install.h'), ('iokit/Kernel/arm', 'cepheus_gpu_memory.cpp')]:
                 self.assertEqual((tree / where / name).read_bytes(), (ROOT / 'xnu' / name).read_bytes())
             self.assertFalse((tree / 'bsd/dev/sweet_rpmh.c').exists())
+            # Compile using only the staged IOKit directory and host platform
+            # headers, so unstaged siblings cannot satisfy CP includes.
+            subprocess.run(['c++','-std=c++17','-Wall','-Wextra','-Werror',
+                            '-DCEPHEUS_GPU_MEMORY_HOST_TEST=1',
+                            '-I',str(ROOT/'tests/gpu-memory-host'),
+                            '-I',str(tree/'iokit/Kernel/arm'),
+                            '-c',str(tree/'iokit/Kernel/arm/cepheus_gpu_memory.cpp'),
+                            '-o',str(tree/'memory.o')],check=True)
 
     def test_touch_system_info_header_staged(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -172,6 +188,7 @@ class Integration(unittest.TestCase):
                    'cepheus_gpu_oob_acquire_native','cepheus_gpu_oob_release_native',
                    'cepheus_gpu_pdc_install_native',
                    'cepheus_gpu_smmu_install_native',
+                   'cepheus_gpu_gx_smmu_install_native','ceph_gx_smmu_install_context',
                    'cepheus_gmu_upload_native',
                    'cepheus_gmu_hfi_version_native',
                    'cepheus_gmu_hfi_boot_native','cepheus_gmu_hfi_dcvs_native','cepheus_gmu_hfi_start_native',
