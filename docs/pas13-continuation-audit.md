@@ -1,5 +1,24 @@
 # PAS13 查询差异的后续定位（2026-11-08）
 
+2026-11-11参数校验续查：同一固定TZ原件与已有snapshot通过REA复用，新增
+`0x1c056c60..0x1c056d73`完整69条指令及`0x1c05724c..0x1c0573ab`
+单参数转发证据。前者的arginfo1值参数路径不访问输入帧，也不调用地址权限
+helper；6个有界主机RAM场景验证返回和不改写帧。后者在PAS7 handler入口前
+停止，确认ID13/result指针及SP/LR原样转发。普通及python -O均PASS。
+这降低参数校验/单参数转发自身解释false的可能性，但未回放完整dispatcher、
+上游frame、返回路径、EL2/EL3或实际运行TZ身份，仍不能解除supported=false。
+
+私有bundle：`../logs/pas13-instruction-replay-20261110/tz-dispatch-args-20261111-v2-evidence.json`，
+115 records，SHA256`2fac537cd1bf982aee6376dc3518e42eb6dd65689d2b1881f0181b90108e73c8`。
+参数校验REA Evidence
+`ev_50add8933d41859e15ebe2051e60aaba42b51d325af453ca5b910948a98edbb8`；
+原字节`ev_4fd4b7bb428bae960d21de0b640ae2f3d8af2fb81c37767a6fe5b7d1906bd6b6`；
+转发`ev_cedfd2fb6398bcb0de517930faae8aab1e327e815b263dd86e3e926841b057f4`。
+本地脚本`check-tz-dispatch-args-20261111.py`及匹配snapshot在同目录；
+`tz-dispatch-args-20261111-validation-v2.json` SHA256
+`c60e970dea9b9a0636540c51b1d4f245ffa835662af9e0e46cc0914b11dd7c26`。
+没有手机/SMC/PAS认证/GPU操作，原件未修改。
+
 ## 2026-11-10：受限原指令回放
 
 ### 2026-11-11：权限转换续查

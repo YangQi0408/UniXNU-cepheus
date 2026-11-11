@@ -1,5 +1,34 @@
 # 小米9 iOS移植：当前全部工作交接
 
+2026-11-11 22:14 +08:00：用户已明确继续不停工，目标为active。SCM-pair诊断
+runner和FDT恒等映射修复完成本地全量验收：
+`/tmp/gpu-offline-scm-pair-runner-20261111-v2/receipt.json`为PASS，42 PASS、
+0 FAIL、0 SKIP，SHA256
+`4c5c8ad00af6dfd4ba019fe43059a59e811eedd98e9809f506a65f2d084fe63a`。
+原v1失败保留：四项源于预置cepheus.dtb的非空恒等`ranges`被误拒，实固件
+测试exit124的上限实际是240秒，不是900秒。独立ASan/UBSan实固件整链
+exit0、耗时290秒，log SHA`fe853b91431612c12ab442dc6c56abf50c8440becf8c4d6169ce0b1c241a1552`；
+仅将memory-real-fixtures有界上限调到600秒，sanitizers仍900秒，其余240秒。
+FDT接受空或唯一完整覆盖的恒等映射，拒绝重复/部分重叠/翻译/短覆盖及畸形；
+固定FDT SHA和双TBU基址7项测试PASS。记录文件不是本次live拓扑/owner证明。
+runner只允许精确415d4727镜像/唯一cepheus/一次fastboot boot，校验UDP三件
+材料和分析SHA；false/true/unknown查询结果均不授权GPU。完整流程mock
+验证错误设备无启动、启动/采集/分析失败无重试；实XNU reference集成14项PASS。
+全量验收后增加了runner流程测试并单独复验，未重跑不受影响的重型检查。
+本批无内核生产源码改动，无新完整CI/phone boot/刷写/重启。
+
+PAS13继续调查取得新的REA参数校验证据及有界原指令回放：
+`../logs/pas13-instruction-replay-20261110/tz-dispatch-args-20261111-v2-evidence.json`
+115 records，SHA`2fac537cd1bf982aee6376dc3518e42eb6dd65689d2b1881f0181b90108e73c8`；
+匹配snapshot已保存。`0x1c056c60..0x1c056d73`69条参数校验指令，6个主机
+RAM场景PASS；arginfo1值参数不访问/改写帧，单参数trampoline原样传ID13及
+result指针到PAS7入口，在handler入口前停止。普通及python -O结果一致，
+receipt SHA`c60e970dea9b9a0636540c51b1d4f245ffa835662af9e0e46cc0914b11dd7c26`。
+这不是完整dispatcher/EL2/EL3/上游frame/返回路径或live状态的证据，false
+原因仍未解除。下一步聚焦未覆盖dispatcher/运行环境及真实owner后端；
+已有2026-11-10 UEFI/XNU均false的配对结果，不默认重复同样查询/控制轮。
+GPU scratch/fence/Metal均未执行，PAS13=false/supported=false、CP halt保持。
+
 2026-11-11：resource-owner provider结果到private CP admission owner的桥接已提交
 并完成完整XNU链接。commit为`1f72f90`（桥接`516f615`及analyzer padding修复），
 run`43025405283`全成功，30m8s；artifact

@@ -124,7 +124,10 @@ hardware behavior before any production owner/startup admission.
 `scripts/gpu-fdt-config.py` now resolves every SID matched by each GMU/GX
 mask to active, nonoverlapping TBU ranges. Missing high-SID coverage, disabled
 ancestors, translated/unspecified bus ranges and overlapping MMIO are rejected.
-It does not access TBU registers or authorize any SMMU store.
+An empty `ranges` property or an explicit identity mapping is accepted only
+when exactly one range covers each complete TBU register window; translated,
+ambiguous, malformed and short mappings are rejected. It does not access TBU
+registers or authorize any SMMU store.
 
 `out/smmu-tbu-source-20261111-v1/receipt.json` passes a separate pinned-vendor
 source audit. Vendor commit is `36f369fdb77319a2984a48b89f025ac3e5f97386`;
@@ -153,11 +156,13 @@ debug path must not be used as passive ownership acquisition. TBU list
 registration, an empty TCS and the new CPU-idle token still do not establish
 inherited traffic/writer exclusion.
 
-Six FDT test cases pass (one recorded-live-FDT test explicitly skipped because
-its file is unavailable). `/tmp/live-cepheus.dtb` is not present; no synthetic
-file is substituted for the historical recorded SHA. Reacquire an actual
-capture for runtime topology acceptance. This work changes only offline tools
-and tests; the in-flight `91a5ec1` production source remains unchanged.
+The initial six-case run skipped the historical FDT input. On 2026-11-11 the
+existing `../cepheus/inputs/uefi-prebuilt/cepheus.dtb` was supplied explicitly;
+its SHA256 matches the pinned `bdd364a1...` identity. Seven FDT tests now pass,
+including the exact TBU windows and ambiguous identity-range rejection. This
+prebuilt input is not a new runtime capture or an ownership observation;
+runtime topology acceptance still needs an actual capture. Only offline
+tools and tests changed.
 
 2026-11-11 follow-on implementation: `gpu-idle-coordination.md` now describes
 actual scoped SWEET XNU `cpu_idle`/preceding-WFE reader/block hooks and a

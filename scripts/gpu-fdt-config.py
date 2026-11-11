@@ -117,16 +117,57 @@ def tbu_coverage(nodes, smmu, streams):
         sc = scalar(parent, '#size-cells')
         if ac not in (1, 2) or sc not in (1, 2):
             raise ValueError('unsupported TBU register cell geometry')
-        ancestor = parent
-        while ancestor != '/':
-            if nodes[ancestor].get('ranges') != b'':
-                raise ValueError('TBU registers require explicit identity bus ranges')
-            ancestor = ancestor.rsplit('/', 1)[0] or '/'
         raw = cells(nodes[path]['reg'])
         names = strings(nodes[path]['reg-names'])
         width = ac + sc
         if len(raw) % width or len(names) != len(raw) // width or len(set(names)) != len(names):
             raise ValueError('TBU register names/geometry mismatch')
+
+        def identity_bus_range(address, size):
+            # Empty ranges mean an identity translation. A non-empty mapping is
+            # accepted only when every entry is identity and exactly one entry
+            # covers this complete register window. This admits the real
+            # /soc <0 0 0 0xffffffff> mapping without guessing translations.
+            child = parent
+            while child != '/':
+                ancestor = child.rsplit('/', 1)[0] or '/'
+                child_ac = scalar(child, '#address-cells')
+                child_sc = scalar(child, '#size-cells')
+                ancestor_ac = scalar(ancestor, '#address-cells')
+                if child_ac not in (1, 2) or child_sc not in (1, 2) or ancestor_ac not in (1, 2):
+                    raise ValueError('unsupported TBU bus-range cell geometry')
+                if 'ranges' not in nodes[child]:
+                    raise ValueError('TBU registers require explicit identity bus ranges')
+                encoded = nodes[child]['ranges']
+                mapped = cells(encoded) if encoded else []
+                if mapped:
+                    entry_width = child_ac + ancestor_ac + child_sc
+                    if len(mapped) % entry_width:
+                        raise ValueError('malformed TBU identity bus ranges')
+                    overlaps = 0
+                    matches = 0
+                    for index in range(0, len(mapped), entry_width):
+                        row = mapped[index:index + entry_width]
+                        child_base = ancestor_base = span = 0
+                        for value in row[:child_ac]:
+                            child_base = (child_base << 32) | value
+                        for value in row[child_ac:child_ac + ancestor_ac]:
+                            ancestor_base = (ancestor_base << 32) | value
+                        for value in row[child_ac + ancestor_ac:]:
+                            span = (span << 32) | value
+                        if not span or child_base >= 1 << 64 or ancestor_base >= 1 << 64 or \
+                                child_base + span > 1 << 64 or ancestor_base + span > 1 << 64:
+                            raise ValueError('invalid TBU bus range')
+                        if child_base != ancestor_base:
+                            raise ValueError('TBU register bus range is translated')
+                        if child_base < address + size and address < child_base + span:
+                            overlaps += 1
+                        if child_base <= address and address + size <= child_base + span:
+                            matches += 1
+                    if matches != 1 or overlaps != 1:
+                        raise ValueError('TBU register not covered by one identity bus range')
+                child = ancestor
+
         result = {}
         for index, name in enumerate(names):
             row = raw[index * width:(index + 1) * width]
@@ -138,6 +179,7 @@ def tbu_coverage(nodes, smmu, streams):
                 size = (size << 32) | value
             if not size or address + size > 1 << 64:
                 raise ValueError('invalid TBU physical range')
+            identity_bus_range(address, size)
             result[name] = {'address': address, 'bytes': size}
         return result
 

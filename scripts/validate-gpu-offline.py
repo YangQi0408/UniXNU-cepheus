@@ -16,7 +16,8 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 DEFAULT_CHECK_TIMEOUT_SECONDS=240
-CHECK_TIMEOUT_SECONDS={'sanitizers':900}
+# Real GMU/SQE with ASan/UBSan completes in about 290 seconds locally.
+CHECK_TIMEOUT_SECONDS={'sanitizers':900,'memory-real-fixtures':600}
 
 
 def identity(path):

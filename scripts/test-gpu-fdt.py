@@ -41,6 +41,7 @@ def tbu_fixture():
 class FdtTests(unittest.TestCase):
     def test_masked_tbu_coverage(self):
         nodes, smmu = tbu_fixture()
+        nodes['/soc']['ranges'] = word(0)+word(0)+word(0x10000000)
         streams = {'gmu_kernel': {'sid': 5, 'mask': 0x400},
                    'gmu_user': {'sid': 4, 'mask': 0x400},
                    'gx_user': {'sid': 0, 'mask': 0x401},
@@ -75,7 +76,10 @@ class FdtTests(unittest.TestCase):
         variant = copy.deepcopy(nodes)
         del variant[smmu+'/tbu1']
         variants.append(variant)
-        for value in (None, word(0)+word(0)+word(0x1000)):
+        for value in (None, word(0)+word(0)+word(0x1000),
+                      word(0)+word(0x1000)+word(0x10000000),
+                      word(0)+word(0)+word(0)+word(0)+word(0x10000000),
+                      word(0)+word(0)):
             variant = copy.deepcopy(nodes)
             if value is None:
                 del variant['/soc']['ranges']
@@ -88,6 +92,28 @@ class FdtTests(unittest.TestCase):
         for sid, mask in ((-1, 0), (5, -1), (0x8000, 0), (5, 0x8000)):
             with self.subTest(sid=sid, mask=mask), self.assertRaises(ValueError):
                 fdt.tbu_coverage(nodes, smmu, {'bad': {'sid': sid, 'mask': mask}})
+
+    def test_identity_bus_ranges(self):
+        nodes, smmu = tbu_fixture()
+        stream = {'gmu_kernel': {'sid': 5, 'mask': 0x400}}
+        mapping = word(0)+word(0)+word(0x10000000)
+        nodes['/soc']['ranges'] = mapping
+        nodes['/']['#address-cells'] = word(2)
+        nodes['/soc']['ranges'] = word(0)+word(0)+word(0)+word(0xffffffff)
+        self.assertEqual(len(fdt.tbu_coverage(nodes, smmu, stream)['tbus']), 2)
+        nodes['/']['#address-cells'] = word(1)
+        nodes['/soc']['ranges'] = mapping
+        for path in ('/soc', smmu):
+            for duplicate in (mapping, word(0x2cc5000)+word(0x2cc5000)+word(8)):
+                variant = copy.deepcopy(nodes)
+                variant[path]['ranges'] = mapping + duplicate
+                with self.subTest(path=path, duplicate=duplicate), self.assertRaises(ValueError):
+                    fdt.tbu_coverage(variant, smmu, stream)
+        nodes['/soc']['ranges'] = word(0)+word(0)+word(0x2cca000)
+        self.assertEqual(len(fdt.tbu_coverage(nodes, smmu, stream)['tbus']), 2)
+        nodes['/soc']['ranges'] = word(0)+word(0)+word(0x2cc9fff)
+        with self.assertRaises(ValueError):
+            fdt.tbu_coverage(nodes, smmu, stream)
 
     def test_minimal_and_properties(self):
         tokens=word(1)+bytes(4)+word(3)+word(5)+word(0)+b'test\0'+bytes(3)+word(2)+word(9)
@@ -138,6 +164,11 @@ class FdtTests(unittest.TestCase):
         self.assertEqual(r['streams']['gmu_kernel'],{'sid':5,'mask':0x400,'actlr':0x303})
         self.assertEqual(r['smmu_tbu']['stream_coverage']['gmu/gmu_kernel']['matched_sids'], [5, 0x405])
         self.assertEqual(len(r['smmu_tbu']['stream_coverage']['gmu/gmu_kernel']['tbus']), 2)
+        self.assertEqual([(t['sid_start'],t['sid_count'],t['registers']) for t in r['smmu_tbu']['tbus']],
+                         [(0,0x400,{'base':{'address':0x2cc5000,'bytes':0x1000},
+                                    'status-reg':{'address':0x2cc2200,'bytes':8}}),
+                          (0x400,0x400,{'base':{'address':0x2cc9000,'bytes':0x1000},
+                                        'status-reg':{'address':0x2cc2208,'bytes':8}})])
         self.assertEqual([b['throttle_mask'] for b in r['speed_bins']],[0x80,0x40])
         self.assertEqual([b['lm_enabled_by_source'] for b in r['speed_bins']],[False,True])
         self.assertEqual([b['acd_mailbox_by_source'] for b in r['speed_bins']],[False,True])

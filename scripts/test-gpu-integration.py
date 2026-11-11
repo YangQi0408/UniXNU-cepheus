@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Portable GPU source/staging integration checks, not XNU ABI or runtime tests."""
 from pathlib import Path
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -21,10 +22,27 @@ class Integration(unittest.TestCase):
             self.assertNotIn(call, source)
         subprocess.run(['python3', str(ROOT / 'scripts/test-run-rpmh-tail-device.py')], check=True)
 
+    def test_scm_pair_device_runner_is_boot_only(self):
+        source = (ROOT / 'scripts/run-scm-pair-device.py').read_text()
+        self.assertIn("boot_command(serial, identity['path'])", source)
+        self.assertEqual(source.count('subprocess.run(boot_command('), 1)
+        self.assertIn("'boot_attempt_count': 0", source)
+        for command in ('flash', 'erase', 'reboot', 'set_active', 'format'):
+            self.assertNotIn(f"'{command}'", source)
+        for call in ('cepheus_gpu_arc_raise', 'cepheus_gpu_bcm_raise',
+                     'cepheus_gpu_submit', 'cepheus_gpu_cp_execution_admit'):
+            self.assertNotIn(call, source)
+        subprocess.run(['python3', str(ROOT / 'scripts/test-run-scm-pair-device.py')], check=True)
+
     def test_offline_preflight_allows_measured_sanitizer_runtime(self):
-        source = (ROOT / 'scripts/validate-gpu-offline.py').read_text()
-        self.assertIn("CHECK_TIMEOUT_SECONDS={'sanitizers':900}", source)
-        self.assertIn("timeout=CHECK_TIMEOUT_SECONDS.get(name,DEFAULT_CHECK_TIMEOUT_SECONDS)", source)
+        path = ROOT / 'scripts/validate-gpu-offline.py'
+        spec = importlib.util.spec_from_file_location('offline_preflight', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.CHECK_TIMEOUT_SECONDS['sanitizers'], 900)
+        self.assertEqual(module.CHECK_TIMEOUT_SECONDS['memory-real-fixtures'], 600)
+        self.assertEqual(module.DEFAULT_CHECK_TIMEOUT_SECONDS, 240)
+        self.assertIn('timeout=timeout', path.read_text())
 
     def test_workflow_copies_every_statically_staged_source(self):
         stage = (ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh').read_text()
