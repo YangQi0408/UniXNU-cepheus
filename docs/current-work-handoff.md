@@ -9,15 +9,19 @@ one attempt/sticky failure，错误token不消费admission；owner在所有已�
 路径保留。无production caller，不写WPTR/unhalt/submit/新context/PAS
 mutation/GPU。identity及native wrapper host/ASanUBSan/static analysis PASS；
 focused/full preflight四步、AArch64 codegen、staged codegen、七分析全PASS，
-receipt /tmp/gpll0-admission-final-v2/receipt.json SHA17e29e90...，完成后
-源码未变。原厂GMU/SQE GX SMMU0..24和ring25..31 actual C/C++整链全PASS，
+receipt /tmp/gpll0-admission-final-v2/receipt.json SHA17e29e90...，绑定父
+a538e53；随后仅清理测试夹具未用字段和文档，生产源码未变，因此不冒充
+f944723的新receipt。原厂GMU/SQE GX SMMU0..24和ring25..31 actual C/C++整链全PASS，
 无ASanUBSan；MMIO/ACK/IOKit/owner模拟，不是GPU。日志在
 /tmp/gx-smmu-admission-base.8YrhgT/out和/tmp/cp-ring-admission-base.C6bAVt/out。
 CI42959844615 @a538e53完整成功；下载artifact为17563504B SHA0758ee75...，
 链接ring/CP/ZAP但无admission。旧交接误写的17546448B/358faebd已纠正。
-详见docs/cp-execution-admission.md。当前批待commit/push和唯一新完整CI；
-真owner/继承资源ledger/双TBU/secure PA+crypto/PAS13仍缺，CP halt/
-GPU/Metal未执行。无phone操作/重启/切换系统，目标active不停工。
+详见docs/cp-execution-admission.md。此批已commit/push为f944723，唯一完整
+CI42964201439前置全PASS，Build XNU因workflow漏拷两个admission头在
+0087 staging失败，无kernel/artifact；已补workflow并加staging清单回归，
+本地164步receipt SHA d222669e... PASS，准备唯一替代CI。真owner/继承资源
+ledger/双TBU/secure PA+crypto/PAS13仍缺，CP halt/GPU/Metal未执行。无
+phone操作/重启/切换系统，目标active不停工。
 
 2026-11-11 12:20：ZAP authenticated binding/alias批次本地验收PASS。
 `ceph_zap_memory_authenticated`只认证allocator记录：必须处于PAS成功后的

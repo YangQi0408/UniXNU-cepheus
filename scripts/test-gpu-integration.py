@@ -11,6 +11,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Integration(unittest.TestCase):
+    def test_workflow_copies_every_statically_staged_source(self):
+        stage = (ROOT / 'xnu/0087-stage-cepheus-gpu-memory.sh').read_text()
+        workflow = (ROOT / '.github/workflows/touch-kernel.yml').read_text()
+        required = set(re.findall(r'\$here/(cepheus_[A-Za-z0-9_]+\.(?:c|h|cpp))(?![\w.])', stage))
+        self.assertTrue(required)
+        missing = sorted(name for name in required if name not in workflow)
+        self.assertEqual(missing, [], f'workflow omits staged sources: {missing}')
+
     def test_soc_canonical_tail_headers_staged(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);patches=root/'patches';patches.mkdir()
@@ -77,8 +85,8 @@ class Integration(unittest.TestCase):
                                 ('bsd/dev', 'cepheus_cp_native_private.h'),
                                 ('bsd/dev', 'cepheus_cp_ring_native.h'),
                                 ('bsd/dev', 'cepheus_cp_ring_native_private.h'),
-                ('bsd/dev', 'cepheus_cp_execution_admission.h'),
-                ('bsd/dev', 'cepheus_cp_execution_admission_private.h'),
+                                ('bsd/dev', 'cepheus_cp_execution_admission.h'),
+                                ('bsd/dev', 'cepheus_cp_execution_admission_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_api.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_memory_private.h'),
                                 ('iokit/Kernel/arm', 'cepheus_cp_workspace.h'),

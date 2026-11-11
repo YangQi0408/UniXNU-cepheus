@@ -44,7 +44,7 @@ semantics, busy-lock retention, output aliases, wrong-token non-stickiness and
 sticky ring-identity, live-GX and authenticated-ZAP loss. Both run under host
 and ASan/UBSan and pass static analysis.
 
-Focused/full local preflight completed with unchanged source hashes:
+Focused/full local preflight completed on the accepted production source:
 
 - Receipt: `/tmp/gpll0-admission-final-v2/receipt.json`
 - Receipt SHA256: `17e29e90417fb50bdddf6751937838effbe83dbe977de9e1cd8d7ce79aecd60d`
@@ -61,6 +61,10 @@ The real-firmware logs are preserved under:
 These prove firmware parsing and the actual C/C++ backend chain, not phone GPU
 execution. No sanitizer reports were found.
 
+The receipt names parent commit `a538e53` because the final test-fixture
+cleanup and documentation binding followed it. Those edits did not change
+production bytes; the receipt is not presented as a fresh `f944723` run.
+
 ## Previous Build Identity Correction
 
 CI42959844615 completed SUCCESS for `a538e534801b69765066fef4b801afcf3cc77a3b`.
@@ -72,6 +76,13 @@ This corrects the earlier handoff text that attached17546448 bytes and
 but not this subsequent admission batch. It does not accept current HEAD.
 
 ## Remaining Boundary
+
+This batch is committed/pushed as
+`f9447238ca206537a6e263da15694cd8d663a975`. Its single complete-kernel build
+CI42964201439 passed steps1..8 but failed during `0087` staging because the
+workflow copy manifest omitted both admission headers. No kernel artifact was
+produced. The manifest and a staging-copy regression are fixed locally; the
+replacement build is not artifact acceptance until it completes.
 
 Real owner/inherited resource ledger, both TBUs, secure PA/crypto and PAS13
 remain unresolved. PAS13=false/supported=false still refuses startup. Admission
