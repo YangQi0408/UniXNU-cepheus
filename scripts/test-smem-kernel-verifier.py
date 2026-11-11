@@ -27,6 +27,7 @@ def main():
 1104: ret
 '''
     VERIFY.inspect(assembly)
+    VERIFY.inspect(assembly.replace('1014: ret','1014: bl 0x2100 <_memmove>\n1018: ret'))
     bad = [assembly.replace('1014: ret', '1014: smc #0'),
            assembly.replace('1014: ret', '1014: blr x8'),
            assembly.replace('<_printf>', '<_gpu_probe>'),

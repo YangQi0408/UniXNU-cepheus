@@ -70,7 +70,7 @@ def inspect(assembly):
     require('_swait' in receiver or '_clock_interval_to_deadline' in receiver,
             'missing receiver delay')
     allowed = {'_PE_boot_args', '_SecureDTLookupEntry', '_SecureDTGetProperty', '_printf',
-               '_memcpy', '_bcopy', '_swait', '_clock_interval_to_deadline',
+               '_memcpy', '_memmove', '_bcopy', '_swait', '_clock_interval_to_deadline',
                '_assert_wait_deadline', '_thread_block', '___stack_chk_fail', '_bcmp', '_memcmp',
                '_ceph_smem_map_profile', '_ceph_smem_map_valid', '_ceph_smem_map_checksum',
                '_ceph_smem_map_cpu_supported', '_ceph_smem_map_diagnostic_pass'}
